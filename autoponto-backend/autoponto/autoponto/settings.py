@@ -4,6 +4,26 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+REPO_ROOT = BASE_DIR.parent.parent
+
+
+def carregar_env_raiz() -> None:
+    env_path = REPO_ROOT / ".env"
+    if not env_path.exists():
+        return
+
+    for linha in env_path.read_text(encoding="utf-8").splitlines():
+        linha = linha.strip()
+        if not linha or linha.startswith("#") or "=" not in linha:
+            continue
+        chave, valor = linha.split("=", 1)
+        chave = chave.strip()
+        valor = valor.strip().strip('"').strip("'")
+        if chave:
+            os.environ.setdefault(chave, valor)
+
+
+carregar_env_raiz()
 
 SECRET_KEY = os.getenv(
     "DJANGO_SECRET_KEY",
@@ -57,32 +77,34 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "autoponto.wsgi.application"
 
-database_engine = os.getenv("DATABASE_ENGINE", "django.db.backends.sqlite3")
-database_name = os.getenv("DATABASE_NAME", "db.sqlite3")
 database_url = os.getenv("DATABASE_URL", "")
+database_connect_timeout = int(os.getenv("DATABASE_CONNECT_TIMEOUT_SECONDS", "5"))
 
 if database_url:
     parsed_database = urlparse(database_url)
-    database_engine = "django.db.backends.postgresql" if parsed_database.scheme.startswith("postgres") else database_engine
+    if not parsed_database.scheme.startswith("postgres"):
+        raise RuntimeError("DATABASE_URL deve usar PostgreSQL neste projeto.")
     DATABASES = {
         "default": {
-            "ENGINE": database_engine,
+            "ENGINE": "django.db.backends.postgresql",
             "NAME": parsed_database.path.lstrip("/"),
             "USER": unquote(parsed_database.username or ""),
             "PASSWORD": unquote(parsed_database.password or ""),
             "HOST": parsed_database.hostname or "",
             "PORT": str(parsed_database.port or ""),
+            "OPTIONS": {"connect_timeout": database_connect_timeout},
         }
     }
 else:
     DATABASES = {
         "default": {
-            "ENGINE": database_engine,
-            "NAME": str(BASE_DIR / database_name) if database_engine == "django.db.backends.sqlite3" else database_name,
-            "USER": os.getenv("DATABASE_USER", ""),
-            "PASSWORD": os.getenv("DATABASE_PASSWORD", ""),
-            "HOST": os.getenv("DATABASE_HOST", ""),
-            "PORT": os.getenv("DATABASE_PORT", ""),
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("DATABASE_NAME", "autoponto"),
+            "USER": os.getenv("DATABASE_USER", "autoponto"),
+            "PASSWORD": os.getenv("DATABASE_PASSWORD", "autoponto"),
+            "HOST": os.getenv("DATABASE_HOST", "localhost"),
+            "PORT": os.getenv("DATABASE_PORT", "5432"),
+            "OPTIONS": {"connect_timeout": database_connect_timeout},
         }
     }
 

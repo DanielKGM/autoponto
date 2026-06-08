@@ -30,6 +30,8 @@ A URL base vem de:
 VITE_API_URL
 ```
 
+O Vite usa `envDir: ".."`, portanto essa variavel deve ficar no `.env` unico da raiz do repositorio. O mesmo valor `VITE_API_URL=/api` funciona no desenvolvimento local porque o servidor Vite tem proxy para `http://localhost:8000`, e tambem funciona no Docker porque o Nginx encaminha `/api/` para o backend.
+
 ## Telas
 
 Todas as telas estao em `src/App.tsx` para manter o MVP pequeno e facil de explicar.

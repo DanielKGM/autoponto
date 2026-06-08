@@ -6,21 +6,20 @@ Este documento explica como rodar apenas a API Django/DRF do AutoPonto.
 
 - Python 3.13.
 - Uma venv Python.
-- SQLite para desenvolvimento local simples.
-- Postgres para o deploy com Docker Compose.
+- PostgreSQL para desenvolvimento local, testes e deploy.
 
 ## Ambiente Local
 
-Entre na pasta do backend:
-
-```bash
-cd autoponto-backend
-```
-
-Crie o arquivo de ambiente:
+Crie o arquivo de ambiente na raiz do repositorio:
 
 ```bash
 cp .env.example .env
+```
+
+O backend carrega esse `.env` da raiz automaticamente em execucao local. Depois entre na pasta do backend:
+
+```bash
+cd autoponto-backend
 ```
 
 Instale dependencias:
@@ -37,6 +36,16 @@ No Windows PowerShell, se a venv ja existir na raiz do repositorio, tambem pode 
 ```
 
 ## Banco E Servidor
+
+O backend usa PostgreSQL como unico banco suportado. Para desenvolvimento local, a forma mais simples e subir o servico `db` do Compose:
+
+```bash
+cd ..
+docker compose up -d db
+cd autoponto-backend
+```
+
+O `.env.example` da raiz usa `DATABASE_HOST=localhost`, porque fora do Docker o backend acessa o Postgres pela porta publicada `5432`. Dentro do Compose, o `docker-compose.yml` injeta `DATABASE_HOST=db` apenas no container do backend.
 
 Aplicar migrations:
 

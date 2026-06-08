@@ -9,16 +9,16 @@ Este documento explica como rodar apenas o painel React/Vite do AutoPonto.
 
 ## Ambiente Local
 
-Entre na pasta do frontend:
-
-```bash
-cd autoponto-frontend
-```
-
-Crie o arquivo de ambiente:
+Crie o arquivo de ambiente na raiz do repositorio:
 
 ```bash
 cp .env.example .env
+```
+
+O Vite esta configurado com `envDir: ".."`, entao ele le esse `.env` da raiz. Depois entre na pasta do frontend:
+
+```bash
+cd autoponto-frontend
 ```
 
 Instale dependencias:
@@ -40,16 +40,10 @@ URL padrao:
 ## Variavel De API
 
 ```env
-VITE_API_URL=http://localhost:8000/api
-```
-
-No Docker Compose, o frontend usa:
-
-```env
 VITE_API_URL=/api
 ```
 
-Nesse modo, o Nginx do frontend encaminha `/api/` para o backend.
+Com `npm run dev`, o Vite encaminha `/api` para `http://localhost:8000`. No Docker Compose, o Nginx do frontend encaminha `/api/` para o backend.
 
 ## Build
 
