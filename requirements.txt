@@ -1,0 +1,14 @@
+asgiref
+Django
+django-extensions
+django-filter
+djangorestframework
+djangorestframework-simplejwt
+drf-spectacular
+msgpack
+numpy
+opencv-python-headless
+pillow
+psycopg[binary]
+sqlparse
+tzdata

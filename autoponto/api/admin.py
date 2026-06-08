@@ -1,0 +1,151 @@
+from django.contrib import admin
+
+from api.models import (
+    Aula,
+    Campus,
+    ComandoBorda,
+    Curso,
+    Disciplina,
+    DispositivoEsp32,
+    EmbeddingFacial,
+    EventoReconhecimento,
+    HorarioAula,
+    MatriculaTurma,
+    NoBorda,
+    PerfilBiometrico,
+    PeriodoLetivo,
+    Predio,
+    RegistroPresenca,
+    Sala,
+    TokenNoBorda,
+    Turma,
+    Usuario,
+)
+
+
+@admin.register(Usuario)
+class UsuarioAdmin(admin.ModelAdmin):
+    list_display = ("username", "email", "papel", "matricula", "is_active")
+    search_fields = ("username", "email", "nome_completo", "matricula")
+    list_filter = ("papel", "is_active")
+
+
+@admin.register(Campus)
+class CampusAdmin(admin.ModelAdmin):
+    list_display = ("codigo", "nome", "ativo")
+    search_fields = ("codigo", "nome")
+    list_filter = ("ativo",)
+
+
+@admin.register(Predio)
+class PredioAdmin(admin.ModelAdmin):
+    list_display = ("codigo", "nome", "campus", "ativo")
+    search_fields = ("codigo", "nome")
+    list_filter = ("campus", "ativo")
+
+
+@admin.register(Sala)
+class SalaAdmin(admin.ModelAdmin):
+    list_display = ("codigo", "nome", "predio", "capacidade", "ativo")
+    search_fields = ("codigo", "nome")
+    list_filter = ("predio", "ativo")
+
+
+@admin.register(PeriodoLetivo)
+class PeriodoLetivoAdmin(admin.ModelAdmin):
+    list_display = ("nome", "data_inicio", "data_fim", "ativo")
+    list_filter = ("ativo",)
+
+
+@admin.register(Curso)
+class CursoAdmin(admin.ModelAdmin):
+    list_display = ("codigo", "nome", "campus", "turno", "ativo")
+    search_fields = ("codigo", "nome")
+    list_filter = ("campus", "turno", "ativo")
+
+
+@admin.register(Disciplina)
+class DisciplinaAdmin(admin.ModelAdmin):
+    list_display = ("codigo", "nome", "curso", "periodo_sugerido", "carga_horaria", "ativo")
+    search_fields = ("codigo", "nome")
+    list_filter = ("curso", "periodo_sugerido", "ativo")
+
+
+@admin.register(Turma)
+class TurmaAdmin(admin.ModelAdmin):
+    list_display = ("codigo", "nome", "disciplina", "periodo_letivo", "ativo")
+    search_fields = ("codigo", "nome", "disciplina__nome", "disciplina__codigo")
+    list_filter = ("periodo_letivo", "disciplina", "ativo")
+    filter_horizontal = ("professores",)
+
+
+@admin.register(MatriculaTurma)
+class MatriculaTurmaAdmin(admin.ModelAdmin):
+    list_display = ("turma", "aluno", "ativo", "matriculado_em")
+    search_fields = ("turma__disciplina__nome", "aluno__username", "aluno__matricula")
+    list_filter = ("turma", "ativo")
+
+
+@admin.register(HorarioAula)
+class HorarioAulaAdmin(admin.ModelAdmin):
+    list_display = ("turma", "sala", "dia_semana", "horario_inicio", "horario_fim", "ativo")
+    list_filter = ("dia_semana", "sala", "ativo")
+
+
+@admin.register(NoBorda)
+class NoBordaAdmin(admin.ModelAdmin):
+    list_display = ("codigo", "nome", "ativo", "ultimo_sync_em", "versao_software", "interscity_uuid")
+    search_fields = ("codigo", "nome", "interscity_uuid")
+    list_filter = ("ativo",)
+
+
+@admin.register(TokenNoBorda)
+class TokenNoBordaAdmin(admin.ModelAdmin):
+    list_display = ("no", "nome", "prefixo_token", "ativo", "expira_em", "ultimo_uso_em")
+    list_filter = ("ativo", "no")
+    readonly_fields = ("hash_token", "prefixo_token")
+
+
+@admin.register(DispositivoEsp32)
+class DispositivoEsp32Admin(admin.ModelAdmin):
+    list_display = ("codigo", "nome", "no", "sala", "ativo", "versao_firmware", "interscity_uuid")
+    search_fields = ("codigo", "nome", "interscity_uuid")
+    list_filter = ("no", "sala", "ativo")
+
+
+@admin.register(Aula)
+class AulaAdmin(admin.ModelAdmin):
+    list_display = ("horario", "data", "inicio", "fim", "status")
+    list_filter = ("status", "data")
+
+
+@admin.register(RegistroPresenca)
+class RegistroPresencaAdmin(admin.ModelAdmin):
+    list_display = ("aula", "aluno", "status", "registrado_em", "registrado_por_dispositivo")
+    search_fields = ("aluno__username", "aluno__matricula")
+    list_filter = ("status", "aula")
+
+
+@admin.register(EventoReconhecimento)
+class EventoReconhecimentoAdmin(admin.ModelAdmin):
+    list_display = ("dispositivo", "aula", "aluno_candidato", "confianca", "reconhecido", "ocorrido_em")
+    list_filter = ("reconhecido", "dispositivo")
+
+
+@admin.register(PerfilBiometrico)
+class PerfilBiometricoAdmin(admin.ModelAdmin):
+    list_display = ("aluno", "status")
+    search_fields = ("aluno__username", "aluno__matricula")
+    list_filter = ("status",)
+
+
+@admin.register(EmbeddingFacial)
+class EmbeddingFacialAdmin(admin.ModelAdmin):
+    list_display = ("perfil", "versao_modelo", "pontuacao_qualidade", "status", "ativo")
+    list_filter = ("status", "ativo", "versao_modelo")
+
+
+@admin.register(ComandoBorda)
+class ComandoBordaAdmin(admin.ModelAdmin):
+    list_display = ("no", "dispositivo", "tipo", "status", "origem", "capacidade", "entregue_em")
+    list_filter = ("status", "origem", "capacidade")
