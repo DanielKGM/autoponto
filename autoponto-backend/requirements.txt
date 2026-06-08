@@ -1,0 +1,17 @@
+asgiref
+Django
+django-cors-headers
+django-extensions
+django-filter
+djangorestframework
+djangorestframework-simplejwt
+drf-spectacular
+gunicorn
+msgpack
+numpy
+opencv-python-headless
+pillow
+psycopg[binary]
+sqlparse
+tzdata
+whitenoise

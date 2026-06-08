@@ -21,6 +21,9 @@ referencia-interscity
 build/
 develop-eggs/
 dist/
+node_modules/
+autoponto-frontend/node_modules/
+autoponto-frontend/dist/
 downloads/
 eggs/
 .eggs/
@@ -70,6 +73,10 @@ cover/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
+staticfiles/
+autoponto-backend/autoponto/db.sqlite3
+autoponto-backend/autoponto/staticfiles/
+autoponto-backend/staticfiles/
 
 # Flask stuff:
 instance/

@@ -1,0 +1,11 @@
+.git
+.venv
+__pycache__
+*.pyc
+*.sqlite3
+autoponto-backend/autoponto/db.sqlite3
+autoponto-backend/autoponto/staticfiles
+autoponto-frontend/node_modules
+autoponto-frontend/dist
+referencia-edge
+referencia-interscity
