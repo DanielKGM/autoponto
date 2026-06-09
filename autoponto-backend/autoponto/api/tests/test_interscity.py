@@ -8,7 +8,11 @@ from api.services.interscity import ClienteInterSCity
 
 
 class ClienteInterSCityTests(SimpleTestCase):
-    @override_settings(INTERSCITY_ENABLED=True, INTERSCITY_ADAPTOR_URL="http://interscity.example/adaptor")
+    @override_settings(
+        INTERSCITY_ENABLED=True,
+        INTERSCITY_BASE_URL="http://interscity.example",
+        INTERSCITY_ADAPTOR_PATH="/adaptor",
+    )
     @patch("api.services.interscity.urlopen")
     def test_publicar_dados_recurso_envia_para_resource_adaptor(self, urlopen):
         cliente = ClienteInterSCity()
@@ -26,7 +30,11 @@ class ClienteInterSCityTests(SimpleTestCase):
         self.assertIn(b"autoponto_device_status", requisicao.data)
         self.assertIn(b"online", requisicao.data)
 
-    @override_settings(INTERSCITY_ENABLED=True, INTERSCITY_ADAPTOR_URL="http://interscity.example/adaptor")
+    @override_settings(
+        INTERSCITY_ENABLED=True,
+        INTERSCITY_BASE_URL="http://interscity.example",
+        INTERSCITY_ADAPTOR_PATH="/adaptor",
+    )
     @patch("api.services.interscity.urlopen", side_effect=URLError("offline"))
     def test_publicar_dados_recurso_retorna_false_quando_interscity_indisponivel(self, urlopen):
         cliente = ClienteInterSCity()
@@ -39,7 +47,11 @@ class ClienteInterSCityTests(SimpleTestCase):
 
         self.assertFalse(ok)
 
-    @override_settings(INTERSCITY_ENABLED=True, INTERSCITY_CATALOG_URL="http://interscity.example/catalog")
+    @override_settings(
+        INTERSCITY_ENABLED=True,
+        INTERSCITY_BASE_URL="http://interscity.example",
+        INTERSCITY_CATALOG_PATH="/catalog",
+    )
     @patch("api.services.interscity.urlopen")
     def test_registrar_recurso_catalogo_usa_resource_cataloguer(self, urlopen):
         cliente = ClienteInterSCity()
@@ -70,11 +82,12 @@ class ClienteInterSCityTests(SimpleTestCase):
 
     @override_settings(
         INTERSCITY_ENABLED=True,
-        INTERSCITY_CATALOG_URL="http://interscity.example/catalog",
-        INTERSCITY_DISCOVERY_URL="http://interscity.example/discovery",
-        INTERSCITY_COLLECTOR_URL="http://interscity.example/collector",
-        INTERSCITY_ADAPTOR_URL="http://interscity.example/adaptor",
-        INTERSCITY_ACTUATOR_URL="http://interscity.example/actuator",
+        INTERSCITY_BASE_URL="http://interscity.example",
+        INTERSCITY_CATALOG_PATH="/catalog",
+        INTERSCITY_DISCOVERY_PATH="/discovery",
+        INTERSCITY_COLLECTOR_PATH="/collector",
+        INTERSCITY_ADAPTOR_PATH="/adaptor",
+        INTERSCITY_ACTUATOR_PATH="/actuator",
     )
     @patch("api.services.interscity.urlopen")
     def test_diagnostico_retorna_status_individual_para_todos_os_microsservicos(self, urlopen):

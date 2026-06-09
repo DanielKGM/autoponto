@@ -9,13 +9,13 @@ Este documento explica como rodar apenas o painel React/Vite do AutoPonto.
 
 ## Ambiente Local
 
-Crie o arquivo de ambiente na raiz do repositorio:
+Na raiz do repositorio, crie o arquivo de ambiente:
 
 ```bash
 cp .env.example .env
 ```
 
-O Vite esta configurado com `envDir: ".."`, entao ele le esse `.env` da raiz. Depois entre na pasta do frontend:
+Preencha os valores sensiveis vazios antes de rodar o Compose ou o backend. O Vite esta configurado com `envDir: ".."`, entao ele le esse `.env` da raiz. Depois entre na pasta do frontend:
 
 ```bash
 cd autoponto-frontend

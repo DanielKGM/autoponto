@@ -10,13 +10,13 @@ Este documento explica como rodar apenas a API Django/DRF do AutoPonto.
 
 ## Ambiente Local
 
-Crie o arquivo de ambiente na raiz do repositorio:
+Na raiz do repositorio, crie o arquivo de ambiente:
 
 ```bash
 cp .env.example .env
 ```
 
-O backend carrega esse `.env` da raiz automaticamente em execucao local. Depois entre na pasta do backend:
+Preencha os valores sensiveis que aparecem vazios no exemplo, principalmente `DJANGO_SECRET_KEY` e `DATABASE_PASSWORD`. O backend falha ao iniciar se uma variavel obrigatoria estiver ausente ou vazia. Depois entre na pasta do backend:
 
 ```bash
 cd autoponto-backend
@@ -99,8 +99,9 @@ Servicos:
 
 - `DJANGO_SECRET_KEY`: segredo do Django.
 - `DJANGO_DEBUG`: `True` em desenvolvimento, `False` em deploy.
-- `DATABASE_*` ou `DATABASE_URL`: configuracao do banco.
+- `DATABASE_*`: configuracao PostgreSQL; `DATABASE_URL` nao e usado neste MVP.
 - `CORS_ALLOWED_ORIGINS`: origens aceitas para o frontend.
 - `INTERSCITY_ENABLED`: ativa/desativa integracao externa.
+- `INTERSCITY_BASE_URL` e `INTERSCITY_*_PATH`: base da instancia Interscity e path de cada microsservico.
 - `FACE_DUPLICATE_THRESHOLD`: limite para bloquear rosto duplicado.
 - `EDGE_SYNC_DAYS_BACK` e `EDGE_SYNC_DAYS_FORWARD`: janela de sincronizacao do Raspberry.

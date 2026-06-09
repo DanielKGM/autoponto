@@ -29,7 +29,6 @@ class IntegracaoEdgeTests(APITestCase):
             perfil=perfil,
             versao_modelo="sface-v1",
             vetor=[0.01, 0.02, 0.03, 0.04],
-            pontuacao_qualidade="0.9900",
             status="ATIVO",
             ativo=True,
         )
@@ -60,6 +59,9 @@ class IntegracaoEdgeTests(APITestCase):
             payload["data"]["enrollments"][0],
             {"lesson_id": aula["id"], "student_id": str(self.contexto["aluno"].id)},
         )
+        self.assertIn("attendance_starts_at", aula)
+        self.assertIn("attendance_ends_at", aula)
+        self.assertEqual(aula["status"], "PLANEJADA")
         self.assertIn("lessons", payload["cursors"])
 
     def test_pull_incremental_informa_dispositivo_inativo_como_deleted(self):
@@ -107,6 +109,36 @@ class IntegracaoEdgeTests(APITestCase):
         self.assertEqual(RegistroPresenca.objects.count(), 1)
         self.assertEqual(EventoReconhecimento.objects.count(), 1)
         self.assertEqual(EventoReconhecimento.objects.get().id_evento_origem, "edge-event-1")
+
+    def test_envio_de_presenca_fora_da_janela_e_rejeitado(self):
+        horario = self.contexto["horario"]
+        horario.fecha_chamada_minutos = 30
+        horario.save(update_fields=["fecha_chamada_minutos", "atualizado_em"])
+        aula_id = self.client.get(
+            "/api/edge/pull",
+            {"node_id": self.no.codigo, "from_date": "2026-04-20", "to_date": "2026-04-20"},
+        ).data["data"]["lessons"][0]["id"]
+
+        resposta = self.client.post(
+            "/api/edge/attendance",
+            {
+                "node_id": self.no.codigo,
+                "events": [
+                    {
+                        "id": "edge-event-fora",
+                        "student_id": str(self.contexto["aluno"].id),
+                        "lesson_id": aula_id,
+                        "device_id": str(self.contexto["dispositivo"].id),
+                        "recognized_at": "2026-04-20T12:00:00+00:00",
+                        "score": 0.91,
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(resposta.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(RegistroPresenca.objects.count(), 0)
 
     def test_envio_de_presenca_rejeita_dispositivo_de_outro_no(self):
         aula_id = self.client.get(
@@ -163,6 +195,7 @@ class IntegracaoEdgeTests(APITestCase):
         self.assertEqual(comando.no, self.no)
         self.assertEqual(comando.dispositivo, self.contexto["dispositivo"])
         self.assertEqual(comando.status, "PENDENTE")
+        self.assertIsNone(comando.criado_por)
 
         self.client.credentials(HTTP_AUTHORIZATION=f"NodeToken {self.token_bruto}")
         comandos = self.client.get("/api/edge/commands", {"node_id": self.no.codigo})

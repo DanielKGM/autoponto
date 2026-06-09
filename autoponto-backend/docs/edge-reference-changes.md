@@ -47,10 +47,30 @@ Este arquivo lista as mudancas esperadas no `referencia-edge`. O codigo de refer
 ```
 
 - `lessons` sao `Aula` materializadas para a janela configurada por `EDGE_SYNC_DAYS_BACK` e `EDGE_SYNC_DAYS_FORWARD`.
+- Cada item de `lessons` mantem `starts_at` e `ends_at` como duracao da aula e adiciona:
+  - `attendance_starts_at`: inicio real da janela de chamada;
+  - `attendance_ends_at`: fim real da janela de chamada;
+  - `status`: estado atual da aula no backend.
+- O `referencia-edge` deve usar `attendance_starts_at` e `attendance_ends_at` para decidir quando reconhecer/enviar presencas. Os campos `starts_at` e `ends_at` continuam existindo para compatibilidade e contexto da aula.
 - `students[].registration` vem de `Usuario.matricula`.
 - `face_embeddings[].embedding` vem de `EmbeddingFacial.vetor` e permanece compativel com SFace/YuNet.
-- Registros inativos sao enviados em `deleted`; nao existe mais `SyncTombstone`.
+- Registros inativos, aulas canceladas e aulas com chamada fechada sao enviados em `deleted`; nao existe mais `SyncTombstone`.
 - Cursores continuam sendo enviados pelo edge como `msgpack` em hexadecimal; se ausentes, a API retorna a janela completa.
+
+Exemplo de aula no pull:
+
+```json
+{
+  "id": "uuid-da-aula",
+  "name": "Desenvolvimento de Sistemas Web - A",
+  "locale_id": "uuid-da-sala",
+  "starts_at": "2026-04-20T11:00:00Z",
+  "ends_at": "2026-04-20T12:40:00Z",
+  "attendance_starts_at": "2026-04-20T11:05:00Z",
+  "attendance_ends_at": "2026-04-20T12:00:00Z",
+  "status": "PLANEJADA"
+}
+```
 
 ## Attendance
 
@@ -75,8 +95,17 @@ Este arquivo lista as mudancas esperadas no `referencia-edge`. O codigo de refer
 - A API valida se o dispositivo pertence ao no autenticado.
 - A API valida se a aula pertence a sala do dispositivo.
 - A API valida se o aluno esta matriculado na turma da aula.
+- A API valida se `recognized_at` esta dentro de `attendance_starts_at` e `attendance_ends_at`.
+- A API rejeita eventos para aulas `FECHADA` ou `CANCELADA`.
 - Evento repetido com o mesmo `id` e idempotente: nao cria nova presenca nem novo evento.
 - A resposta confirma os eventos aceitos em `synced_ids`.
+
+Mudancas necessarias no `referencia-edge`:
+
+- Persistir os novos campos de janela de chamada no cache local de aulas.
+- Parar de aceitar/enfileirar novos reconhecimentos quando a aula estiver fora da janela ou aparecer em `deleted.lessons`.
+- Continuar enviando eventos pendentes antigos; se a API rejeitar por janela fechada, marcar localmente como nao sincronizavel ou exigir reprocessamento manual.
+- Nao enviar frames, embeddings ou imagens para a API principal; enviar somente o evento final de presenca.
 
 ## Comandos
 
@@ -85,6 +114,7 @@ O edge deve adicionar uma etapa no loop de sync:
 - `GET /api/edge/commands?node_id=<NO_ID>` busca comandos pendentes.
 - O Raspberry repassa o comando para a ESP32 correta por MQTT/local.
 - `POST /api/edge/commands/ack` confirma com `DELIVERED`, `FAILED` ou `REJECTED`.
+- Comandos criados pelo backend administrativo registram o usuario emissor em `ComandoBorda.criado_por`; isso nao muda o payload recebido pelo edge.
 
 Payload de busca:
 

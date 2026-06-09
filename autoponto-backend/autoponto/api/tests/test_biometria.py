@@ -28,8 +28,6 @@ class MatriculaBiometricaTests(APITestCase):
                 "aluno_id": str(self.contexto["aluno"].id),
                 "capturas": ["ZmFrZS1qcGVnLTE=", "ZmFrZS1qcGVnLTI="],
                 "versao_modelo": "sface-v1",
-                "pontuacao_qualidade": 0.98,
-                "metadados_origem": {"origem": "admin-console"},
             },
             format="json",
         )
@@ -38,7 +36,4 @@ class MatriculaBiometricaTests(APITestCase):
         gerador.gerar_embedding.assert_called_once_with(["ZmFrZS1qcGVnLTE=", "ZmFrZS1qcGVnLTI="])
         embedding = EmbeddingFacial.objects.get()
         self.assertEqual(embedding.vetor, [0.1, 0.2, 0.3, 0.4])
-        self.assertEqual(embedding.metadados_origem["origem"], "admin-console")
-        self.assertEqual(embedding.metadados_origem["quantidade_faces"], 2)
-        self.assertNotIn("capturas", embedding.metadados_origem)
-        self.assertNotIn("frames", embedding.metadados_origem)
+        self.assertEqual(EmbeddingFacial.objects.count(), 1)

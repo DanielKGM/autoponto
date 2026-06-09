@@ -41,6 +41,8 @@ export type PresencaAluno = {
   data: string;
   inicio: string;
   fim: string;
+  chamada_inicio: string;
+  chamada_fim: string;
   sala: string;
   status: string;
   registrado_em: string;
@@ -49,7 +51,17 @@ export type PresencaAluno = {
 
 export type RelatorioTurmaData = TurmaResumo & {
   data: string;
-  aulas: Array<{ aula_id: string; inicio: string; fim: string; status: string; sala: string }>;
+  aulas: Array<{
+    aula_id: string;
+    inicio: string;
+    fim: string;
+    chamada_inicio: string;
+    chamada_fim: string;
+    status: string;
+    fechada_em: string | null;
+    fechada_por: string | null;
+    sala: string;
+  }>;
   totais: { presentes: number; ausentes: number; matriculados: number };
   alunos: Array<{ aluno_id: string; nome: string; matricula: string; status: string; registrado_em: string | null }>;
 };
@@ -75,7 +87,6 @@ export type UsuarioCrud = UsuarioAtual & {
 export type TurmaCrud = {
   id: string;
   codigo: string;
-  nome: string;
   disciplina: string;
   periodo_letivo: string;
   professores: string[];

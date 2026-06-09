@@ -1,7 +1,6 @@
 import os
 from datetime import timedelta
 from pathlib import Path
-from urllib.parse import unquote, urlparse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 REPO_ROOT = BASE_DIR.parent.parent
@@ -25,12 +24,41 @@ def carregar_env_raiz() -> None:
 
 carregar_env_raiz()
 
-SECRET_KEY = os.getenv(
-    "DJANGO_SECRET_KEY",
-    "django-insecure-q27bpsxxo#5r^6mf2f*nri!6(j+8r0=)wnfyhut7@gs=&ldq5d",
-)
-DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() == "true"
-ALLOWED_HOSTS = [host.strip() for host in os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",") if host.strip()]
+
+def env_obrigatoria(nome: str, *, permitir_vazio: bool = False) -> str:
+    if nome not in os.environ:
+        raise RuntimeError(f"Variavel de ambiente obrigatoria ausente: {nome}")
+    valor = os.environ[nome]
+    if not permitir_vazio and valor == "":
+        raise RuntimeError(f"Variavel de ambiente obrigatoria vazia: {nome}")
+    return valor
+
+
+def env_int(nome: str) -> int:
+    return int(env_obrigatoria(nome))
+
+
+def env_float(nome: str) -> float:
+    return float(env_obrigatoria(nome))
+
+
+def env_bool(nome: str) -> bool:
+    valor = env_obrigatoria(nome).lower()
+    if valor not in {"true", "false"}:
+        raise RuntimeError(f"Variavel {nome} deve ser True ou False.")
+    return valor == "true"
+
+
+def env_lista(nome: str) -> list[str]:
+    valores = [item.strip() for item in env_obrigatoria(nome).split(",") if item.strip()]
+    if not valores:
+        raise RuntimeError(f"Variavel {nome} deve conter ao menos um valor.")
+    return valores
+
+
+SECRET_KEY = env_obrigatoria("DJANGO_SECRET_KEY")
+DEBUG = env_bool("DJANGO_DEBUG")
+ALLOWED_HOSTS = env_lista("DJANGO_ALLOWED_HOSTS")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -77,36 +105,19 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "autoponto.wsgi.application"
 
-database_url = os.getenv("DATABASE_URL", "")
-database_connect_timeout = int(os.getenv("DATABASE_CONNECT_TIMEOUT_SECONDS", "5"))
+database_connect_timeout = env_int("DATABASE_CONNECT_TIMEOUT_SECONDS")
 
-if database_url:
-    parsed_database = urlparse(database_url)
-    if not parsed_database.scheme.startswith("postgres"):
-        raise RuntimeError("DATABASE_URL deve usar PostgreSQL neste projeto.")
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": parsed_database.path.lstrip("/"),
-            "USER": unquote(parsed_database.username or ""),
-            "PASSWORD": unquote(parsed_database.password or ""),
-            "HOST": parsed_database.hostname or "",
-            "PORT": str(parsed_database.port or ""),
-            "OPTIONS": {"connect_timeout": database_connect_timeout},
-        }
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": env_obrigatoria("DATABASE_NAME"),
+        "USER": env_obrigatoria("DATABASE_USER"),
+        "PASSWORD": env_obrigatoria("DATABASE_PASSWORD"),
+        "HOST": env_obrigatoria("DATABASE_HOST"),
+        "PORT": env_obrigatoria("DATABASE_PORT"),
+        "OPTIONS": {"connect_timeout": database_connect_timeout},
     }
-else:
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": os.getenv("DATABASE_NAME", "autoponto"),
-            "USER": os.getenv("DATABASE_USER", "autoponto"),
-            "PASSWORD": os.getenv("DATABASE_PASSWORD", "autoponto"),
-            "HOST": os.getenv("DATABASE_HOST", "localhost"),
-            "PORT": os.getenv("DATABASE_PORT", "5432"),
-            "OPTIONS": {"connect_timeout": database_connect_timeout},
-        }
-    }
+}
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -124,7 +135,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = "pt-br"
-TIME_ZONE = os.getenv("TIME_ZONE", "America/Sao_Paulo")
+TIME_ZONE = env_obrigatoria("TIME_ZONE")
 USE_I18N = True
 USE_TZ = True
 
@@ -132,16 +143,8 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
-CORS_ALLOWED_ORIGINS = [
-    origem.strip()
-    for origem in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:8080").split(",")
-    if origem.strip()
-]
-CSRF_TRUSTED_ORIGINS = [
-    origem.strip()
-    for origem in os.getenv("CSRF_TRUSTED_ORIGINS", "http://localhost:5173,http://localhost:8080").split(",")
-    if origem.strip()
-]
+CORS_ALLOWED_ORIGINS = env_lista("CORS_ALLOWED_ORIGINS")
+CSRF_TRUSTED_ORIGINS = env_lista("CSRF_TRUSTED_ORIGINS")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "api.Usuario"
@@ -166,8 +169,8 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=int(os.getenv("JWT_ACCESS_TOKEN_MINUTES", "15"))),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=int(os.getenv("JWT_REFRESH_TOKEN_DAYS", "1"))),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=env_int("JWT_ACCESS_TOKEN_MINUTES")),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=env_int("JWT_REFRESH_TOKEN_DAYS")),
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
@@ -178,19 +181,19 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
-EDGE_SYNC_DAYS_BACK = int(os.getenv("EDGE_SYNC_DAYS_BACK", "1"))
-EDGE_SYNC_DAYS_FORWARD = int(os.getenv("EDGE_SYNC_DAYS_FORWARD", "7"))
+EDGE_SYNC_DAYS_BACK = env_int("EDGE_SYNC_DAYS_BACK")
+EDGE_SYNC_DAYS_FORWARD = env_int("EDGE_SYNC_DAYS_FORWARD")
 
-INTERSCITY_ENABLED = os.getenv("INTERSCITY_ENABLED", "False").lower() == "true"
-INTERSCITY_BASE_URL = os.getenv("INTERSCITY_BASE_URL", "https://cidadesinteligentes.lsdi.ufma.br/interscity_lh").rstrip("/")
-INTERSCITY_CATALOG_URL = os.getenv("INTERSCITY_CATALOG_URL", f"{INTERSCITY_BASE_URL}/catalog").rstrip("/")
-INTERSCITY_ADAPTOR_URL = os.getenv("INTERSCITY_ADAPTOR_URL", f"{INTERSCITY_BASE_URL}/adaptor").rstrip("/")
-INTERSCITY_COLLECTOR_URL = os.getenv("INTERSCITY_COLLECTOR_URL", f"{INTERSCITY_BASE_URL}/collector").rstrip("/")
-INTERSCITY_DISCOVERY_URL = os.getenv("INTERSCITY_DISCOVERY_URL", f"{INTERSCITY_BASE_URL}/discovery").rstrip("/")
-INTERSCITY_ACTUATOR_URL = os.getenv("INTERSCITY_ACTUATOR_URL", f"{INTERSCITY_BASE_URL}/actuator").rstrip("/")
-INTERSCITY_TIMEOUT_SECONDS = int(os.getenv("INTERSCITY_TIMEOUT_SECONDS", "5"))
+INTERSCITY_ENABLED = env_bool("INTERSCITY_ENABLED")
+INTERSCITY_BASE_URL = env_obrigatoria("INTERSCITY_BASE_URL").rstrip("/")
+INTERSCITY_CATALOG_PATH = env_obrigatoria("INTERSCITY_CATALOG_PATH")
+INTERSCITY_DISCOVERY_PATH = env_obrigatoria("INTERSCITY_DISCOVERY_PATH")
+INTERSCITY_COLLECTOR_PATH = env_obrigatoria("INTERSCITY_COLLECTOR_PATH")
+INTERSCITY_ADAPTOR_PATH = env_obrigatoria("INTERSCITY_ADAPTOR_PATH")
+INTERSCITY_ACTUATOR_PATH = env_obrigatoria("INTERSCITY_ACTUATOR_PATH")
+INTERSCITY_TIMEOUT_SECONDS = env_int("INTERSCITY_TIMEOUT_SECONDS")
 
-FACE_DETECT_MODEL_PATH = os.getenv("FACE_DETECT_MODEL_PATH", "")
-FACE_RECOG_MODEL_PATH = os.getenv("FACE_RECOG_MODEL_PATH", "")
-FACE_SCORE_THRESHOLD = float(os.getenv("FACE_SCORE_THRESHOLD", "0.85"))
-FACE_DUPLICATE_THRESHOLD = float(os.getenv("FACE_DUPLICATE_THRESHOLD", "0.92"))
+FACE_DETECT_MODEL_PATH = env_obrigatoria("FACE_DETECT_MODEL_PATH", permitir_vazio=True)
+FACE_RECOG_MODEL_PATH = env_obrigatoria("FACE_RECOG_MODEL_PATH", permitir_vazio=True)
+FACE_SCORE_THRESHOLD = env_float("FACE_SCORE_THRESHOLD")
+FACE_DUPLICATE_THRESHOLD = env_float("FACE_DUPLICATE_THRESHOLD")

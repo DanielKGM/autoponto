@@ -5,7 +5,16 @@ from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from api.models import EmbeddingFacial, MatriculaTurma, PapelUsuario, PerfilBiometrico, RegistroPresenca, Usuario
+from api.models import (
+    ComandoBorda,
+    EmbeddingFacial,
+    MatriculaTurma,
+    NoBorda,
+    PapelUsuario,
+    PerfilBiometrico,
+    RegistroPresenca,
+    Usuario,
+)
 from api.services import obter_ou_criar_aula
 from .helpers import criar_contexto_academico
 
@@ -63,7 +72,6 @@ class FrontendApiTests(APITestCase):
             perfil=perfil,
             versao_modelo="sface-v1",
             vetor=[1.0, 0.0, 0.0],
-            pontuacao_qualidade="0.9900",
             status="ATIVO",
             ativo=True,
         )
@@ -75,7 +83,6 @@ class FrontendApiTests(APITestCase):
             {
                 "capturas": ["frame-1"],
                 "versao_modelo": "sface-v1",
-                "pontuacao_qualidade": 0.97,
             },
             format="json",
         )
@@ -141,6 +148,71 @@ class FrontendApiTests(APITestCase):
         self.assertEqual(resposta.status_code, status.HTTP_200_OK)
         self.assertEqual(resposta.data["total_aulas"], 1)
         self.assertEqual(resposta.data["alunos"][0]["percentual_presenca"], 100.0)
+
+    def test_professor_fecha_chamada_da_propria_aula(self):
+        aula, _ = obter_ou_criar_aula(self.contexto["horario"], self.contexto["data_aula"])
+        self.autenticar("professor")
+
+        resposta = self.client.post(f"/api/aulas/{aula.id}/fechar-chamada/")
+
+        self.assertEqual(resposta.status_code, status.HTTP_200_OK)
+        aula.refresh_from_db()
+        self.assertEqual(aula.status, "FECHADA")
+        self.assertEqual(aula.fechada_por, self.contexto["professor"])
+
+    def test_professor_nao_fecha_chamada_de_turma_alheia(self):
+        outro_professor = Usuario.objects.create_user(
+            username="professor2",
+            password="password123",
+            email="professor2@example.com",
+            papel=PapelUsuario.PROFESSOR,
+        )
+        self.contexto["turma"].professores.clear()
+        self.contexto["turma"].professores.add(outro_professor)
+        aula, _ = obter_ou_criar_aula(self.contexto["horario"], self.contexto["data_aula"])
+        self.autenticar("professor")
+
+        resposta = self.client.post(f"/api/aulas/{aula.id}/fechar-chamada/")
+
+        self.assertEqual(resposta.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_professor_define_janela_de_chamada_para_aulas_futuras(self):
+        self.autenticar("professor")
+
+        resposta = self.client.post(
+            f"/api/horarios-aula/{self.contexto['horario'].id}/definir-janela-chamada/",
+            {"abre_chamada_minutos": 5, "fecha_chamada_minutos": 60},
+            format="json",
+        )
+
+        self.assertEqual(resposta.status_code, status.HTTP_200_OK)
+        self.contexto["horario"].refresh_from_db()
+        self.assertEqual(self.contexto["horario"].abre_chamada_minutos, 5)
+        self.assertEqual(self.contexto["horario"].fecha_chamada_minutos, 60)
+
+    def test_admin_cria_comando_borda_com_usuario_emissor(self):
+        no = NoBorda.objects.create(codigo="NO-CCET-01", nome="Raspberry CCET 01")
+        dispositivo = self.contexto["dispositivo"]
+        dispositivo.no = no
+        dispositivo.save(update_fields=["no", "atualizado_em"])
+        self.autenticar("admin")
+
+        resposta = self.client.post(
+            "/api/comandos-borda/",
+            {
+                "no": str(no.id),
+                "dispositivo": str(dispositivo.id),
+                "tipo": "display_message",
+                "payload": {"message": "Chamada aberta"},
+                "capacidade": "autoponto_edge_command",
+            },
+            format="json",
+        )
+
+        self.assertEqual(resposta.status_code, status.HTTP_201_CREATED, resposta.data)
+        comando = ComandoBorda.objects.get()
+        self.assertEqual(comando.criado_por, self.contexto["admin"])
+        self.assertEqual(comando.origem, "backend")
 
     def test_admin_pesquisa_historico_de_presencas_do_aluno(self):
         aula, _ = obter_ou_criar_aula(self.contexto["horario"], self.contexto["data_aula"])

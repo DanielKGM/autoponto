@@ -1,17 +1,22 @@
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from api.models import DispositivoEsp32, NoBorda
+from api.models import ComandoBorda, DispositivoEsp32, NoBorda
 from api.permissions import IsAdministrador
-from api.serializers import DispositivoEsp32Serializer, NoBordaSerializer, TokenNoBordaEmitirSerializer
-from .mixins import AdminReadableModelViewSet
+from api.serializers import (
+    ComandoBordaSerializer,
+    DispositivoEsp32Serializer,
+    NoBordaSerializer,
+    TokenNoBordaEmitirSerializer,
+)
+from .mixins import AdminModelViewSet, AdminReadableModelViewSet
 
 
 class NoBordaViewSet(AdminReadableModelViewSet):
     queryset = NoBorda.objects.all()
     serializer_class = NoBordaSerializer
     filterset_fields = ("ativo",)
-    search_fields = ("codigo", "nome", "versao_software", "interscity_uuid")
+    search_fields = ("codigo", "nome", "interscity_uuid")
 
     @action(
         detail=True,
@@ -43,4 +48,14 @@ class DispositivoEsp32ViewSet(AdminReadableModelViewSet):
     queryset = DispositivoEsp32.objects.select_related("no", "sala").all()
     serializer_class = DispositivoEsp32Serializer
     filterset_fields = ("no", "sala", "ativo")
-    search_fields = ("codigo", "nome", "versao_firmware", "interscity_uuid")
+    search_fields = ("codigo", "nome", "interscity_uuid")
+
+
+class ComandoBordaViewSet(AdminModelViewSet):
+    queryset = ComandoBorda.objects.select_related("no", "dispositivo", "criado_por").all()
+    serializer_class = ComandoBordaSerializer
+    filterset_fields = ("no", "dispositivo", "status", "origem", "criado_por")
+    search_fields = ("tipo", "capacidade", "id_origem", "no__codigo", "dispositivo__codigo")
+
+    def perform_create(self, serializer):
+        serializer.save(criado_por=self.request.user, origem="backend")

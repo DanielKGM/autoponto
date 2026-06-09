@@ -46,7 +46,7 @@ class PredioAdmin(admin.ModelAdmin):
 
 @admin.register(Sala)
 class SalaAdmin(admin.ModelAdmin):
-    list_display = ("codigo", "nome", "predio", "capacidade", "ativo")
+    list_display = ("codigo", "nome", "predio", "ativo")
     search_fields = ("codigo", "nome")
     list_filter = ("predio", "ativo")
 
@@ -59,42 +59,51 @@ class PeriodoLetivoAdmin(admin.ModelAdmin):
 
 @admin.register(Curso)
 class CursoAdmin(admin.ModelAdmin):
-    list_display = ("codigo", "nome", "campus", "turno", "ativo")
+    list_display = ("codigo", "nome", "campus", "ativo")
     search_fields = ("codigo", "nome")
-    list_filter = ("campus", "turno", "ativo")
+    list_filter = ("campus", "ativo")
 
 
 @admin.register(Disciplina)
 class DisciplinaAdmin(admin.ModelAdmin):
-    list_display = ("codigo", "nome", "curso", "periodo_sugerido", "carga_horaria", "ativo")
+    list_display = ("codigo", "nome", "curso", "ativo")
     search_fields = ("codigo", "nome")
-    list_filter = ("curso", "periodo_sugerido", "ativo")
+    list_filter = ("curso", "ativo")
 
 
 @admin.register(Turma)
 class TurmaAdmin(admin.ModelAdmin):
-    list_display = ("codigo", "nome", "disciplina", "periodo_letivo", "ativo")
-    search_fields = ("codigo", "nome", "disciplina__nome", "disciplina__codigo")
+    list_display = ("codigo", "disciplina", "periodo_letivo", "ativo")
+    search_fields = ("codigo", "disciplina__nome", "disciplina__codigo")
     list_filter = ("periodo_letivo", "disciplina", "ativo")
     filter_horizontal = ("professores",)
 
 
 @admin.register(MatriculaTurma)
 class MatriculaTurmaAdmin(admin.ModelAdmin):
-    list_display = ("turma", "aluno", "ativo", "matriculado_em")
+    list_display = ("turma", "aluno", "ativo", "criado_em")
     search_fields = ("turma__disciplina__nome", "aluno__username", "aluno__matricula")
     list_filter = ("turma", "ativo")
 
 
 @admin.register(HorarioAula)
 class HorarioAulaAdmin(admin.ModelAdmin):
-    list_display = ("turma", "sala", "dia_semana", "horario_inicio", "horario_fim", "ativo")
+    list_display = (
+        "turma",
+        "sala",
+        "dia_semana",
+        "horario_inicio",
+        "horario_fim",
+        "abre_chamada_minutos",
+        "fecha_chamada_minutos",
+        "ativo",
+    )
     list_filter = ("dia_semana", "sala", "ativo")
 
 
 @admin.register(NoBorda)
 class NoBordaAdmin(admin.ModelAdmin):
-    list_display = ("codigo", "nome", "ativo", "ultimo_sync_em", "versao_software", "interscity_uuid")
+    list_display = ("codigo", "nome", "ativo", "ultimo_sync_em", "interscity_uuid")
     search_fields = ("codigo", "nome", "interscity_uuid")
     list_filter = ("ativo",)
 
@@ -108,14 +117,14 @@ class TokenNoBordaAdmin(admin.ModelAdmin):
 
 @admin.register(DispositivoEsp32)
 class DispositivoEsp32Admin(admin.ModelAdmin):
-    list_display = ("codigo", "nome", "no", "sala", "ativo", "versao_firmware", "interscity_uuid")
+    list_display = ("codigo", "nome", "no", "sala", "ativo", "interscity_uuid")
     search_fields = ("codigo", "nome", "interscity_uuid")
     list_filter = ("no", "sala", "ativo")
 
 
 @admin.register(Aula)
 class AulaAdmin(admin.ModelAdmin):
-    list_display = ("horario", "data", "inicio", "fim", "status")
+    list_display = ("horario", "data", "inicio", "fim", "chamada_inicio", "chamada_fim", "status", "fechada_por")
     list_filter = ("status", "data")
 
 
@@ -141,11 +150,11 @@ class PerfilBiometricoAdmin(admin.ModelAdmin):
 
 @admin.register(EmbeddingFacial)
 class EmbeddingFacialAdmin(admin.ModelAdmin):
-    list_display = ("perfil", "versao_modelo", "pontuacao_qualidade", "status", "ativo")
+    list_display = ("perfil", "versao_modelo", "status", "ativo")
     list_filter = ("status", "ativo", "versao_modelo")
 
 
 @admin.register(ComandoBorda)
 class ComandoBordaAdmin(admin.ModelAdmin):
-    list_display = ("no", "dispositivo", "tipo", "status", "origem", "capacidade", "entregue_em")
-    list_filter = ("status", "origem", "capacidade")
+    list_display = ("no", "dispositivo", "tipo", "status", "origem", "capacidade", "criado_por", "entregue_em")
+    list_filter = ("status", "origem", "capacidade", "criado_por")

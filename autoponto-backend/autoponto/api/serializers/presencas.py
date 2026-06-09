@@ -26,7 +26,6 @@ class EventoReconhecimentoSubmissionSerializer(serializers.Serializer):
     )
     confianca = serializers.DecimalField(max_digits=5, decimal_places=4)
     reconhecido = serializers.BooleanField()
-    payload = serializers.JSONField(required=False)
 
 
 class EventoReconhecimentoSerializer(serializers.ModelSerializer):

@@ -5,6 +5,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from api.views import (
     AulaViewSet,
     CampusViewSet,
+    ComandoBordaViewSet,
     CursoViewSet,
     DisciplinaViewSet,
     DispositivoEsp32ViewSet,
@@ -54,6 +55,7 @@ router.register("matriculas-turma", MatriculaTurmaViewSet, basename="matricula-t
 router.register("horarios-aula", HorarioAulaViewSet, basename="horario-aula")
 router.register("nos-borda", NoBordaViewSet, basename="no-borda")
 router.register("dispositivos-esp32", DispositivoEsp32ViewSet, basename="dispositivo-esp32")
+router.register("comandos-borda", ComandoBordaViewSet, basename="comando-borda")
 router.register("aulas", AulaViewSet, basename="aula")
 router.register("presencas", RegistroPresencaViewSet, basename="presenca")
 router.register("perfis-biometricos", PerfilBiometricoViewSet, basename="perfil-biometrico")

@@ -1,6 +1,10 @@
 import type { MeResponse } from "./types";
 
-const API_URL = (import.meta.env.VITE_API_URL || "/api").replace(/\/+$/, "");
+const API_URL_ENV = import.meta.env.VITE_API_URL;
+if (!API_URL_ENV) {
+  throw new Error("VITE_API_URL obrigatoria no .env da raiz.");
+}
+const API_URL = API_URL_ENV.replace(/\/+$/, "");
 const ACCESS_KEY = "autoponto_access";
 const REFRESH_KEY = "autoponto_refresh";
 

@@ -74,7 +74,7 @@ class MatriculaTurmaSerializer(serializers.ModelSerializer):
     class Meta:
         model = MatriculaTurma
         fields = "__all__"
-        read_only_fields = ("id", "criado_em", "atualizado_em", "matriculado_em")
+        read_only_fields = ("id", "criado_em", "atualizado_em")
 
 
 class HorarioAulaSerializer(serializers.ModelSerializer):
@@ -82,3 +82,8 @@ class HorarioAulaSerializer(serializers.ModelSerializer):
         model = HorarioAula
         fields = "__all__"
         read_only_fields = ("id", "criado_em", "atualizado_em")
+
+
+class JanelaChamadaSerializer(serializers.Serializer):
+    abre_chamada_minutos = serializers.IntegerField(min_value=0)
+    fecha_chamada_minutos = serializers.IntegerField(min_value=1, required=False, allow_null=True)

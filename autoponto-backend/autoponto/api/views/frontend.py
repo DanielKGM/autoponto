@@ -143,8 +143,6 @@ class MinhaBiometriaView(APIView):
                 aluno=request.user,
                 capturas=serializer.validated_data["capturas"],
                 versao_modelo=serializer.validated_data.get("versao_modelo", "sface"),
-                pontuacao_qualidade=serializer.validated_data.get("pontuacao_qualidade", 0.95),
-                metadados_origem=serializer.validated_data.get("metadados_origem", {}),
             )
         except AppError as erro:
             return _resposta_erro_app(erro)

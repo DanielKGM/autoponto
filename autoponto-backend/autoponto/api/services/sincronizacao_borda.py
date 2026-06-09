@@ -113,8 +113,11 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
     for data in _intervalo_datas(data_inicio, data_fim):
         for sala in salas_ativas:
             aulas.extend(listar_aulas_do_dia(data, sala=sala))
+    aulas_disponiveis = [
+        aula for aula in aulas if aula.status not in {Aula.STATUS_FECHADA, Aula.STATUS_CANCELADA}
+    ]
 
-    turmas = {aula.horario.turma_id for aula in aulas}
+    turmas = {aula.horario.turma_id for aula in aulas_disponiveis}
     matriculas = list(
         MatriculaTurma.objects.select_related("aluno").filter(
             turma_id__in=turmas,
@@ -133,7 +136,10 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
         )
     )
 
-    aula_por_turma = {aula.horario.turma_id: str(aula.id) for aula in aulas}
+    aulas_por_turma = {}
+    for aula in aulas_disponiveis:
+        aulas_por_turma.setdefault(aula.horario.turma_id, []).append(aula)
+
     dados = {
         "locales": [
             {"id": str(sala.id), "name": sala.nome}
@@ -150,8 +156,11 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
                 "locale_id": str(aula.horario.sala_id),
                 "starts_at": _iso(aula.inicio),
                 "ends_at": _iso(aula.fim),
+                "attendance_starts_at": _iso(aula.chamada_inicio),
+                "attendance_ends_at": _iso(aula.chamada_fim),
+                "status": aula.status,
             }
-            for aula in aulas
+            for aula in aulas_disponiveis
         ],
         "students": [
             {
@@ -163,9 +172,9 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
             for aluno in alunos
         ],
         "enrollments": [
-            {"lesson_id": aula_por_turma[matricula.turma_id], "student_id": str(matricula.aluno_id)}
+            {"lesson_id": str(aula.id), "student_id": str(matricula.aluno_id)}
             for matricula in matriculas
-            if matricula.turma_id in aula_por_turma
+            for aula in aulas_por_turma.get(matricula.turma_id, [])
         ],
         "face_embeddings": [
             {"id": str(embedding.id), "student_id": str(embedding.perfil.aluno_id), "embedding": embedding.vetor}
@@ -186,7 +195,11 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
             horario__sala_id__in=[sala.id for sala in salas_do_no if sala],
             data__gte=data_inicio,
             data__lte=data_fim,
-        ).filter(Q(status=Aula.STATUS_CANCELADA) | Q(horario__ativo=False) | Q(horario__turma__ativo=False)),
+        ).filter(
+            Q(status__in=[Aula.STATUS_FECHADA, Aula.STATUS_CANCELADA])
+            | Q(horario__ativo=False)
+            | Q(horario__turma__ativo=False)
+        ),
         cursors.get("lessons"),
     )
     matriculas_inativas = _filtrar_alterados(
@@ -208,9 +221,9 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
         "lessons": [str(aula.id) for aula in aulas_canceladas],
         "students": [str(aluno.id) for aluno in alunos_inativos],
         "enrollments": [
-            {"lesson_id": aula_por_turma[matricula.turma_id], "student_id": str(matricula.aluno_id)}
+            {"lesson_id": str(aula.id), "student_id": str(matricula.aluno_id)}
             for matricula in matriculas_inativas
-            if matricula.turma_id in aula_por_turma
+            for aula in aulas_por_turma.get(matricula.turma_id, [])
         ],
         "face_embeddings": [str(embedding.id) for embedding in embeddings_inativos],
     }
@@ -266,6 +279,11 @@ def _receber_evento_borda(no: NoBorda, evento: dict) -> str:
     if reconhecido_em.tzinfo is None:
         reconhecido_em = timezone.make_aware(reconhecido_em)
 
+    if aula.status in {Aula.STATUS_FECHADA, Aula.STATUS_CANCELADA}:
+        raise ValidationError({"events": "A chamada da aula está fechada ou cancelada."})
+    if reconhecido_em < aula.chamada_inicio or reconhecido_em > aula.chamada_fim:
+        raise ValidationError({"events": "Evento fora da janela de chamada da aula."})
+
     try:
         RegistroPresenca.objects.update_or_create(
             aula=aula,
@@ -286,7 +304,6 @@ def _receber_evento_borda(no: NoBorda, evento: dict) -> str:
         aluno_candidato=aluno,
         confianca=Decimal(str(evento.get("score", 0))).quantize(Decimal("0.0001")),
         reconhecido=True,
-        payload={"edge_event": evento},
         ocorrido_em=reconhecido_em,
     )
     if aula.status == Aula.STATUS_PLANEJADA:

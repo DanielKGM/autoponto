@@ -1,98 +1,217 @@
-# Explicacao Geral Do Codigo
+# Explicacao Geral Do Backend
 
-Este backend e uma API Django/DRF para automatizacao de frequencia academica. A ideia central e manter o AutoPonto como sistema academico canonico e usar edge/Interscity apenas para a camada IoT.
+Este backend e uma API Django/DRF para frequencia academica automatizada por IoT. O AutoPonto guarda o dominio academico minimo para presenca, biometria, relatorios e sincronizacao com Raspberry/ESP32. Ele nao tenta ser um sistema academico completo.
 
-## Modelos
+## Organizacao Do Codigo
 
-Os modelos ficam em `autoponto-backend/autoponto/api/models/`.
+- `autoponto/api/models/`: define as tabelas e regras basicas de integridade.
+- `autoponto/api/serializers/`: valida entrada e transforma modelos em JSON.
+- `autoponto/api/views/`: concentra endpoints HTTP para frontend, admin, edge e Interscity.
+- `autoponto/api/services/`: guarda regras de negocio reutilizaveis, como gerar aula, fechar chamada, registrar presenca e sincronizar edge.
+- `autoponto/api/tests/`: cobre contratos principais do MVP.
 
-- `identidade.py`: define `Usuario` e `PapelUsuario`. Um usuario pode ser aluno, professor ou administrador.
-- `academico.py`: define `Campus`, `Predio`, `Sala`, `PeriodoLetivo`, `Curso`, `Disciplina`, `Turma`, `MatriculaTurma` e `HorarioAula`.
-- `presencas.py`: define `Aula`, `RegistroPresenca` e `EventoReconhecimento`. `Aula` e a ocorrencia real de um `HorarioAula` em uma data.
-- `dispositivos.py`: define `NoBorda`, `TokenNoBorda`, `DispositivoEsp32` e `ComandoBorda`. A ESP32 nao autentica diretamente no backend; ela fica vinculada ao no Raspberry.
-- `biometria.py`: define `PerfilBiometrico` e `EmbeddingFacial`. Imagens de cadastro nao sao persistidas.
+Todos os modelos de dominio herdam de `BaseModel`, que adiciona:
 
-Todos herdam de `BaseModel`, que fornece UUID, `criado_em` e `atualizado_em`.
+- `id`: UUID publico usado nas APIs e no edge.
+- `criado_em`: data de criacao do registro.
+- `atualizado_em`: data da ultima alteracao, usada tambem por sincronizacao incremental.
 
-## Servicos
+## Modelos E Campos
 
-Os servicos ficam em `autoponto-backend/autoponto/api/services/` e concentram regras de negocio fora das views.
+### Usuario
 
-- `aulas.py`: cria ou lista aulas a partir dos horarios cadastrados.
-- `presencas.py`: registra presenca e evento de reconhecimento.
-- `biometria.py`: gera embedding com OpenCV YuNet/SFace e grava somente o vetor.
-- `sincronizacao_borda.py`: adapta o dominio em portugues para o contrato em ingles usado pelo Raspberry.
-- `interscity.py`: encapsula chamadas HTTP para Catalog, Adaptor, Collector, Discovery e Actuator.
+Representa aluno, professor ou administrador.
 
-## Endpoints Administrativos
+- `username`: identificador de login.
+- `email`: contato e identificador unico auxiliar.
+- `papel`: define permissao principal: `ALUNO`, `PROFESSOR` ou `ADMINISTRADOR`.
+- `matricula`: codigo institucional do aluno; fica vazio para professores/admins se nao for necessario.
+- `nome_completo`: nome exibido em telas e relatorios.
+- Campos herdados do Django, como `password`, `is_active`, `is_staff` e `is_superuser`, continuam existindo para autenticacao e admin.
 
-Os endpoints administrativos ficam em portugues:
+### Campus, Predio E Sala
 
-- `/api/usuarios/`
-- `/api/campi/`, `/api/predios/`, `/api/salas/`
-- `/api/periodos-letivos/`, `/api/cursos/`, `/api/disciplinas/`, `/api/turmas/`
-- `/api/matriculas-turma/`, `/api/horarios-aula/`
-- `/api/nos-borda/`, `/api/dispositivos-esp32/`
-- `/api/aulas/`, `/api/presencas/`
-- `/api/perfis-biometricos/`, `/api/embeddings-faciais/`
+Modelam apenas a localizacao necessaria para colocar ESP32 em salas.
 
-Administradores podem cadastrar e alterar dados. Professores podem consultar aulas e presencas relevantes.
+- `Campus.nome`: nome do campus, por exemplo `Campus Dom Delgado`.
+- `Campus.codigo`: codigo curto para integracao e administracao.
+- `Campus.ativo`: permite ocultar campus sem apagar historico.
+- `Predio.campus`: campus ao qual o predio pertence.
+- `Predio.nome`: nome do predio ou centro.
+- `Predio.codigo`: codigo curto unico dentro do campus.
+- `Predio.ativo`: indica se ainda participa do MVP.
+- `Sala.predio`: predio onde a sala fica.
+- `Sala.nome`: nome legivel da sala.
+- `Sala.codigo`: codigo curto unico dentro do predio.
+- `Sala.ativo`: se falso, a sala deixa de ser enviada ao edge.
 
-## Edge
+### PeriodoLetivo, Curso, Disciplina E Turma
 
-O Raspberry usa `NodeToken` e acessa:
+Guardam o minimo academico para saber quem deveria estar presente.
 
-- `GET /api/edge/pull`
-- `POST /api/edge/attendance`
-- `GET /api/edge/commands`
-- `POST /api/edge/commands/ack`
+- `PeriodoLetivo.nome`: identificador como `2026.1`.
+- `PeriodoLetivo.data_inicio` e `data_fim`: delimitam quando as turmas geram aulas.
+- `PeriodoLetivo.ativo`: marca o semestre atualmente usado em telas de aluno.
+- `Curso.campus`: campus onde o curso e ofertado.
+- `Curso.codigo`: codigo curto do curso.
+- `Curso.nome`: nome do curso.
+- `Curso.ativo`: permite manter historico sem listar curso encerrado.
+- `Disciplina.curso`: curso ao qual a disciplina pertence.
+- `Disciplina.codigo`: codigo institucional da disciplina.
+- `Disciplina.nome`: nome exibido nos relatorios.
+- `Disciplina.ativo`: controla se novas aulas da disciplina entram na sincronizacao.
+- `Turma.periodo_letivo`: periodo em que a turma acontece.
+- `Turma.disciplina`: disciplina ministrada.
+- `Turma.codigo`: identificador da turma, como `A` ou `01`.
+- `Turma.professores`: professores autorizados a ver relatorios e fechar chamada.
+- `Turma.ativo`: se falso, a turma deixa de gerar contexto para o edge.
 
-Esses endpoints mantem nomes externos como `lessons`, `students` e `face_embeddings` porque o edge de referencia ja espera esse formato. Internamente, esses dados correspondem a `Aula`, `Usuario` e `EmbeddingFacial`.
+### MatriculaTurma
 
-## Biometria
+Liga aluno e turma.
 
-O endpoint `/api/perfis-biometricos/matricular/` recebe capturas base64, chama `GeradorEmbeddingVisao`, grava um `EmbeddingFacial` ativo e inativa o embedding anterior do aluno. O backend nao salva frames, imagens ou payloads brutos.
+- `turma`: turma em que o aluno esta matriculado.
+- `aluno`: usuario com papel `ALUNO`.
+- `ativo`: se falso, o aluno deixa de aparecer como matriculado nas proximas sincronizacoes.
 
-## Interscity
+Ausencias nao sao gravadas como linhas. O relatorio considera ausente quando nao existe `RegistroPresenca` para o aluno naquela aula.
 
-O Interscity representa recursos IoT e capacidades. O AutoPonto usa `interscity_uuid` em `DispositivoEsp32` e `NoBorda` para relacionar recursos externos com entidades internas.
+### HorarioAula
 
-O webhook `/api/interscity/webhooks/actuator/` recebe comandos do Interscity e cria `ComandoBorda` pendente. O Raspberry busca e confirma esses comandos pelos endpoints edge.
+Define a regra semanal de geracao de aulas.
+
+- `turma`: turma daquele horario.
+- `sala`: sala onde a aula acontece; e por ela que o edge associa ESP32 ao contexto.
+- `dia_semana`: inteiro de 0 a 6, seguindo Python: segunda `0`, domingo `6`.
+- `horario_inicio` e `horario_fim`: duracao da aula.
+- `abre_chamada_minutos`: quantos minutos depois do inicio da aula a presenca comeca a valer.
+- `fecha_chamada_minutos`: quantos minutos depois do inicio a presenca para de valer; se vazio, vale ate o fim da aula.
+- `ativo`: desativa a regra sem apagar aulas ja materializadas.
+
+Quando a janela muda, o backend recalcula somente aulas futuras ainda nao fechadas/canceladas.
+
+### Aula
+
+E a ocorrencia real de um `HorarioAula` em uma data.
+
+- `horario`: regra semanal que originou a aula.
+- `data`: dia da aula.
+- `inicio` e `fim`: duracao real da aula naquele dia.
+- `chamada_inicio` e `chamada_fim`: snapshot da janela de presenca usada naquele dia.
+- `status`: `PLANEJADA`, `ABERTA`, `FECHADA` ou `CANCELADA`.
+- `fechada_em`: quando professor/admin fechou manualmente a chamada.
+- `fechada_por`: usuario que fechou a chamada.
+
+O snapshot em `Aula` existe para que relatorios antigos continuem explicaveis mesmo que o horario da turma mude depois.
+
+### RegistroPresenca
+
+Representa a presenca consolidada de um aluno em uma aula.
+
+- `aula`: aula onde a presenca foi registrada.
+- `aluno`: aluno reconhecido ou marcado.
+- `status`: `PRESENTE`, `AUSENTE`, `ATRASO` ou `JUSTIFICADA`.
+- `registrado_em`: instante do reconhecimento ou registro manual.
+- `registrado_por_dispositivo`: ESP32 que originou a presenca, quando veio do edge.
+
+Ha restricao de uma presenca por aluno/aula.
+
+### EventoReconhecimento
+
+Guarda auditoria tecnica do reconhecimento enviado pelo edge.
+
+- `id_evento_origem`: identificador gerado no edge para idempotencia.
+- `dispositivo`: ESP32 que capturou o evento.
+- `aula`: aula associada ao contexto.
+- `aluno_candidato`: aluno reconhecido.
+- `confianca`: score do reconhecimento.
+- `reconhecido`: indica se o evento virou presenca.
+- `ocorrido_em`: quando o reconhecimento aconteceu.
+
+O modelo nao salva frame, imagem, embedding ou payload bruto.
+
+### NoBorda, TokenNoBorda E DispositivoEsp32
+
+Modelam a camada IoT.
+
+- `NoBorda.codigo`: identificador do Raspberry em requests `node_id`.
+- `NoBorda.nome`: nome legivel do no.
+- `NoBorda.ativo`: controla se o no pode sincronizar.
+- `NoBorda.ultimo_sync_em`: ultima sincronizacao conhecida.
+- `NoBorda.interscity_uuid`: UUID do recurso equivalente no Interscity, se existir.
+- `TokenNoBorda.no`: no dono do token.
+- `TokenNoBorda.nome`: nome administrativo do token.
+- `TokenNoBorda.prefixo_token`: trecho visivel para identificar o token sem expor o segredo.
+- `TokenNoBorda.hash_token`: hash do token real.
+- `TokenNoBorda.ativo`, `expira_em`, `ultimo_uso_em`: controle de uso do token.
+- `DispositivoEsp32.no`: Raspberry responsavel pela ESP32.
+- `DispositivoEsp32.sala`: sala monitorada.
+- `DispositivoEsp32.codigo`: identificador unico da ESP32.
+- `DispositivoEsp32.nome`: nome legivel.
+- `DispositivoEsp32.ativo`: controla envio ao edge.
+- `DispositivoEsp32.ultimo_sync_em`: reservado para telemetria de sincronizacao.
+- `DispositivoEsp32.interscity_uuid`: UUID do recurso ESP32 no Interscity.
+
+Somente o Raspberry autentica no backend principal. A ESP32 fica subordinada ao no.
+
+### ComandoBorda
+
+Fila comandos para Raspberry/ESP32.
+
+- `no`: Raspberry que deve receber o comando.
+- `dispositivo`: ESP32 de destino, opcional quando o comando e para o proprio no.
+- `tipo`: tipo de acao, por exemplo `display_message`.
+- `payload`: dados necessarios para executar o comando.
+- `status`: `PENDENTE`, `ENTREGUE`, `FALHOU` ou `REJEITADO`.
+- `origem`: `backend` ou `interscity`.
+- `id_origem`: identificador externo para idempotencia quando vem do Interscity.
+- `capacidade`: capability Interscity relacionada, como `autoponto_edge_command`.
+- `criado_por`: usuario admin que criou o comando no backend; fica vazio para comandos vindos do Interscity.
+- `entregue_em`: quando o edge confirmou entrega.
+- `ultimo_erro`: mensagem enviada pelo edge em caso de falha.
+
+### PerfilBiometrico E EmbeddingFacial
+
+Guardam somente o necessario para reconhecimento.
+
+- `PerfilBiometrico.aluno`: aluno dono da biometria.
+- `PerfilBiometrico.status`: `PENDENTE`, `ATIVO` ou `INATIVO`.
+- `EmbeddingFacial.perfil`: perfil dono do vetor.
+- `EmbeddingFacial.versao_modelo`: modelo usado, como `sface`.
+- `EmbeddingFacial.vetor`: embedding facial enviado ao edge.
+- `EmbeddingFacial.status`: `ATIVO`, `INATIVO` ou `REVOGADO`.
+- `EmbeddingFacial.ativo`: facilita garantir apenas um embedding ativo por aluno.
+
+O backend compara o novo vetor com embeddings ativos de outros alunos e bloqueia duplicidade pelo limite `FACE_DUPLICATE_THRESHOLD`.
+
+## Fluxos Principais
+
+### Frontend
+
+- Aluno usa `/api/me/`, `/api/me/turmas/`, `/api/me/presencas/` e `/api/me/biometria/`.
+- Professor usa `/api/professor/turmas/`, relatorios e `POST /api/aulas/{id}/fechar-chamada/`.
+- Administrador usa CRUDs, vinculos, biometria de aluno, comandos de borda e diagnostico Interscity.
+
+### Edge
+
+O Raspberry autentica com `Authorization: NodeToken <token>` e usa:
+
+- `GET /api/edge/pull`: baixa salas, dispositivos, aulas, alunos, matriculas e embeddings.
+- `POST /api/edge/attendance`: envia eventos reconhecidos.
+- `GET /api/edge/commands`: busca comandos pendentes.
+- `POST /api/edge/commands/ack`: confirma resultado.
+
+O contrato externo usa nomes em ingles por compatibilidade com o `referencia-edge`, mas o dominio interno fica em portugues.
+
+### Interscity
+
+O cliente `ClienteInterSCity` usa `INTERSCITY_BASE_URL` e paths de microsservicos. Toda chamada tem timeout e retorno controlado, entao falha externa nao bloqueia login, CRUD, biometria, presencas, relatorios ou edge sync.
 
 ## Testes
 
-Os testes ficam em `autoponto-backend/autoponto/api/tests/`.
-
-- `test_models.py`: valida regras de dominio, unicidade e biometria.
-- `test_api.py`: valida autenticacao JWT, schema e endpoints administrativos.
-- `test_biometria.py`: valida geracao de embedding com OpenCV mockado e descarte de frames.
-- `test_edge_integracao.py`: valida pull, envio de presenca, isolamento por no e comandos.
-- `test_interscity.py`: valida o cliente HTTP Interscity com chamadas mockadas.
-
-## Endpoints Para O Frontend
-
-A API oferece endpoints orientados por papel, consumidos pelo projeto `autoponto-frontend/`:
-
-- Aluno: `/api/me/`, `/api/me/turmas/`, `/api/me/presencas/` e `/api/me/biometria/`.
-- Professor: `/api/professor/turmas/` e relatorios de suas turmas.
-- Administrador: CRUDs administrativos, matriculas, vinculos professor-turma, biometria de aluno, relatorios e diagnostico Interscity.
-
-Os relatorios sao montados em `autoponto-backend/autoponto/api/services/relatorios.py`:
-
-- Presencas por turma/data: mostra matriculados, presentes e ausentes.
-- Resumo por turma: calcula presencas, faltas e percentual por aluno.
-- Historico por aluno: lista presencas por disciplina/turma e respeita o escopo do usuario autenticado.
-
-## Docker E Compose
-
-O Dockerfile do backend fica em `autoponto-backend/Dockerfile`. O deploy completo esta no `docker-compose.yml` da raiz:
-
-- `db`: Postgres.
-- `backend`: Django/Gunicorn.
-- `frontend`: Nginx servindo o build React e fazendo proxy de `/api/`.
-
-O arquivo `autoponto-backend/docs/como-rodar.md` detalha variaveis e comandos do backend.
-
-## Seed UFMA
-
-O comando `python manage.py seed_dados_ufma` cria um exemplo de Campus Dom Delgado, CCET, uma sala, o curso de Engenharia da Computacao e algumas disciplinas. Ele e apenas uma fixture de demonstracao; a modelagem continua generica para outros cursos/campi.
+- `test_models.py`: regras de dominio, unicidade e janela de chamada.
+- `test_api.py`: login, schema e fluxo administrativo basico.
+- `test_biometria.py`: geracao de embedding mockada e descarte de imagens.
+- `test_edge_integracao.py`: pull, presenca, idempotencia, isolamento por no e comandos.
+- `test_frontend_api.py`: endpoints por papel, relatorios, fechamento de chamada e comando administrativo.
+- `test_interscity.py`: cliente HTTP e diagnostico dos cinco microsservicos.

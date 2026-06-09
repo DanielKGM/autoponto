@@ -34,7 +34,7 @@ def payload_turma(turma: Turma) -> dict:
     return {
         "turma_id": str(turma.id),
         "codigo": turma.codigo,
-        "nome": turma.nome,
+        "nome": f"{turma.disciplina.nome} - {turma.codigo}",
         "disciplina_id": str(turma.disciplina_id),
         "disciplina": turma.disciplina.nome,
         "periodo_letivo_id": str(turma.periodo_letivo_id),
@@ -100,6 +100,8 @@ def payload_registro_presenca(registro: RegistroPresenca) -> dict:
         "data": aula.data.isoformat(),
         "inicio": aula.inicio.isoformat(),
         "fim": aula.fim.isoformat(),
+        "chamada_inicio": aula.chamada_inicio.isoformat(),
+        "chamada_fim": aula.chamada_fim.isoformat(),
         "sala": aula.horario.sala.nome,
         "status": registro.status,
         "registrado_em": registro.registrado_em.isoformat(),
@@ -138,7 +140,11 @@ def relatorio_presencas_turma_data(turma: Turma, data):
                 "aula_id": str(aula.id),
                 "inicio": aula.inicio.isoformat(),
                 "fim": aula.fim.isoformat(),
+                "chamada_inicio": aula.chamada_inicio.isoformat(),
+                "chamada_fim": aula.chamada_fim.isoformat(),
                 "status": aula.status,
+                "fechada_em": aula.fechada_em.isoformat() if aula.fechada_em else None,
+                "fechada_por": str(aula.fechada_por_id) if aula.fechada_por_id else None,
                 "sala": aula.horario.sala.nome,
             }
             for aula in aulas

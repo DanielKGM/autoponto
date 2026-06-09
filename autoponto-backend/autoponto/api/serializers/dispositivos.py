@@ -26,4 +26,6 @@ class ComandoBordaSerializer(serializers.ModelSerializer):
     class Meta:
         model = ComandoBorda
         fields = "__all__"
-        read_only_fields = ("id", "criado_em", "atualizado_em", "entregue_em")
+        read_only_fields = ("id", "criado_em", "atualizado_em", "origem", "criado_por", "entregue_em")
+        extra_kwargs = {"id_origem": {"required": False, "allow_blank": True}}
+        validators = []

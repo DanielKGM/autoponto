@@ -32,8 +32,6 @@ class PerfilBiometricoViewSet(AdminReadableModelViewSet):
                 aluno=aluno,
                 capturas=serializer.validated_data["capturas"],
                 versao_modelo=serializer.validated_data["versao_modelo"],
-                pontuacao_qualidade=serializer.validated_data.get("pontuacao_qualidade", 0.95),
-                metadados_origem=serializer.validated_data.get("metadados_origem", {}),
             )
         except AppError as erro:
             corpo = {"detail": erro.message, "code": erro.code}

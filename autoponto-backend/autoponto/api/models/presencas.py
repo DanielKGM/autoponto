@@ -24,7 +24,17 @@ class Aula(BaseModel):
     data = models.DateField()
     inicio = models.DateTimeField()
     fim = models.DateTimeField()
+    chamada_inicio = models.DateTimeField()
+    chamada_fim = models.DateTimeField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PLANEJADA)
+    fechada_em = models.DateTimeField(null=True, blank=True)
+    fechada_por = models.ForeignKey(
+        Usuario,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="aulas_fechadas",
+    )
 
     class Meta:
         ordering = ("data", "inicio")
@@ -37,6 +47,12 @@ class Aula(BaseModel):
     def clean(self):
         if self.fim <= self.inicio:
             raise ValidationError({"fim": "O fim da aula deve ser maior que o início."})
+        if self.chamada_fim <= self.chamada_inicio:
+            raise ValidationError({"chamada_fim": "O fim da chamada deve ser maior que o início da chamada."})
+        if self.chamada_inicio < self.inicio:
+            raise ValidationError({"chamada_inicio": "A chamada não pode abrir antes da aula."})
+        if self.chamada_fim > self.fim:
+            raise ValidationError({"chamada_fim": "A chamada não pode fechar depois da aula."})
         if self.horario_id and self.data.weekday() != self.horario.dia_semana:
             raise ValidationError({"data": "A data da aula não corresponde ao dia da semana do horário."})
 
@@ -111,7 +127,6 @@ class EventoReconhecimento(BaseModel):
     )
     confianca = models.DecimalField(max_digits=5, decimal_places=4, default=0)
     reconhecido = models.BooleanField(default=False)
-    payload = models.JSONField(default=dict, blank=True)
     ocorrido_em = models.DateTimeField(default=timezone.now)
 
     class Meta:

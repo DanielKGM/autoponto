@@ -7,15 +7,14 @@ from django.utils import timezone
 
 from .academico import Sala
 from .base import BaseModel
+from .identidade import Usuario
 
 
 class NoBorda(BaseModel):
     codigo = models.CharField(max_length=50, unique=True)
     nome = models.CharField(max_length=255)
-    descricao = models.TextField(blank=True)
     ativo = models.BooleanField(default=True)
     ultimo_sync_em = models.DateTimeField(null=True, blank=True)
-    versao_software = models.CharField(max_length=50, blank=True)
     interscity_uuid = models.CharField(max_length=64, blank=True, db_index=True)
 
     @property
@@ -90,7 +89,6 @@ class DispositivoEsp32(BaseModel):
     nome = models.CharField(max_length=255)
     ativo = models.BooleanField(default=True)
     ultimo_sync_em = models.DateTimeField(null=True, blank=True)
-    versao_firmware = models.CharField(max_length=50, blank=True)
     interscity_uuid = models.CharField(max_length=64, blank=True, db_index=True)
 
     class Meta:
@@ -135,6 +133,13 @@ class ComandoBorda(BaseModel):
     origem = models.CharField(max_length=50, default="backend")
     id_origem = models.CharField(max_length=100, blank=True, db_index=True)
     capacidade = models.CharField(max_length=100, blank=True)
+    criado_por = models.ForeignKey(
+        Usuario,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="comandos_borda_criados",
+    )
     entregue_em = models.DateTimeField(null=True, blank=True)
     ultimo_erro = models.TextField(blank=True)
 
@@ -163,6 +168,12 @@ class ComandoBorda(BaseModel):
             "REJEITADO": ComandoBorda.STATUS_REJEITADO,
         }
         return mapa.get(str(status).upper(), ComandoBorda.STATUS_ENTREGUE)
+
+    def clean(self):
+        if self.dispositivo_id and self.no_id and self.dispositivo.no_id != self.no_id:
+            from django.core.exceptions import ValidationError
+
+            raise ValidationError({"dispositivo": "O dispositivo deve pertencer ao nó do comando."})
 
     def marcar_status(self, status: str, erro: str = ""):
         self.status = self.normalizar_status(status)

@@ -19,6 +19,7 @@ Existe uma unica fonte de variaveis de ambiente: `.env` na raiz do repositorio.
 - O `docker-compose.yml` le esse arquivo automaticamente.
 - O backend carrega esse arquivo em execucao local, sem sobrescrever variaveis ja exportadas no sistema.
 - O frontend usa `envDir: ".."` no Vite, entao tambem le o mesmo `.env` da raiz.
+- O Compose nao define valores fallback para configuracao de aplicacao; se uma variavel obrigatoria faltar, a subida deve falhar.
 
 Nao ha `.env.example` especifico dentro de `autoponto-backend/` ou `autoponto-frontend/` para evitar divergencia.
 
@@ -49,6 +50,8 @@ Copie o ambiente da raiz:
 ```bash
 cp .env.example .env
 ```
+
+Preencha os valores sensiveis que aparecem vazios, como `DJANGO_SECRET_KEY` e `DATABASE_PASSWORD`. O Compose e o backend devem falhar se uma variavel obrigatoria nao estiver configurada.
 
 Suba os servicos:
 

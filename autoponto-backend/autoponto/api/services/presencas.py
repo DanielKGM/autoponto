@@ -30,7 +30,6 @@ def registrar_evento_reconhecimento(
     aluno_candidato: Usuario | None,
     confianca,
     reconhecido: bool,
-    payload: dict | None = None,
 ):
     if reconhecido and aluno_candidato is None:
         raise DomainValidationError("Um evento reconhecido precisa de um aluno candidato.")
@@ -41,7 +40,6 @@ def registrar_evento_reconhecimento(
         aluno_candidato=aluno_candidato,
         confianca=confianca,
         reconhecido=reconhecido,
-        payload=payload or {},
     )
 
     registro = None

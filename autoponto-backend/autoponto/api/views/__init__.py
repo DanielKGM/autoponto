@@ -10,7 +10,7 @@ from .academico import (
     TurmaViewSet,
 )
 from .biometria import EmbeddingFacialViewSet, PerfilBiometricoViewSet
-from .dispositivos import DispositivoEsp32ViewSet, NoBordaViewSet
+from .dispositivos import ComandoBordaViewSet, DispositivoEsp32ViewSet, NoBordaViewSet
 from .edge_contract import (
     EdgeAttendanceSlashAliasView,
     EdgeAttendanceView,
@@ -39,6 +39,7 @@ from .presencas import AulaViewSet, RegistroPresencaViewSet
 __all__ = [
     "AulaViewSet",
     "CampusViewSet",
+    "ComandoBordaViewSet",
     "CursoViewSet",
     "DisciplinaViewSet",
     "DispositivoEsp32ViewSet",

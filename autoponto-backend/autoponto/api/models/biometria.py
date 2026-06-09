@@ -17,7 +17,6 @@ class PerfilBiometrico(BaseModel):
         ),
         default="PENDENTE",
     )
-    observacoes = models.TextField(blank=True)
 
     class Meta:
         ordering = ("aluno__username",)
@@ -36,8 +35,6 @@ class EmbeddingFacial(BaseModel):
     perfil = models.ForeignKey(PerfilBiometrico, on_delete=models.CASCADE, related_name="embeddings")
     versao_modelo = models.CharField(max_length=50)
     vetor = models.JSONField()
-    pontuacao_qualidade = models.DecimalField(max_digits=5, decimal_places=4, default=0)
-    metadados_origem = models.JSONField(default=dict, blank=True)
     status = models.CharField(
         max_length=20,
         choices=(

@@ -39,8 +39,6 @@ class FluxoApiTests(APITestCase):
                 "aluno_id": str(self.contexto["aluno"].id),
                 "capturas": ["frame-1", "frame-2"],
                 "versao_modelo": "sface-v1",
-                "pontuacao_qualidade": 0.97,
-                "metadados_origem": {"origem": "admin-console"},
             },
             format="json",
         )

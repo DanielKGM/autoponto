@@ -16,12 +16,16 @@ STATUS_NAO_CONFIGURADO = "nao_configurado"
 
 class ClienteInterSCity:
     def __init__(self, timeout: int | None = None):
-        self.catalog_url = settings.INTERSCITY_CATALOG_URL.rstrip("/")
-        self.adaptor_url = settings.INTERSCITY_ADAPTOR_URL.rstrip("/")
-        self.collector_url = settings.INTERSCITY_COLLECTOR_URL.rstrip("/")
-        self.discovery_url = settings.INTERSCITY_DISCOVERY_URL.rstrip("/")
-        self.actuator_url = settings.INTERSCITY_ACTUATOR_URL.rstrip("/")
+        self.base_url = settings.INTERSCITY_BASE_URL.rstrip("/")
+        self.catalog_url = self._url_servico(settings.INTERSCITY_CATALOG_PATH)
+        self.adaptor_url = self._url_servico(settings.INTERSCITY_ADAPTOR_PATH)
+        self.collector_url = self._url_servico(settings.INTERSCITY_COLLECTOR_PATH)
+        self.discovery_url = self._url_servico(settings.INTERSCITY_DISCOVERY_PATH)
+        self.actuator_url = self._url_servico(settings.INTERSCITY_ACTUATOR_PATH)
         self.timeout = timeout if timeout is not None else settings.INTERSCITY_TIMEOUT_SECONDS
+
+    def _url_servico(self, caminho: str) -> str:
+        return f"{self.base_url}/{caminho.strip('/')}".rstrip("/")
 
     def _habilitado(self, base_url: str) -> bool:
         return bool(settings.INTERSCITY_ENABLED and base_url)

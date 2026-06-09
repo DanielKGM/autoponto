@@ -41,8 +41,6 @@ class Sala(BaseModel):
     predio = models.ForeignKey(Predio, on_delete=models.CASCADE, related_name="salas")
     nome = models.CharField(max_length=255)
     codigo = models.CharField(max_length=20)
-    andar = models.CharField(max_length=20, blank=True)
-    capacidade = models.PositiveIntegerField(default=0)
     ativo = models.BooleanField(default=True)
 
     class Meta:
@@ -80,22 +78,12 @@ class Curso(BaseModel):
     campus = models.ForeignKey(Campus, on_delete=models.PROTECT, related_name="cursos")
     codigo = models.CharField(max_length=20, unique=True)
     nome = models.CharField(max_length=255)
-    turno = models.CharField(max_length=50, blank=True)
-    duracao_minima_periodos = models.PositiveSmallIntegerField(default=0)
-    duracao_maxima_periodos = models.PositiveSmallIntegerField(default=0)
     ativo = models.BooleanField(default=True)
 
     class Meta:
         ordering = ("codigo",)
         verbose_name = "Curso"
         verbose_name_plural = "Cursos"
-
-    def clean(self):
-        if self.duracao_maxima_periodos and self.duracao_minima_periodos:
-            if self.duracao_maxima_periodos < self.duracao_minima_periodos:
-                raise ValidationError(
-                    {"duracao_maxima_periodos": "A duração máxima deve ser maior ou igual à mínima."}
-                )
 
     def __str__(self) -> str:
         return f"{self.codigo} - {self.nome}"
@@ -105,9 +93,6 @@ class Disciplina(BaseModel):
     curso = models.ForeignKey(Curso, on_delete=models.PROTECT, related_name="disciplinas")
     codigo = models.CharField(max_length=30)
     nome = models.CharField(max_length=255)
-    carga_horaria = models.PositiveSmallIntegerField(default=0)
-    periodo_sugerido = models.PositiveSmallIntegerField(default=0)
-    obrigatoria = models.BooleanField(default=True)
     ativo = models.BooleanField(default=True)
 
     class Meta:
@@ -126,7 +111,6 @@ class Turma(BaseModel):
     periodo_letivo = models.ForeignKey(PeriodoLetivo, on_delete=models.PROTECT, related_name="turmas")
     disciplina = models.ForeignKey(Disciplina, on_delete=models.PROTECT, related_name="turmas")
     codigo = models.CharField(max_length=50)
-    nome = models.CharField(max_length=255, blank=True)
     professores = models.ManyToManyField(Usuario, related_name="turmas_ministradas", blank=True)
     ativo = models.BooleanField(default=True)
 
@@ -156,7 +140,6 @@ class Turma(BaseModel):
 class MatriculaTurma(BaseModel):
     turma = models.ForeignKey(Turma, on_delete=models.CASCADE, related_name="matriculas")
     aluno = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name="matriculas_turma")
-    matriculado_em = models.DateTimeField(auto_now_add=True)
     ativo = models.BooleanField(default=True)
 
     class Meta:
@@ -181,6 +164,8 @@ class HorarioAula(BaseModel):
     dia_semana = models.PositiveSmallIntegerField()
     horario_inicio = models.TimeField()
     horario_fim = models.TimeField()
+    abre_chamada_minutos = models.PositiveSmallIntegerField(default=0)
+    fecha_chamada_minutos = models.PositiveSmallIntegerField(null=True, blank=True)
     ativo = models.BooleanField(default=True)
 
     class Meta:
@@ -199,6 +184,26 @@ class HorarioAula(BaseModel):
             raise ValidationError({"dia_semana": "O dia da semana deve estar entre 0 e 6."})
         if self.horario_fim <= self.horario_inicio:
             raise ValidationError({"horario_fim": "O horário final deve ser maior que o inicial."})
+
+        duracao = (
+            self.horario_fim.hour * 60
+            + self.horario_fim.minute
+            - self.horario_inicio.hour * 60
+            - self.horario_inicio.minute
+        )
+        if self.abre_chamada_minutos >= duracao:
+            raise ValidationError(
+                {"abre_chamada_minutos": "A chamada deve abrir antes do fim da aula."}
+            )
+        if self.fecha_chamada_minutos is not None:
+            if self.fecha_chamada_minutos > duracao:
+                raise ValidationError(
+                    {"fecha_chamada_minutos": "A chamada não pode fechar depois do fim da aula."}
+                )
+            if self.fecha_chamada_minutos <= self.abre_chamada_minutos:
+                raise ValidationError(
+                    {"fecha_chamada_minutos": "O fechamento deve ser posterior à abertura da chamada."}
+                )
         if not self.turma_id or not self.sala_id:
             return
 

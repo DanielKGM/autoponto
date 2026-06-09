@@ -7,9 +7,9 @@ class Command(BaseCommand):
     help = "Cria dados-base de exemplo para Engenharia da Computação UFMA São Luís."
 
     disciplinas = [
-        ("EECP0036", "Desenvolvimento de Sistemas Web", 60, 8),
-        ("EECP0029", "Inteligência Artificial", 60, 7),
-        ("EECP0015", "Banco de Dados", 60, 5),
+        ("EECP0036", "Desenvolvimento de Sistemas Web"),
+        ("EECP0029", "Inteligência Artificial"),
+        ("EECP0015", "Banco de Dados"),
     ]
 
     def handle(self, *args, **options):
@@ -25,29 +25,23 @@ class Command(BaseCommand):
         Sala.objects.update_or_create(
             predio=predio,
             codigo="LAB101",
-            defaults={"nome": "Laboratório 101", "capacidade": 40, "ativo": True},
+            defaults={"nome": "Laboratório 101", "ativo": True},
         )
         curso, _ = Curso.objects.update_or_create(
             codigo="ECP-UFMA",
             defaults={
                 "campus": campus,
                 "nome": "Engenharia da Computação",
-                "turno": "NOTURNO",
-                "duracao_minima_periodos": 10,
-                "duracao_maxima_periodos": 15,
                 "ativo": True,
             },
         )
 
-        for codigo, nome, carga_horaria, periodo in self.disciplinas:
+        for codigo, nome in self.disciplinas:
             Disciplina.objects.update_or_create(
                 curso=curso,
                 codigo=codigo,
                 defaults={
                     "nome": nome,
-                    "carga_horaria": carga_horaria,
-                    "periodo_sugerido": periodo,
-                    "obrigatoria": True,
                     "ativo": True,
                 },
             )

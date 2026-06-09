@@ -108,15 +108,15 @@ Variaveis da API principal:
 ```env
 INTERSCITY_ENABLED=False
 INTERSCITY_BASE_URL=https://cidadesinteligentes.lsdi.ufma.br/interscity_lh
-INTERSCITY_CATALOG_URL=https://cidadesinteligentes.lsdi.ufma.br/interscity_lh/catalog
-INTERSCITY_DISCOVERY_URL=https://cidadesinteligentes.lsdi.ufma.br/interscity_lh/discovery
-INTERSCITY_COLLECTOR_URL=https://cidadesinteligentes.lsdi.ufma.br/interscity_lh/collector
-INTERSCITY_ADAPTOR_URL=https://cidadesinteligentes.lsdi.ufma.br/interscity_lh/adaptor
-INTERSCITY_ACTUATOR_URL=https://cidadesinteligentes.lsdi.ufma.br/interscity_lh/actuator
+INTERSCITY_CATALOG_PATH=/catalog
+INTERSCITY_DISCOVERY_PATH=/discovery
+INTERSCITY_COLLECTOR_PATH=/collector
+INTERSCITY_ADAPTOR_PATH=/adaptor
+INTERSCITY_ACTUATOR_PATH=/actuator
 INTERSCITY_TIMEOUT_SECONDS=5
 ```
 
-Com `INTERSCITY_ENABLED=False`, a API principal continua funcionando sem depender da plataforma.
+O backend monta cada URL final como `INTERSCITY_BASE_URL + INTERSCITY_*_PATH`. Assim a base da instancia UFMA fica em um so lugar. Com `INTERSCITY_ENABLED=False`, a API principal continua funcionando sem depender da plataforma.
 
 ## Tolerancia A Falhas
 

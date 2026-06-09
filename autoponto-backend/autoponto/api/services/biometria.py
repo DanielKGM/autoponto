@@ -1,5 +1,4 @@
 import base64
-from decimal import Decimal
 from math import sqrt
 
 from django.conf import settings
@@ -114,30 +113,22 @@ def matricular_biometria_aluno(
     aluno: Usuario,
     capturas: list[str],
     versao_modelo: str,
-    pontuacao_qualidade: float = 0.95,
-    metadados_origem: dict | None = None,
 ):
     if aluno.papel != PapelUsuario.ALUNO:
         raise DomainValidationError("Matrícula biométrica só pode ser criada para alunos.")
 
-    vetor, metadados_gerados = _gerar_vetor_embedding(capturas)
+    vetor, _ = _gerar_vetor_embedding(capturas)
     validar_rosto_unico(aluno=aluno, vetor=vetor)
 
     perfil, _ = PerfilBiometrico.objects.get_or_create(aluno=aluno, defaults={"status": "PENDENTE"})
     perfil.status = "ATIVO"
     perfil.save()
 
-    metadados = {**(metadados_origem or {}), **metadados_gerados}
-    metadados.pop("capturas", None)
-    metadados.pop("frames", None)
-
     perfil.embeddings.filter(ativo=True).update(ativo=False, status="INATIVO")
     embedding = EmbeddingFacial.objects.create(
         perfil=perfil,
         versao_modelo=versao_modelo,
         vetor=vetor,
-        pontuacao_qualidade=Decimal(str(pontuacao_qualidade)).quantize(Decimal("0.0001")),
-        metadados_origem=metadados,
         status="ATIVO",
         ativo=True,
     )

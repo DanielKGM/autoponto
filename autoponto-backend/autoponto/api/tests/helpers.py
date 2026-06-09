@@ -19,7 +19,7 @@ from api.models import (
 def criar_contexto_academico():
     campus = Campus.objects.create(nome="Campus Dom Delgado", codigo="SLZ")
     predio = Predio.objects.create(campus=campus, nome="Centro de Ciencias Exatas e Tecnologia", codigo="CCET")
-    sala = Sala.objects.create(predio=predio, nome="Laboratorio 101", codigo="LAB101", capacidade=40)
+    sala = Sala.objects.create(predio=predio, nome="Laboratorio 101", codigo="LAB101")
     periodo = PeriodoLetivo.objects.create(
         nome="2026.1",
         data_inicio=date(2026, 1, 1),
@@ -30,16 +30,11 @@ def criar_contexto_academico():
         campus=campus,
         codigo="ECP-UFMA",
         nome="Engenharia da Computacao",
-        turno="NOTURNO",
-        duracao_minima_periodos=10,
-        duracao_maxima_periodos=15,
     )
     disciplina = Disciplina.objects.create(
         curso=curso,
         codigo="EECP0036",
         nome="Desenvolvimento de Sistemas Web",
-        carga_horaria=60,
-        periodo_sugerido=8,
     )
     professor = Usuario.objects.create_user(
         username="professor",
@@ -65,7 +60,7 @@ def criar_contexto_academico():
         is_staff=True,
         is_superuser=True,
     )
-    turma = Turma.objects.create(periodo_letivo=periodo, disciplina=disciplina, codigo="A", nome="Turma A")
+    turma = Turma.objects.create(periodo_letivo=periodo, disciplina=disciplina, codigo="A")
     turma.professores.add(professor)
     matricula = MatriculaTurma.objects.create(turma=turma, aluno=aluno)
     horario = HorarioAula.objects.create(
@@ -79,7 +74,6 @@ def criar_contexto_academico():
         codigo="ESP32-LAB101",
         nome="ESP32 Laboratorio 101",
         sala=sala,
-        versao_firmware="1.0.0",
     )
     data_aula = date(2026, 4, 20)
     return {
