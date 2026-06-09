@@ -48,7 +48,7 @@ class GeradorEmbeddingVisao:
             if faces is None or len(faces) == 0:
                 continue
             quantidade_faces += len(faces)
-            melhor_face = sorted(faces, key=lambda item: float(item[14]), reverse=True)[0]
+            melhor_face = max(faces, key=lambda item: float(item[14]))
             alinhada = reconhecedor.alignCrop(imagem, melhor_face)
             vetor = reconhecedor.feature(alinhada)
             vetores.append(vetor.reshape(-1))
