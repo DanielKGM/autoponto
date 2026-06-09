@@ -13,6 +13,7 @@ O frontend e um painel React + Vite para demonstrar o MVP do AutoPonto. Ele nao 
 - `src/types.ts`: tipos TypeScript usados nas respostas da API.
 - `src/styles.css`: estilo visual do painel.
 - `nginx.conf`: configuracao para servir o build e encaminhar `/api/`.
+- `nginx.prod.conf`: configuracao para servir o build no prefixo publico temporario da VM.
 - `Dockerfile`: build multi-stage com Node e Nginx.
 
 ## Cliente De API
@@ -28,9 +29,30 @@ A URL base vem de:
 
 ```env
 VITE_API_URL
+VITE_BASE_PATH
 ```
 
-O Vite usa `envDir: ".."`, portanto essa variavel deve ficar no `.env` unico da raiz do repositorio. O mesmo valor `VITE_API_URL=/api` funciona no desenvolvimento local porque o servidor Vite tem proxy para `http://localhost:8000`, e tambem funciona no Docker porque o Nginx encaminha `/api/` para o backend.
+O Vite usa `envDir: ".."`, portanto essas variaveis devem ficar no arquivo de ambiente da raiz. Em desenvolvimento, use:
+
+```env
+VITE_API_URL=/api
+VITE_BASE_PATH=/
+```
+
+Na producao provisoria da VM, use:
+
+```env
+VITE_API_URL=/interscity_lh/catalog/autoponto/api
+VITE_BASE_PATH=/interscity_lh/catalog/autoponto/
+```
+
+`VITE_API_URL` define para onde o cliente `fetch` envia requests. `VITE_BASE_PATH` define o prefixo dos assets gerados pelo Vite, evitando quebra de CSS/JS quando o app roda em subcaminho.
+
+## Nginx
+
+No desenvolvimento em container, `nginx.conf` serve o build na raiz e encaminha `/api/` para `backend:8000`.
+
+Na VM, `nginx.prod.conf` serve o app em `/interscity_lh/catalog/autoponto/` e encaminha `/interscity_lh/catalog/autoponto/api/` para `http://backend:8000/api/`. O Apache externo da VM deve entregar as requisicoes ao frontend em `127.0.0.1:8088`.
 
 ## Telas
 

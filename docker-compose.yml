@@ -39,6 +39,7 @@ services:
       context: ./autoponto-frontend
       args:
         VITE_API_URL: ${VITE_API_URL:?VITE_API_URL obrigatoria no .env da raiz}
+        VITE_BASE_PATH: ${VITE_BASE_PATH:?VITE_BASE_PATH obrigatoria no .env da raiz}
     depends_on:
       - backend
     ports:

@@ -41,9 +41,19 @@ URL padrao:
 
 ```env
 VITE_API_URL=/api
+VITE_BASE_PATH=/
 ```
 
-Com `npm run dev`, o Vite encaminha `/api` para `http://localhost:8000`. No Docker Compose, o Nginx do frontend encaminha `/api/` para o backend.
+Com `npm run dev`, o Vite encaminha `/api` para `http://localhost:8000`. No Docker Compose de desenvolvimento, o Nginx do frontend encaminha `/api/` para o backend.
+
+Para o deploy provisorio na VM, o build usa:
+
+```env
+VITE_BASE_PATH=/interscity_lh/catalog/autoponto/
+VITE_API_URL=/interscity_lh/catalog/autoponto/api
+```
+
+Esse prefixo faz os assets do React e as chamadas da API funcionarem sob `https://cidadesinteligentes.lsdi.ufma.br/interscity_lh/catalog/autoponto/`.
 
 ## Build
 
@@ -57,7 +67,7 @@ O resultado fica em `dist/`.
 
 O Dockerfile do frontend fica em `autoponto-frontend/Dockerfile`, mas o Compose fica na raiz do repositorio.
 
-Subir tudo:
+Subir tudo em desenvolvimento:
 
 ```bash
 cd ..
@@ -68,6 +78,16 @@ Servicos:
 
 - Frontend: `http://localhost:8080`
 - Backend: `http://localhost:8000/api/`
+
+## Producao Provisoria Na VM
+
+Use o Compose de producao na raiz:
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+```
+
+O container frontend fica publicado apenas em `127.0.0.1:8088:80`. O arquivo `nginx.prod.conf` serve o React no prefixo `/interscity_lh/catalog/autoponto/` e encaminha `/interscity_lh/catalog/autoponto/api/` para o backend interno.
 
 ## Login
 

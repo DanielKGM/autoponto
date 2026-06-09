@@ -8,7 +8,8 @@ Repositorio organizado como monorepo do MVP AutoPonto.
 .
 |-- autoponto-backend/   # API Django/DRF, regras academicas, edge e Interscity
 |-- autoponto-frontend/  # Painel React/Vite
-|-- docker-compose.yml   # Orquestracao local/producao simples
+|-- docker-compose.yml   # Orquestracao de desenvolvimento local
+|-- docker-compose.prod.yml # Deploy provisorio na VM da faculdade
 `-- .env.example         # Exemplo de variaveis para o Compose
 ```
 
@@ -22,6 +23,8 @@ Existe uma unica fonte de variaveis de ambiente: `.env` na raiz do repositorio.
 - O Compose nao define valores fallback para configuracao de aplicacao; se uma variavel obrigatoria faltar, a subida deve falhar.
 
 Nao ha `.env.example` especifico dentro de `autoponto-backend/` ou `autoponto-frontend/` para evitar divergencia.
+
+Para producao provisoria na VM da faculdade, use `.env.prod` baseado em `.env.prod.example`. Esse arquivo real tambem nao deve ser versionado.
 
 ## Tecnologias E Justificativas
 
@@ -45,6 +48,8 @@ Nao ha `.env.example` especifico dentro de `autoponto-backend/` ou `autoponto-fr
 
 ## Como Rodar Tudo
 
+### Desenvolvimento
+
 Copie o ambiente da raiz:
 
 ```bash
@@ -65,6 +70,48 @@ URLs:
 - Backend: `http://localhost:8000/api/`
 - Health check: `http://localhost:8000/api/health/`
 - PostgreSQL local: `localhost:5432`
+
+### Producao Provisoria Na VM
+
+O deploy temporario usa a URL publica:
+
+```text
+https://cidadesinteligentes.lsdi.ufma.br/interscity_lh/catalog/autoponto/
+```
+
+Fluxo esperado:
+
+```text
+usuario
+  -> cidadesinteligentes.lsdi.ufma.br/interscity_lh/catalog/autoponto/
+  -> Apache da VM
+  -> 127.0.0.1:8088
+  -> container frontend
+  -> backend interno
+  -> PostgreSQL interno
+```
+
+Na VM, crie o ambiente real:
+
+```bash
+cp .env.prod.example .env.prod
+```
+
+Preencha `DJANGO_SECRET_KEY`, `DATABASE_PASSWORD` e demais valores reais. Depois suba a stack de producao:
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+```
+
+No Compose de producao, somente o frontend publica porta local em `127.0.0.1:8088`; backend e PostgreSQL ficam privados na rede Docker.
+
+Criar administrador inicial em producao:
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml exec backend python /app/autoponto/manage.py createsuperuser
+```
+
+Qualquer automacao SSH, `git pull` ou rotina operacional de deploy deve ficar na VM ou fora deste repositorio.
 
 ## Documentacao
 

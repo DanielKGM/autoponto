@@ -82,7 +82,7 @@ python autoponto/manage.py makemigrations --check --dry-run
 
 O Dockerfile do backend fica em `autoponto-backend/Dockerfile`, mas o Compose fica na raiz do repositorio.
 
-Subir tudo:
+Subir tudo em desenvolvimento:
 
 ```bash
 cd ..
@@ -94,6 +94,48 @@ Servicos:
 - Backend: `http://localhost:8000/api/`
 - Frontend: `http://localhost:8080`
 - Banco: container `db`
+
+## Producao Provisoria Na VM
+
+Na VM `192.168.10.104`, o AutoPonto deve ficar atras da rota publica:
+
+```text
+https://cidadesinteligentes.lsdi.ufma.br/interscity_lh/catalog/autoponto/
+```
+
+O Apache da VM encaminha a rota para `127.0.0.1:8088`, onde o container frontend fica exposto. Backend e PostgreSQL nao publicam portas no Compose de producao.
+
+Prepare o ambiente real na VM:
+
+```bash
+cp .env.prod.example .env.prod
+```
+
+Valores importantes para producao:
+
+```env
+DJANGO_DEBUG=False
+DJANGO_ALLOWED_HOSTS=cidadesinteligentes.lsdi.ufma.br,192.168.10.104,localhost,127.0.0.1
+CSRF_TRUSTED_ORIGINS=https://cidadesinteligentes.lsdi.ufma.br
+DATABASE_HOST=db
+DATABASE_PORT=5432
+VITE_BASE_PATH=/interscity_lh/catalog/autoponto/
+VITE_API_URL=/interscity_lh/catalog/autoponto/api
+```
+
+Subir a stack:
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+```
+
+Criar administrador inicial:
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml exec backend python /app/autoponto/manage.py createsuperuser
+```
+
+Scripts de `git pull`, SSH ou automacao de deploy devem ser mantidos na VM ou fora deste repositorio.
 
 ## Variaveis Importantes
 
