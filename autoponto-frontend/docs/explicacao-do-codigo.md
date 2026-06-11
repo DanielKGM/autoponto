@@ -52,7 +52,7 @@ VITE_BASE_PATH=/interscity_lh/catalog/autoponto/
 
 No desenvolvimento em container, `nginx.conf` serve o build na raiz e encaminha `/api/` para `backend:8000`.
 
-Na VM, `nginx.prod.conf` serve o app em `/interscity_lh/catalog/autoponto/` e encaminha `/interscity_lh/catalog/autoponto/api/` para `http://backend:8000/api/`. Como o Apache externo pode entregar ao container o caminho ja sem prefixo, o Nginx tambem encaminha `/api/` para o backend. Isso evita 404 no login quando a requisicao publica `/interscity_lh/catalog/autoponto/api/auth/token/` chega internamente como `/api/auth/token/`.
+Na VM, `nginx.prod.conf` serve o app em `/interscity_lh/catalog/autoponto/` e encaminha `/interscity_lh/catalog/autoponto/api/` para `http://backend:8000/api/`. Como o Apache externo pode entregar ao container o caminho ja sem prefixo, o Nginx tambem encaminha `/api/` para o backend. Isso evita 404 no login quando a requisicao publica `/interscity_lh/catalog/autoponto/api/auth/token/` chega internamente como `/api/auth/token/`. O arquivo tambem sobrescreve `X-Forwarded-Host` para impedir `400 Bad Request` HTML causado por host encaminhado de forma inesperada pelo Apache.
 
 ## Telas
 

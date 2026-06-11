@@ -132,6 +132,8 @@ O Apache da VM encaminha a rota para `127.0.0.1:8088`, onde o container frontend
 
 O prefixo publico fica no navegador, mas pode ser removido pelo Apache antes de chegar ao container. Por isso o Nginx do frontend aceita tanto `/interscity_lh/catalog/autoponto/api/` quanto `/api/` como entrada para a API. Na VM, `curl -i http://127.0.0.1:8088/api/health/` deve retornar a saude do Django.
 
+Se `POST /api/auth/token/` responder `400 Bad Request` em HTML, o request provavelmente chegou ao Django e foi bloqueado antes do SimpleJWT. Confira se a `.env.prod` real inclui `cidadesinteligentes.lsdi.ufma.br` em `DJANGO_ALLOWED_HOSTS`. Outra causa comum nesse deploy e `X-Forwarded-Host` vindo do Apache com valor inesperado; o `nginx.prod.conf` sobrescreve esse header com `$host`.
+
 Prepare o ambiente real na VM:
 
 ```bash

@@ -115,6 +115,8 @@ No Compose de producao, somente o frontend publica porta local em `127.0.0.1:808
 
 O build do React usa o prefixo publico completo, mas o Apache da VM pode remover esse prefixo antes de encaminhar para `127.0.0.1:8088`. Por isso o Nginx do frontend aceita tanto `/interscity_lh/catalog/autoponto/api/` quanto `/api/` e encaminha ambos para o backend interno. Para diagnostico na VM, `curl -i http://127.0.0.1:8088/api/health/` deve chegar ao Django.
 
+Se o login retornar `400 Bad Request` com `content-type: text/html`, verifique os logs do backend: normalmente e rejeicao de host/proxy antes da view JWT. Confirme que a `.env.prod` real contem `DJANGO_ALLOWED_HOSTS=cidadesinteligentes.lsdi.ufma.br,192.168.10.104,localhost,127.0.0.1`. O Nginx de producao tambem sobrescreve `X-Forwarded-Host` com `$host` para evitar que um valor encaminhado pelo Apache quebre essa validacao.
+
 Criar administrador inicial em producao:
 
 ```bash
