@@ -37,7 +37,7 @@ class FluxoApiTests(APITestCase):
             "/api/perfis-biometricos/matricular/",
             {
                 "aluno_id": str(self.contexto["aluno"].id),
-                "capturas": ["frame-1", "frame-2"],
+                "capturas": ["ZnJhbWUtMQ==", "ZnJhbWUtMg=="],
                 "versao_modelo": "sface-v1",
             },
             format="json",

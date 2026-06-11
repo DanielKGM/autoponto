@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ButtonHTMLAttributes, type ChangeEvent, type FormEvent } from "react";
-import { apiFetch, detalheErro, getAccessToken, limparTokens, login, normalizarLista } from "./api";
+import { apiFetch, carregarSessaoAutenticada, detalheErro, login, logout, normalizarLista } from "./api";
 import type {
   MeResponse,
   PresencaAluno,
@@ -11,6 +11,8 @@ import type {
 } from "./types";
 
 type DiagnosticoInterSCity = Record<string, { ok: boolean; status: string; codigo_http?: number; detalhe?: string }>;
+const MAX_CAPTURAS_BIOMETRIA = 5;
+const MAX_BYTES_BIOMETRIA = 2 * 1024 * 1024;
 
 function hojeIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -45,6 +47,24 @@ async function arquivoParaBase64(arquivo: File): Promise<string> {
   });
 }
 
+function validarArquivosBiometria(arquivos: File[]): string | null {
+  if (arquivos.length === 0) {
+    return "Selecione ao menos uma imagem.";
+  }
+  if (arquivos.length > MAX_CAPTURAS_BIOMETRIA) {
+    return `Selecione no maximo ${MAX_CAPTURAS_BIOMETRIA} imagens.`;
+  }
+  const invalido = arquivos.find((arquivo) => !arquivo.type.startsWith("image/"));
+  if (invalido) {
+    return "Use apenas arquivos de imagem.";
+  }
+  const grande = arquivos.find((arquivo) => arquivo.size > MAX_BYTES_BIOMETRIA);
+  if (grande) {
+    return "Cada imagem deve ter no maximo 2 MB.";
+  }
+  return null;
+}
+
 function Mensagem({ tipo, texto }: { tipo: "ok" | "erro" | "info"; texto: string }) {
   return <div className={`mensagem ${tipo}`}>{texto}</div>;
 }
@@ -61,16 +81,13 @@ function App() {
 
   useEffect(() => {
     async function carregarSessao() {
-      if (!getAccessToken()) {
-        setCarregando(false);
-        return;
-      }
       try {
-        const dados = await apiFetch<MeResponse>("/me/");
-        setMe(dados);
-        setArea(areaInicial(dados));
+        const dados = await carregarSessaoAutenticada();
+        if (dados) {
+          setMe(dados);
+          setArea(areaInicial(dados));
+        }
       } catch (e) {
-        limparTokens();
         setErro(detalheErro(e));
       } finally {
         setCarregando(false);
@@ -80,7 +97,7 @@ function App() {
   }, []);
 
   function sair() {
-    limparTokens();
+    void logout();
     setMe(null);
     setArea("aluno");
   }
@@ -192,6 +209,11 @@ function AlunoPainel() {
     evento.preventDefault();
     setMensagem("");
     setErro("");
+    const erroArquivos = validarArquivosBiometria(arquivos);
+    if (erroArquivos) {
+      setErro(erroArquivos);
+      return;
+    }
     setEnviando(true);
     try {
       const capturas = await Promise.all(arquivos.map(arquivoParaBase64));
@@ -275,7 +297,11 @@ function AlunoPainel() {
               type="file"
               accept="image/*"
               multiple
-              onChange={(evento: ChangeEvent<HTMLInputElement>) => setArquivos(Array.from(evento.target.files || []))}
+              onChange={(evento: ChangeEvent<HTMLInputElement>) => {
+                const selecionados = Array.from(evento.target.files || []);
+                setArquivos(selecionados);
+                setErro(validarArquivosBiometria(selecionados) || "");
+              }}
             />
           </label>
           {mensagem && <Mensagem tipo="ok" texto={mensagem} />}
@@ -516,6 +542,11 @@ function AdminPainel() {
     const arquivo = dados.get("arquivo");
     if (!(arquivo instanceof File) || arquivo.size === 0) {
       setErro("Selecione uma imagem.");
+      return;
+    }
+    const erroArquivo = validarArquivosBiometria([arquivo]);
+    if (erroArquivo) {
+      setErro(erroArquivo);
       return;
     }
     try {

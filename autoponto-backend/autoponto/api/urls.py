@@ -1,6 +1,5 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from api.views import (
     AulaViewSet,
@@ -22,6 +21,7 @@ from api.views import (
     HorarioAulaViewSet,
     InterSCityActuatorWebhookView,
     InterSCityDiagnosticoView,
+    LogoutCookieView,
     MatriculaTurmaViewSet,
     MeView,
     MinhaBiometriaView,
@@ -39,6 +39,8 @@ from api.views import (
     RelatorioResumoTurmaView,
     SalaViewSet,
     TurmaViewSet,
+    TokenObtainCookieView,
+    TokenRefreshCookieView,
     UsuarioViewSet,
 )
 
@@ -64,8 +66,9 @@ router.register("embeddings-faciais", EmbeddingFacialViewSet, basename="embeddin
 urlpatterns = [
     path("health/", HealthCheckView.as_view(), name="health"),
     path("ready/", ReadinessCheckView.as_view(), name="ready"),
-    path("auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
-    path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("auth/token/", TokenObtainCookieView.as_view(), name="token_obtain_pair"),
+    path("auth/token/refresh/", TokenRefreshCookieView.as_view(), name="token_refresh"),
+    path("auth/logout/", LogoutCookieView.as_view(), name="token_logout"),
     path("me/", MeView.as_view(), name="me"),
     path("me/turmas/", MinhasTurmasView.as_view(), name="me-turmas"),
     path("me/presencas/", MinhasPresencasView.as_view(), name="me-presencas"),

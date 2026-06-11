@@ -44,3 +44,25 @@ class RegistroPresencaViewSet(viewsets.ModelViewSet):
     serializer_class = RegistroPresencaSerializer
     permission_classes = (IsProfessorOuAdministrador,)
     filterset_fields = ("aula", "aluno", "status")
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if getattr(self.request.user, "papel", None) == PapelUsuario.ADMINISTRADOR:
+            return queryset
+        return queryset.filter(aula__horario__turma__professores=self.request.user).distinct()
+
+    def _exigir_admin_para_escrita(self):
+        if self.request.user.papel != PapelUsuario.ADMINISTRADOR:
+            raise PermissionDenied("Apenas administradores podem alterar presenças diretamente.")
+
+    def perform_create(self, serializer):
+        self._exigir_admin_para_escrita()
+        serializer.save()
+
+    def perform_update(self, serializer):
+        self._exigir_admin_para_escrita()
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._exigir_admin_para_escrita()
+        instance.delete()

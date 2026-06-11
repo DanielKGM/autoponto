@@ -1,15 +1,18 @@
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from api.authentication import EdgeNodeTokenAuthentication
 from api.models import ComandoBorda
 from api.permissions import IsNoBorda
 from api.services import montar_payload_pull, receber_presencas_borda
 
 
 class EdgePullView(APIView):
+    authentication_classes = (EdgeNodeTokenAuthentication,)
     permission_classes = (IsNoBorda,)
 
     @extend_schema(responses=OpenApiTypes.OBJECT)
@@ -24,7 +27,9 @@ class EdgePullSlashAliasView(EdgePullView):
 
 
 class EdgeAttendanceView(APIView):
+    authentication_classes = (EdgeNodeTokenAuthentication,)
     permission_classes = (IsNoBorda,)
+    throttle_scope = "edge_attendance"
 
     @extend_schema(request=OpenApiTypes.OBJECT, responses=OpenApiTypes.OBJECT)
     def post(self, request):
@@ -38,6 +43,7 @@ class EdgeAttendanceSlashAliasView(EdgeAttendanceView):
 
 
 class EdgeCommandListView(APIView):
+    authentication_classes = (EdgeNodeTokenAuthentication,)
     permission_classes = (IsNoBorda,)
 
     @extend_schema(responses=OpenApiTypes.OBJECT)
@@ -73,6 +79,7 @@ class EdgeCommandListSlashAliasView(EdgeCommandListView):
 
 
 class EdgeCommandAckView(APIView):
+    authentication_classes = (EdgeNodeTokenAuthentication,)
     permission_classes = (IsNoBorda,)
 
     @extend_schema(request=OpenApiTypes.OBJECT, responses=OpenApiTypes.OBJECT)
@@ -86,7 +93,10 @@ class EdgeCommandAckView(APIView):
             comando = ComandoBorda.objects.filter(id=item.get("id"), no=request.user).first()
             if not comando:
                 continue
-            comando.marcar_status(item.get("status", "DELIVERED"), item.get("error", ""))
+            try:
+                comando.marcar_status(item.get("status", "DELIVERED"), item.get("error", ""))
+            except DjangoValidationError as exc:
+                return Response(exc.message_dict, status=status.HTTP_400_BAD_REQUEST)
             confirmados.append(str(comando.id))
         return Response({"acked_ids": confirmados})
 

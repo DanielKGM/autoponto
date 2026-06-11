@@ -1,4 +1,5 @@
 import base64
+import binascii
 from math import sqrt
 from pathlib import Path
 
@@ -7,6 +8,25 @@ from django.db import transaction
 
 from api.models import EmbeddingFacial, PapelUsuario, PerfilBiometrico, Usuario
 from .errors import ConflictError, DomainValidationError
+
+
+def validar_capturas_biometricas(capturas: list[str]) -> list[str]:
+    if not capturas:
+        raise DomainValidationError("Ao menos uma captura é necessária para cadastrar biometria.")
+
+    limite_capturas = int(getattr(settings, "FACE_MAX_CAPTURAS", 5))
+    if len(capturas) > limite_capturas:
+        raise DomainValidationError(f"Envie no máximo {limite_capturas} captura(s) para a biometria.")
+
+    limite_bytes = int(getattr(settings, "FACE_MAX_IMAGE_BYTES", 2 * 1024 * 1024))
+    for indice, captura in enumerate(capturas, start=1):
+        try:
+            bruto = base64.b64decode(captura, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise DomainValidationError(f"A captura {indice} não é um base64 válido.") from exc
+        if len(bruto) > limite_bytes:
+            raise DomainValidationError(f"A captura {indice} excede o limite de {limite_bytes} bytes.")
+    return capturas
 
 
 def _resolver_caminho_modelo(valor: str, nome_variavel: str) -> str:
@@ -29,8 +49,7 @@ class GeradorEmbeddingVisao:
         self.caminho_modelo_reconhecimento = caminho_modelo_reconhecimento or getattr(settings, "FACE_RECOG_MODEL_PATH", "")
 
     def gerar_embedding(self, capturas: list[str]) -> tuple[list[float], dict]:
-        if not capturas:
-            raise DomainValidationError("Ao menos uma captura é necessária para gerar o embedding.")
+        capturas = validar_capturas_biometricas(capturas)
 
         try:
             import cv2
@@ -54,13 +73,16 @@ class GeradorEmbeddingVisao:
         capturas_decodificadas = 0
         quantidade_faces = 0
 
+        limite_pixels = int(getattr(settings, "FACE_MAX_IMAGE_PIXELS", 3_000_000))
         for captura in capturas:
-            bruto = base64.b64decode(captura)
+            bruto = base64.b64decode(captura, validate=True)
             imagem = cv2.imdecode(np.frombuffer(bruto, dtype=np.uint8), cv2.IMREAD_COLOR)
             if imagem is None:
                 continue
             capturas_decodificadas += 1
             altura, largura = imagem.shape[:2]
+            if altura * largura > limite_pixels:
+                raise DomainValidationError(f"Imagem excede o limite de {limite_pixels} pixels.")
             detector.setInputSize((largura, altura))
             _, faces = detector.detect(imagem)
             if faces is None or len(faces) == 0:

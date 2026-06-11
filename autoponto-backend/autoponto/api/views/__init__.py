@@ -9,6 +9,7 @@ from .academico import (
     SalaViewSet,
     TurmaViewSet,
 )
+from .autenticacao import LogoutCookieView, TokenObtainCookieView, TokenRefreshCookieView
 from .biometria import EmbeddingFacialViewSet, PerfilBiometricoViewSet
 from .dispositivos import ComandoBordaViewSet, DispositivoEsp32ViewSet, NoBordaViewSet
 from .edge_contract import (
@@ -56,6 +57,7 @@ __all__ = [
     "HorarioAulaViewSet",
     "InterSCityActuatorWebhookView",
     "InterSCityDiagnosticoView",
+    "LogoutCookieView",
     "MatriculaTurmaViewSet",
     "MeView",
     "MinhaBiometriaView",
@@ -72,6 +74,8 @@ __all__ = [
     "RelatorioPresencasTurmaDataView",
     "RelatorioResumoTurmaView",
     "SalaViewSet",
+    "TokenObtainCookieView",
+    "TokenRefreshCookieView",
     "TurmaViewSet",
     "UsuarioViewSet",
 ]

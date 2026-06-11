@@ -101,6 +101,8 @@ Payload esperado:
 
 A API converte isso em `ComandoBorda` pendente. O Raspberry busca em `/api/edge/commands` e confirma em `/api/edge/commands/ack`.
 
+Esse webhook e negado por padrao. Para aceitar comandos, configure `INTERSCITY_ENABLED=True` e envie o header `X-AutoPonto-Webhook-Token` com o mesmo valor de `INTERSCITY_WEBHOOK_SECRET`. A API tambem valida capacidade, tipo de comando, tamanho do payload, recurso ativo e `id` de origem para impedir replay que reabra comando ja entregue.
+
 ## Configuracao
 
 Variaveis da API principal:
@@ -114,6 +116,7 @@ INTERSCITY_COLLECTOR_PATH=/collector
 INTERSCITY_ADAPTOR_PATH=/adaptor
 INTERSCITY_ACTUATOR_PATH=/actuator
 INTERSCITY_TIMEOUT_SECONDS=5
+INTERSCITY_WEBHOOK_SECRET=
 ```
 
 O backend monta cada URL final como `INTERSCITY_BASE_URL + INTERSCITY_*_PATH`. Assim a base da instancia UFMA fica em um so lugar. Com `INTERSCITY_ENABLED=False`, a API principal continua funcionando sem depender da plataforma.

@@ -34,7 +34,7 @@ Para producao provisoria na VM da faculdade, use `.env.prod` baseado em `.env.pr
 | Backend | Django | Base da aplicacao web | Entrega estrutura robusta para modelos, autenticacao, admin, migrations e organizacao de projeto. |
 | Backend | Django REST Framework | API REST | Facilita serializers, ViewSets, permissoes e contratos HTTP para frontend, edge e integracoes. |
 | Backend | PostgreSQL | Banco de dados unico do sistema | Banco relacional robusto para dominio academico, presencas, relatorios e integridade referencial. |
-| Backend | Simple JWT | Autenticacao do frontend | Mantem login por token Bearer simples para aluno, professor e administrador. |
+| Backend | Simple JWT | Autenticacao do frontend | Usa access token curto em memoria no React e refresh token em cookie HttpOnly. |
 | Backend | OpenCV YuNet/SFace | Geracao de embeddings faciais | Alinha o cadastro biometrico do backend com o reconhecimento usado no edge. |
 | Backend | Gunicorn | Servidor WSGI em container | Opcao comum e estavel para servir Django em deploy Linux. |
 | Backend | WhiteNoise | Arquivos estaticos do Django | Permite servir estaticos administrativos/coletados no container sem servico extra. |
@@ -114,6 +114,8 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
 No Compose de producao, somente o frontend publica porta local em `127.0.0.1:8088`; backend e PostgreSQL ficam privados na rede Docker.
 
 O build do React usa o prefixo publico completo, mas o Apache da VM pode remover esse prefixo antes de encaminhar para `127.0.0.1:8088`. Por isso o Nginx do frontend aceita tanto `/interscity_lh/catalog/autoponto/api/` quanto `/api/` e encaminha ambos para o backend interno. Para diagnostico na VM, `curl -i http://127.0.0.1:8088/api/health/` deve chegar ao Django.
+
+O refresh JWT fica em cookie `HttpOnly`. Em producao, mantenha `JWT_REFRESH_COOKIE_SECURE=True` e `JWT_REFRESH_COOKIE_PATH=/interscity_lh/catalog/autoponto/api/auth/`. Se `INTERSCITY_ENABLED=True`, defina tambem `INTERSCITY_WEBHOOK_SECRET`; sem esse segredo o webhook de comandos do IntersCity sera recusado.
 
 Se o login retornar `400 Bad Request` com `content-type: text/html`, verifique os logs do backend: normalmente e rejeicao de host/proxy antes da view JWT. Confirme que a `.env.prod` real contem `DJANGO_ALLOWED_HOSTS=cidadesinteligentes.lsdi.ufma.br,192.168.10.104,localhost,127.0.0.1`. O Nginx de producao tambem sobrescreve `X-Forwarded-Host` com `$host` para evitar que um valor encaminhado pelo Apache quebre essa validacao.
 

@@ -5,8 +5,7 @@ if (!API_URL_ENV) {
   throw new Error("VITE_API_URL obrigatoria no .env da raiz.");
 }
 const API_URL = API_URL_ENV.replace(/\/+$/, "");
-const ACCESS_KEY = "autoponto_access";
-const REFRESH_KEY = "autoponto_refresh";
+let accessToken: string | null = null;
 
 export class ApiError extends Error {
   status: number;
@@ -25,36 +24,30 @@ type ApiOptions = RequestInit & {
 };
 
 export function getAccessToken(): string | null {
-  return window.sessionStorage.getItem(ACCESS_KEY);
+  return accessToken;
 }
 
-export function salvarTokens(access: string, refresh: string): void {
-  window.sessionStorage.setItem(ACCESS_KEY, access);
-  window.sessionStorage.setItem(REFRESH_KEY, refresh);
+export function salvarAccessToken(access: string): void {
+  accessToken = access;
 }
 
 export function limparTokens(): void {
-  window.sessionStorage.removeItem(ACCESS_KEY);
-  window.sessionStorage.removeItem(REFRESH_KEY);
+  accessToken = null;
 }
 
 async function tentarRefresh(): Promise<boolean> {
-  const refresh = window.sessionStorage.getItem(REFRESH_KEY);
-  if (!refresh) {
-    return false;
-  }
-
   const resposta = await fetch(`${API_URL}/auth/token/refresh/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh }),
+    credentials: "include",
+    body: JSON.stringify({}),
   });
   if (!resposta.ok) {
     limparTokens();
     return false;
   }
   const dados = (await resposta.json()) as { access: string };
-  window.sessionStorage.setItem(ACCESS_KEY, dados.access);
+  salvarAccessToken(dados.access);
   return true;
 }
 
@@ -76,6 +69,7 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
   const resposta = await fetch(`${API_URL}${path}`, {
     ...options,
     headers,
+    credentials: "include",
   });
 
   if (resposta.status === 401 && options.retryOnUnauthorized !== false && !options.skipAuth) {
@@ -102,13 +96,41 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
 }
 
 export async function login(username: string, password: string): Promise<MeResponse> {
-  const tokens = await apiFetch<{ access: string; refresh: string }>("/auth/token/", {
+  const tokens = await apiFetch<{ access: string }>("/auth/token/", {
     method: "POST",
     skipAuth: true,
     body: JSON.stringify({ username, password }),
   });
-  salvarTokens(tokens.access, tokens.refresh);
+  salvarAccessToken(tokens.access);
+  try {
+    return await apiFetch<MeResponse>("/me/");
+  } catch (erro) {
+    await logout();
+    throw erro;
+  }
+}
+
+export async function carregarSessaoAutenticada(): Promise<MeResponse | null> {
+  if (!getAccessToken()) {
+    const atualizado = await tentarRefresh();
+    if (!atualizado) {
+      return null;
+    }
+  }
   return apiFetch<MeResponse>("/me/");
+}
+
+export async function logout(): Promise<void> {
+  try {
+    await apiFetch<void>("/auth/logout/", {
+      method: "POST",
+      retryOnUnauthorized: false,
+    });
+  } catch {
+    // A sessão local deve sumir mesmo se o cookie já tiver expirado.
+  } finally {
+    limparTokens();
+  }
 }
 
 export function normalizarLista<T>(dados: T[] | { results: T[] }): T[] {
@@ -121,15 +143,15 @@ export function detalheErro(erro: unknown): string {
       return erro.message || "Conflito de dados.";
     }
     if (erro.status === 403) {
-      return "Acesso negado para esta operação.";
+      return "Acesso negado para esta operacao.";
     }
     if (erro.status === 401) {
-      return "Sessão expirada. Entre novamente.";
+      return "Sessao expirada. Entre novamente.";
     }
-    if (erro.data && typeof erro.data === "object") {
-      return JSON.stringify(erro.data);
+    if (erro.status === 400) {
+      return erro.message || "Dados invalidos. Revise as informacoes e tente novamente.";
     }
-    return erro.message;
+    return erro.message || "Falha ao processar a solicitacao.";
   }
   return erro instanceof Error ? erro.message : "Erro inesperado.";
 }

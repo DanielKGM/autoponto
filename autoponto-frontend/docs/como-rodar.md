@@ -97,6 +97,7 @@ O login usa JWT:
 
 - `POST /api/auth/token/`
 - `POST /api/auth/token/refresh/`
+- `POST /api/auth/logout/`
 - `GET /api/me/`
 
-O token fica em `sessionStorage` para simplificar o MVP.
+O access token fica apenas em memoria no React. O refresh token fica em cookie `HttpOnly`, definido pelo backend, e por isso as chamadas usam `credentials: include`.

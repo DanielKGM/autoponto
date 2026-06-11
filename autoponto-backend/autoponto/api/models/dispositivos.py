@@ -1,6 +1,9 @@
 import hashlib
 import secrets
+from datetime import timedelta
 
+from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
@@ -50,6 +53,8 @@ class TokenNoBorda(BaseModel):
 
     @classmethod
     def emitir_token(cls, no: NoBorda, nome: str = "default", expira_em=None):
+        if expira_em is None:
+            expira_em = timezone.now() + timedelta(days=settings.NODE_TOKEN_EXPIRATION_DAYS)
         token_bruto = secrets.token_urlsafe(32)
         token = cls.objects.create(
             no=no,
@@ -64,7 +69,7 @@ class TokenNoBorda(BaseModel):
         return secrets.compare_digest(self.hash_token, self.gerar_hash(token_bruto))
 
     def pode_autenticar(self) -> bool:
-        return self.ativo and (self.expira_em is None or self.expira_em > timezone.now())
+        return self.ativo and self.expira_em is not None and self.expira_em > timezone.now()
 
     def __str__(self) -> str:
         return f"{self.no.codigo}:{self.nome}"
@@ -167,12 +172,13 @@ class ComandoBorda(BaseModel):
             "REJECTED": ComandoBorda.STATUS_REJEITADO,
             "REJEITADO": ComandoBorda.STATUS_REJEITADO,
         }
-        return mapa.get(str(status).upper(), ComandoBorda.STATUS_ENTREGUE)
+        normalizado = mapa.get(str(status).upper())
+        if normalizado is None:
+            raise ValidationError({"status": "Status de comando desconhecido."})
+        return normalizado
 
     def clean(self):
         if self.dispositivo_id and self.no_id and self.dispositivo.no_id != self.no_id:
-            from django.core.exceptions import ValidationError
-
             raise ValidationError({"dispositivo": "O dispositivo deve pertencer ao nó do comando."})
 
     def marcar_status(self, status: str, erro: str = ""):

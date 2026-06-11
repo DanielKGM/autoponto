@@ -79,17 +79,38 @@ class TurmaViewSet(AdminReadableModelViewSet):
     filterset_fields = ("periodo_letivo", "disciplina", "professores", "ativo")
     search_fields = ("codigo", "disciplina__nome", "disciplina__codigo")
 
+    def filtrar_queryset_por_usuario(self, queryset, usuario):
+        if getattr(usuario, "papel", None) == PapelUsuario.PROFESSOR:
+            return queryset.filter(professores=usuario).distinct()
+        if getattr(usuario, "papel", None) == PapelUsuario.ALUNO:
+            return queryset.filter(matriculas__aluno=usuario, matriculas__ativo=True).distinct()
+        return queryset.none()
+
 
 class MatriculaTurmaViewSet(AdminReadableModelViewSet):
     queryset = MatriculaTurma.objects.select_related("turma", "aluno").all()
     serializer_class = MatriculaTurmaSerializer
     filterset_fields = ("turma", "aluno", "ativo")
 
+    def filtrar_queryset_por_usuario(self, queryset, usuario):
+        if getattr(usuario, "papel", None) == PapelUsuario.PROFESSOR:
+            return queryset.filter(turma__professores=usuario).distinct()
+        if getattr(usuario, "papel", None) == PapelUsuario.ALUNO:
+            return queryset.filter(aluno=usuario)
+        return queryset.none()
+
 
 class HorarioAulaViewSet(AdminReadableModelViewSet):
     queryset = HorarioAula.objects.select_related("turma", "turma__disciplina", "sala").all()
     serializer_class = HorarioAulaSerializer
     filterset_fields = ("turma", "sala", "dia_semana", "ativo")
+
+    def filtrar_queryset_por_usuario(self, queryset, usuario):
+        if getattr(usuario, "papel", None) == PapelUsuario.PROFESSOR:
+            return queryset.filter(turma__professores=usuario).distinct()
+        if getattr(usuario, "papel", None) == PapelUsuario.ALUNO:
+            return queryset.filter(turma__matriculas__aluno=usuario, turma__matriculas__ativo=True).distinct()
+        return queryset.none()
 
     @action(
         detail=True,

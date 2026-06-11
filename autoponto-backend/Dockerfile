@@ -15,7 +15,12 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY autoponto /app/autoponto
 COPY docker/backend-entrypoint.sh /entrypoint.sh
 
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /entrypoint.sh \
+    && addgroup --system autoponto \
+    && adduser --system --ingroup autoponto autoponto \
+    && chown -R autoponto:autoponto /app /entrypoint.sh
+
+USER autoponto
 
 EXPOSE 8000
 

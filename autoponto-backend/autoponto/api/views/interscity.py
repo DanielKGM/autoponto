@@ -1,3 +1,6 @@
+import secrets
+
+from django.conf import settings
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
@@ -12,9 +15,14 @@ from api.services.interscity import ClienteInterSCity
 
 class InterSCityActuatorWebhookView(APIView):
     permission_classes = (AllowAny,)
+    throttle_scope = "interscity_webhook"
 
     @extend_schema(request=OpenApiTypes.OBJECT, responses=OpenApiTypes.OBJECT)
     def post(self, request):
+        segredo = getattr(settings, "INTERSCITY_WEBHOOK_SECRET", "")
+        recebido = request.headers.get("X-AutoPonto-Webhook-Token", "")
+        if not settings.INTERSCITY_ENABLED or not segredo or not secrets.compare_digest(segredo, recebido):
+            return Response({"detail": "Webhook IntersCity não autorizado."}, status=status.HTTP_403_FORBIDDEN)
         if request.data.get("action") != "actuator_command":
             return Response({"detail": "Ação de webhook não suportada."}, status=status.HTTP_400_BAD_REQUEST)
         comando = criar_comando_por_interscity(request.data.get("command", {}))

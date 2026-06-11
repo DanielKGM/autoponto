@@ -95,12 +95,12 @@ class ModeloDominioTests(TestCase):
         ]
         perfil, primeiro_embedding = matricular_biometria_aluno(
             aluno=self.contexto["aluno"],
-            capturas=["captura-a"],
+            capturas=["Y2FwdHVyYS1h"],
             versao_modelo="sface-v1",
         )
         _, segundo_embedding = matricular_biometria_aluno(
             aluno=self.contexto["aluno"],
-            capturas=["captura-b"],
+            capturas=["Y2FwdHVyYS1i"],
             versao_modelo="sface-v2",
         )
 

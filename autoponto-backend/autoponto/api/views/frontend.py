@@ -94,6 +94,15 @@ def _usuario_pode_historico_aluno(usuario: Usuario, aluno: Usuario, turma_id=Non
     return turmas.exists()
 
 
+def _turmas_historico_permitidas(usuario: Usuario, aluno: Usuario, turma_id=None):
+    if usuario.papel in {PapelUsuario.ADMINISTRADOR, PapelUsuario.ALUNO}:
+        return None
+    turmas = Turma.objects.filter(professores=usuario, matriculas__aluno=aluno, matriculas__ativo=True)
+    if turma_id:
+        turmas = turmas.filter(id=turma_id)
+    return list(turmas.values_list("id", flat=True))
+
+
 class MeView(APIView):
     permission_classes = (IsAuthenticated,)
 
@@ -129,6 +138,7 @@ class MinhasPresencasView(APIView):
 
 class MinhaBiometriaView(APIView):
     permission_classes = (IsAuthenticated,)
+    throttle_scope = "biometria"
 
     @extend_schema(request=MatriculaBiometricaPropriaSerializer, responses=OpenApiTypes.OBJECT)
     def post(self, request):
@@ -208,10 +218,12 @@ class RelatorioPresencasAlunoView(APIView):
         if not _usuario_pode_historico_aluno(request.user, aluno, turma_id=turma_id):
             raise PermissionDenied("Voce nao tem acesso ao historico deste aluno.")
 
+        turma_ids_permitidas = _turmas_historico_permitidas(request.user, aluno, turma_id=turma_id)
         payload = historico_presencas_aluno(
             aluno,
             turma_id=turma_id,
             periodo_letivo_id=periodo_letivo_id,
+            turma_ids_permitidas=turma_ids_permitidas,
         )
         payload["gerado_em"] = timezone.now().isoformat()
         return Response(payload)

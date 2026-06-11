@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
+import json
 
 from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -25,6 +26,16 @@ from api.services.aulas import listar_aulas_do_dia
 
 
 ENTIDADES_SYNC = ("locales", "devices", "lessons", "students", "enrollments", "face_embeddings")
+CAPACIDADES_COMANDO_INTERSCITY = {"autoponto_edge_command"}
+TIPOS_COMANDO_INTERSCITY = {
+    "display_message",
+    "sync_now",
+    "set_context",
+    "restart_device",
+    "open_attendance",
+    "close_attendance",
+}
+TAMANHO_MAXIMO_PAYLOAD_COMANDO = 4096
 
 
 def parsear_cursor(valor: str | None):
@@ -313,31 +324,60 @@ def _receber_evento_borda(no: NoBorda, evento: dict) -> str:
 
 
 def criar_comando_por_interscity(payload_comando: dict) -> ComandoBorda:
+    if not isinstance(payload_comando, dict):
+        raise ValidationError({"command": "Comando IntersCity inválido."})
+
     uuid = payload_comando.get("uuid")
     capacidade = payload_comando.get("capability", "")
+    if capacidade not in CAPACIDADES_COMANDO_INTERSCITY:
+        raise ValidationError({"capability": "Capacidade IntersCity não autorizada."})
+
     id_origem = payload_comando.get("_id", {})
     if isinstance(id_origem, dict):
         id_origem = id_origem.get("$oid", "")
     id_origem = str(id_origem or payload_comando.get("id", ""))
+    if not id_origem:
+        raise ValidationError({"id": "Comandos IntersCity precisam de id de origem."})
+
     valor = payload_comando.get("value", {})
     tipo = valor.get("type") if isinstance(valor, dict) else capacidade
-    payload = valor.get("payload", valor) if isinstance(valor, dict) else {"value": valor}
+    if tipo not in TIPOS_COMANDO_INTERSCITY:
+        raise ValidationError({"type": "Tipo de comando IntersCity não autorizado."})
 
-    dispositivo = DispositivoEsp32.objects.select_related("no").filter(interscity_uuid=uuid).first()
-    no = dispositivo.no if dispositivo else NoBorda.objects.filter(interscity_uuid=uuid).first()
+    payload = valor.get("payload", valor) if isinstance(valor, dict) else {"value": valor}
+    payload = payload if isinstance(payload, dict) else {"value": payload}
+    if len(json.dumps(payload, default=str).encode("utf-8")) > TAMANHO_MAXIMO_PAYLOAD_COMANDO:
+        raise ValidationError({"payload": "Payload do comando IntersCity excede o tamanho permitido."})
+
+    dispositivo = DispositivoEsp32.objects.select_related("no").filter(interscity_uuid=uuid, ativo=True).first()
+    no = dispositivo.no if dispositivo else NoBorda.objects.filter(interscity_uuid=uuid, ativo=True).first()
     if no is None:
         raise ValidationError({"uuid": "Nenhum recurso AutoPonto está vinculado a esse uuid do Interscity."})
+    if not no.ativo:
+        raise ValidationError({"uuid": "Nó de borda vinculado ao recurso está inativo."})
 
-    comando, _ = ComandoBorda.objects.update_or_create(
+    existente = ComandoBorda.objects.filter(origem="interscity", id_origem=id_origem).first()
+    dados_comando = {
+        "no": no,
+        "dispositivo": dispositivo,
+        "tipo": tipo or capacidade or "command",
+        "payload": payload,
+        "capacidade": capacidade,
+    }
+    if existente:
+        if (
+            existente.no_id != no.id
+            or existente.dispositivo_id != (dispositivo.id if dispositivo else None)
+            or existente.tipo != dados_comando["tipo"]
+            or existente.payload != payload
+            or existente.capacidade != capacidade
+        ):
+            raise ValidationError({"id": "Id de comando IntersCity reutilizado com payload diferente."})
+        return existente
+
+    comando, _ = ComandoBorda.objects.get_or_create(
         origem="interscity",
         id_origem=id_origem,
-        defaults={
-            "no": no,
-            "dispositivo": dispositivo,
-            "tipo": tipo or capacidade or "command",
-            "payload": payload if isinstance(payload, dict) else {"value": payload},
-            "status": ComandoBorda.STATUS_PENDENTE,
-            "capacidade": capacidade,
-        },
+        defaults={**dados_comando, "status": ComandoBorda.STATUS_PENDENTE},
     )
     return comando

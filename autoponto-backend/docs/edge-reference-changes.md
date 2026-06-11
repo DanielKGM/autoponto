@@ -7,6 +7,7 @@ Este arquivo lista as mudancas esperadas no `referencia-edge`. O codigo de refer
 - Configure `MAIN_API_URL` apontando para a API principal com o prefixo `/api`, por exemplo `http://backend:8000/api`.
 - Configure `MAIN_API_TOKEN` com um token emitido em `POST /api/nos-borda/{id}/emitir-token/`.
 - O edge deve enviar `Authorization: NodeToken <token>`.
+- O token do no possui expiracao padrao e so autentica se o `NoBorda` estiver ativo; planeje rotacao do token no Raspberry.
 - O `node_id` usado no pull, push e ack deve ser o `codigo` ou UUID de `NoBorda`.
 - As ESP32 nao autenticam diretamente no backend principal; elas continuam subordinadas ao Raspberry.
 
@@ -114,6 +115,7 @@ O edge deve adicionar uma etapa no loop de sync:
 - `GET /api/edge/commands?node_id=<NO_ID>` busca comandos pendentes.
 - O Raspberry repassa o comando para a ESP32 correta por MQTT/local.
 - `POST /api/edge/commands/ack` confirma com `DELIVERED`, `FAILED` ou `REJECTED`.
+- Status de ACK fora dessa lista e rejeitado pelo backend; o edge deve manter localmente apenas esses estados.
 - Comandos criados pelo backend administrativo registram o usuario emissor em `ComandoBorda.criado_por`; isso nao muda o payload recebido pelo edge.
 
 Payload de busca:

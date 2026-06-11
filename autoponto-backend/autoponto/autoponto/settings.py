@@ -144,6 +144,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 CORS_ALLOWED_ORIGINS = env_lista("CORS_ALLOWED_ORIGINS")
+CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = env_lista("CSRF_TRUSTED_ORIGINS")
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
@@ -154,12 +155,21 @@ AUTH_USER_MODEL = "api.Usuario"
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
-        "api.authentication.EdgeNodeTokenAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
     ),
+    "DEFAULT_THROTTLE_CLASSES": (
+        "rest_framework.throttling.ScopedRateThrottle",
+    ),
+    "DEFAULT_THROTTLE_RATES": {
+        "auth_login": "100/min",
+        "auth_refresh": "100/min",
+        "biometria": "20/hour",
+        "edge_attendance": "600/min",
+        "interscity_webhook": "120/min",
+    },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_FILTER_BACKENDS": (
         "django_filters.rest_framework.DjangoFilterBackend",
@@ -194,8 +204,20 @@ INTERSCITY_COLLECTOR_PATH = env_obrigatoria("INTERSCITY_COLLECTOR_PATH")
 INTERSCITY_ADAPTOR_PATH = env_obrigatoria("INTERSCITY_ADAPTOR_PATH")
 INTERSCITY_ACTUATOR_PATH = env_obrigatoria("INTERSCITY_ACTUATOR_PATH")
 INTERSCITY_TIMEOUT_SECONDS = env_int("INTERSCITY_TIMEOUT_SECONDS")
+INTERSCITY_WEBHOOK_SECRET = env_obrigatoria("INTERSCITY_WEBHOOK_SECRET", permitir_vazio=True)
 
 FACE_DETECT_MODEL_PATH = env_obrigatoria("FACE_DETECT_MODEL_PATH", permitir_vazio=True)
 FACE_RECOG_MODEL_PATH = env_obrigatoria("FACE_RECOG_MODEL_PATH", permitir_vazio=True)
 FACE_SCORE_THRESHOLD = env_float("FACE_SCORE_THRESHOLD")
 FACE_DUPLICATE_THRESHOLD = env_float("FACE_DUPLICATE_THRESHOLD")
+FACE_MAX_CAPTURAS = env_int("FACE_MAX_CAPTURAS")
+FACE_MAX_IMAGE_BYTES = env_int("FACE_MAX_IMAGE_BYTES")
+FACE_MAX_IMAGE_PIXELS = env_int("FACE_MAX_IMAGE_PIXELS")
+
+NODE_TOKEN_EXPIRATION_DAYS = env_int("NODE_TOKEN_EXPIRATION_DAYS")
+
+JWT_REFRESH_COOKIE_NAME = env_obrigatoria("JWT_REFRESH_COOKIE_NAME")
+JWT_REFRESH_COOKIE_PATH = env_obrigatoria("JWT_REFRESH_COOKIE_PATH")
+JWT_REFRESH_COOKIE_SECURE = env_bool("JWT_REFRESH_COOKIE_SECURE")
+JWT_REFRESH_COOKIE_SAMESITE = env_obrigatoria("JWT_REFRESH_COOKIE_SAMESITE")
+DATA_UPLOAD_MAX_MEMORY_SIZE = env_int("DATA_UPLOAD_MAX_MEMORY_SIZE")

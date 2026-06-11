@@ -197,7 +197,7 @@ def relatorio_resumo_turma(turma: Turma, inicio=None, fim=None):
     }
 
 
-def historico_presencas_aluno(aluno: Usuario, turma_id=None, periodo_letivo_id=None):
+def historico_presencas_aluno(aluno: Usuario, turma_id=None, periodo_letivo_id=None, turma_ids_permitidas=None):
     registros = RegistroPresenca.objects.select_related(
         "aula",
         "aula__horario",
@@ -208,6 +208,8 @@ def historico_presencas_aluno(aluno: Usuario, turma_id=None, periodo_letivo_id=N
     ).filter(aluno=aluno)
     if turma_id:
         registros = registros.filter(aula__horario__turma_id=turma_id)
+    elif turma_ids_permitidas is not None:
+        registros = registros.filter(aula__horario__turma_id__in=turma_ids_permitidas)
     if periodo_letivo_id:
         registros = registros.filter(aula__horario__turma__periodo_letivo_id=periodo_letivo_id)
 

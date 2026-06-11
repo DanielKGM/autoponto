@@ -60,7 +60,7 @@ Todas as telas estao em `src/App.tsx` para manter o MVP pequeno e facil de expli
 
 ### Login
 
-Recebe usuario e senha, chama `login()` e salva os tokens no `sessionStorage`.
+Recebe usuario e senha, chama `login()`, guarda o access token apenas em memoria e deixa o refresh token no cookie `HttpOnly` definido pelo backend.
 
 ### Painel Do Aluno
 
@@ -102,4 +102,4 @@ O CSS usa uma interface operacional: tabelas, formularios e paineis compactos. A
 
 - As telas administrativas sao simples e nao cobrem todos os campos de todos os cadastros.
 - Nao usa React Query ou roteamento por URL para manter o projeto menor.
-- O token fica em `sessionStorage`, suficiente para demonstracao, mas uma versao de producao deveria avaliar cookies httpOnly.
+- O access token fica somente em memoria no React; o refresh token fica em cookie `HttpOnly`, reduzindo exposicao em caso de XSS.

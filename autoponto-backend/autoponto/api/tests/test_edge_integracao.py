@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -170,6 +171,7 @@ class IntegracaoEdgeTests(APITestCase):
         self.assertEqual(resposta.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(RegistroPresenca.objects.count(), 0)
 
+    @override_settings(INTERSCITY_ENABLED=True, INTERSCITY_WEBHOOK_SECRET="segredo")
     def test_webhook_interscity_cria_comando_e_ack_do_no_marca_entregue(self):
         self.contexto["dispositivo"].interscity_uuid = "0dbdae10-4156-4433-9291-5d261eb0d8eb"
         self.contexto["dispositivo"].save(update_fields=["interscity_uuid", "atualizado_em"])
@@ -188,6 +190,7 @@ class IntegracaoEdgeTests(APITestCase):
                 },
             },
             format="json",
+            HTTP_X_AUTO_PONTO_WEBHOOK_TOKEN="segredo",
         )
 
         self.assertEqual(webhook.status_code, status.HTTP_202_ACCEPTED)

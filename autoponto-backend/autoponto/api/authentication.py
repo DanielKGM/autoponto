@@ -26,6 +26,8 @@ class EdgeNodeTokenAuthentication(authentication.BaseAuthentication):
 
         if not token.pode_autenticar():
             raise exceptions.AuthenticationFailed("Token do nó expirado ou inativo.")
+        if not token.no.ativo:
+            raise exceptions.AuthenticationFailed("Nó de borda inativo.")
 
         agora = timezone.now()
         token.ultimo_uso_em = agora

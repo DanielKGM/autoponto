@@ -81,7 +81,7 @@ class FrontendApiTests(APITestCase):
         resposta = self.client.post(
             "/api/me/biometria/",
             {
-                "capturas": ["frame-1"],
+                "capturas": ["ZnJhbWUtMQ=="],
                 "versao_modelo": "sface-v1",
             },
             format="json",
