@@ -12,14 +12,9 @@ from .academico import (
 )
 from .biometria import EmbeddingFacialSerializer, MatriculaBiometricaSerializer, PerfilBiometricoSerializer
 from .dispositivos import ComandoBordaSerializer, DispositivoEsp32Serializer, NoBordaSerializer, TokenNoBordaEmitirSerializer
-from .frontend import MatriculaBiometricaPropriaSerializer, RelatorioPeriodoSerializer
+from .frontend import MatriculaBiometricaPropriaSerializer
 from .identidade import UsuarioSerializer
-from .presencas import (
-    AulaSerializer,
-    EventoReconhecimentoSerializer,
-    EventoReconhecimentoSubmissionSerializer,
-    RegistroPresencaSerializer,
-)
+from .presencas import AulaSerializer, RegistroPresencaSerializer
 
 __all__ = [
     "AulaSerializer",
@@ -29,8 +24,6 @@ __all__ = [
     "DisciplinaSerializer",
     "DispositivoEsp32Serializer",
     "EmbeddingFacialSerializer",
-    "EventoReconhecimentoSerializer",
-    "EventoReconhecimentoSubmissionSerializer",
     "HorarioAulaSerializer",
     "JanelaChamadaSerializer",
     "MatriculaBiometricaSerializer",
@@ -40,7 +33,6 @@ __all__ = [
     "PerfilBiometricoSerializer",
     "PeriodoLetivoSerializer",
     "PredioSerializer",
-    "RelatorioPeriodoSerializer",
     "RegistroPresencaSerializer",
     "SalaSerializer",
     "TokenNoBordaEmitirSerializer",

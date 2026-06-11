@@ -96,8 +96,3 @@ class ClienteInterSCity:
             nome: self._request_status("GET", base_url, caminho)
             for nome, (base_url, caminho) in servicos.items()
         }
-
-    publish_resource_data = publicar_dados_recurso
-
-
-InterSCityClient = ClienteInterSCity

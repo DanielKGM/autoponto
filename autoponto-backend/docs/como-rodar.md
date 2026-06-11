@@ -47,6 +47,31 @@ cd autoponto-backend
 
 O `.env.example` da raiz usa `DATABASE_HOST=localhost`, porque fora do Docker o backend acessa o Postgres pela porta publicada `5432`. Dentro do Compose, o `docker-compose.yml` injeta `DATABASE_HOST=db` apenas no container do backend.
 
+## Modelos ONNX Para Biometria
+
+O backend usa os mesmos modelos OpenCV Zoo indicados no `referencia-edge/README.md`. Eles devem ficar em:
+
+```text
+autoponto-backend/autoponto/data/models/
+```
+
+Baixe os arquivos antes de usar cadastro biometrico real:
+
+```bash
+mkdir -p autoponto-backend/autoponto/data/models
+wget https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx -O autoponto-backend/autoponto/data/models/face_detection_yunet.onnx
+wget https://github.com/opencv/opencv_zoo/raw/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx -O autoponto-backend/autoponto/data/models/face_recognition_sface.onnx
+```
+
+As variaveis esperadas sao:
+
+```env
+FACE_DETECT_MODEL_PATH=data/models/face_detection_yunet.onnx
+FACE_RECOG_MODEL_PATH=data/models/face_recognition_sface.onnx
+```
+
+Os caminhos relativos sao resolvidos a partir de `autoponto-backend/autoponto/`. Os arquivos `.onnx` nao sao versionados; apenas a pasta com `.gitkeep` fica no Git. Em Docker, baixe os modelos na VM antes do build ou configure caminhos absolutos/montados equivalentes.
+
 Aplicar migrations:
 
 ```bash
@@ -105,6 +130,8 @@ https://cidadesinteligentes.lsdi.ufma.br/interscity_lh/catalog/autoponto/
 
 O Apache da VM encaminha a rota para `127.0.0.1:8088`, onde o container frontend fica exposto. Backend e PostgreSQL nao publicam portas no Compose de producao.
 
+O prefixo publico fica no navegador, mas pode ser removido pelo Apache antes de chegar ao container. Por isso o Nginx do frontend aceita tanto `/interscity_lh/catalog/autoponto/api/` quanto `/api/` como entrada para a API. Na VM, `curl -i http://127.0.0.1:8088/api/health/` deve retornar a saude do Django.
+
 Prepare o ambiente real na VM:
 
 ```bash
@@ -145,5 +172,7 @@ Scripts de `git pull`, SSH ou automacao de deploy devem ser mantidos na VM ou fo
 - `CORS_ALLOWED_ORIGINS`: origens aceitas para o frontend.
 - `INTERSCITY_ENABLED`: ativa/desativa integracao externa.
 - `INTERSCITY_BASE_URL` e `INTERSCITY_*_PATH`: base da instancia Interscity e path de cada microsservico.
+- `FACE_DETECT_MODEL_PATH`: caminho do YuNet ONNX usado para detectar rosto.
+- `FACE_RECOG_MODEL_PATH`: caminho do SFace ONNX usado para gerar embedding.
 - `FACE_DUPLICATE_THRESHOLD`: limite para bloquear rosto duplicado.
 - `EDGE_SYNC_DAYS_BACK` e `EDGE_SYNC_DAYS_FORWARD`: janela de sincronizacao do Raspberry.

@@ -341,8 +341,3 @@ def criar_comando_por_interscity(payload_comando: dict) -> ComandoBorda:
         },
     )
     return comando
-
-
-build_pull_payload = montar_payload_pull
-submit_edge_attendance = receber_presencas_borda
-create_command_from_interscity = criar_comando_por_interscity

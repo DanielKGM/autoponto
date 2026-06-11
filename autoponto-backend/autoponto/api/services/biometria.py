@@ -1,11 +1,26 @@
 import base64
 from math import sqrt
+from pathlib import Path
 
 from django.conf import settings
 from django.db import transaction
 
 from api.models import EmbeddingFacial, PapelUsuario, PerfilBiometrico, Usuario
 from .errors import ConflictError, DomainValidationError
+
+
+def _resolver_caminho_modelo(valor: str, nome_variavel: str) -> str:
+    if not valor:
+        raise DomainValidationError(f"Configure {nome_variavel} com o caminho do modelo ONNX antes de cadastrar biometria.")
+
+    caminho = Path(valor)
+    if not caminho.is_absolute():
+        caminho = Path(settings.BASE_DIR) / caminho
+    if not caminho.exists():
+        raise DomainValidationError(f"Modelo ONNX nao encontrado em {caminho}. Verifique {nome_variavel}.")
+    if not caminho.is_file():
+        raise DomainValidationError(f"O caminho configurado em {nome_variavel} nao aponta para um arquivo ONNX.")
+    return str(caminho)
 
 
 class GeradorEmbeddingVisao:
@@ -23,15 +38,18 @@ class GeradorEmbeddingVisao:
         except ImportError as exc:
             raise DomainValidationError("OpenCV e NumPy são necessários para gerar embeddings faciais.") from exc
 
+        caminho_deteccao = _resolver_caminho_modelo(self.caminho_modelo_deteccao, "FACE_DETECT_MODEL_PATH")
+        caminho_reconhecimento = _resolver_caminho_modelo(self.caminho_modelo_reconhecimento, "FACE_RECOG_MODEL_PATH")
+
         detector = cv2.FaceDetectorYN.create(
-            self.caminho_modelo_deteccao,
+            caminho_deteccao,
             "",
             (240, 240),
             float(getattr(settings, "FACE_SCORE_THRESHOLD", 0.85)),
             0.3,
             5000,
         )
-        reconhecedor = cv2.FaceRecognizerSF.create(self.caminho_modelo_reconhecimento, "")
+        reconhecedor = cv2.FaceRecognizerSF.create(caminho_reconhecimento, "")
         vetores = []
         capturas_decodificadas = 0
         quantidade_faces = 0

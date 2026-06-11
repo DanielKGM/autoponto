@@ -1,3 +1,3 @@
-from .presencas import get_accessible_sessions, obter_aulas_acessiveis
+from .presencas import obter_aulas_acessiveis
 
-__all__ = ["get_accessible_sessions", "obter_aulas_acessiveis"]
+__all__ = ["obter_aulas_acessiveis"]

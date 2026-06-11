@@ -74,6 +74,7 @@ local_settings.py
 staticfiles/
 autoponto-backend/autoponto/staticfiles/
 autoponto-backend/staticfiles/
+autoponto-backend/autoponto/data/models/*.onnx
 
 # Flask stuff:
 instance/

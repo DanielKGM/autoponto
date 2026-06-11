@@ -1,7 +1,6 @@
 asgiref
 Django
 django-cors-headers
-django-extensions
 django-filter
 djangorestframework
 djangorestframework-simplejwt
@@ -10,7 +9,6 @@ gunicorn
 msgpack
 numpy
 opencv-python-headless
-pillow
 psycopg[binary]
 sqlparse
 tzdata

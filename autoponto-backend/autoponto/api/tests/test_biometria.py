@@ -4,6 +4,8 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from api.models import EmbeddingFacial
+from api.services.biometria import _resolver_caminho_modelo
+from api.services.errors import DomainValidationError
 from .helpers import criar_contexto_academico
 
 
@@ -37,3 +39,11 @@ class MatriculaBiometricaTests(APITestCase):
         embedding = EmbeddingFacial.objects.get()
         self.assertEqual(embedding.vetor, [0.1, 0.2, 0.3, 0.4])
         self.assertEqual(EmbeddingFacial.objects.count(), 1)
+
+    def test_modelo_onnx_vazio_retorna_erro_claro(self):
+        with self.assertRaisesMessage(DomainValidationError, "Configure FACE_DETECT_MODEL_PATH"):
+            _resolver_caminho_modelo("", "FACE_DETECT_MODEL_PATH")
+
+    def test_modelo_onnx_inexistente_retorna_erro_claro(self):
+        with self.assertRaisesMessage(DomainValidationError, "Modelo ONNX nao encontrado"):
+            _resolver_caminho_modelo("data/models/arquivo-inexistente.onnx", "FACE_DETECT_MODEL_PATH")

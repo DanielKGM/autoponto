@@ -13,6 +13,3 @@ def obter_aulas_acessiveis(usuario):
     if usuario.papel == PapelUsuario.PROFESSOR:
         return queryset.filter(horario__turma__professores=usuario)
     return queryset.none()
-
-
-get_accessible_sessions = obter_aulas_acessiveis

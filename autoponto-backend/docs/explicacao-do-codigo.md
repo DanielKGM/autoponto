@@ -9,6 +9,7 @@ Este backend e uma API Django/DRF para frequencia academica automatizada por IoT
 - `autoponto/api/views/`: concentra endpoints HTTP para frontend, admin, edge e Interscity.
 - `autoponto/api/services/`: guarda regras de negocio reutilizaveis, como gerar aula, fechar chamada, registrar presenca e sincronizar edge.
 - `autoponto/api/tests/`: cobre contratos principais do MVP.
+- `autoponto/data/models/`: local esperado para os modelos ONNX de biometria; a pasta fica versionada com `.gitkeep`, mas os `.onnx` nao entram no Git.
 
 Todos os modelos de dominio herdam de `BaseModel`, que adiciona:
 
@@ -184,6 +185,13 @@ Guardam somente o necessario para reconhecimento.
 
 O backend compara o novo vetor com embeddings ativos de outros alunos e bloqueia duplicidade pelo limite `FACE_DUPLICATE_THRESHOLD`.
 
+Os embeddings sao gerados com OpenCV YuNet/SFace. O backend usa os mesmos arquivos indicados no `referencia-edge/README.md`:
+
+- `data/models/face_detection_yunet.onnx`: detector YuNet.
+- `data/models/face_recognition_sface.onnx`: reconhecedor SFace.
+
+Esses caminhos sao configurados por `FACE_DETECT_MODEL_PATH` e `FACE_RECOG_MODEL_PATH`. Se forem relativos, o backend resolve a partir de `autoponto-backend/autoponto/`. Se algum arquivo estiver ausente, o cadastro biometrico retorna erro de dominio em portugues e nao tenta persistir imagem.
+
 ## Fluxos Principais
 
 ### Frontend
@@ -211,7 +219,7 @@ O cliente `ClienteInterSCity` usa `INTERSCITY_BASE_URL` e paths de microsservico
 
 - `test_models.py`: regras de dominio, unicidade e janela de chamada.
 - `test_api.py`: login, schema e fluxo administrativo basico.
-- `test_biometria.py`: geracao de embedding mockada e descarte de imagens.
+- `test_biometria.py`: geracao de embedding mockada, descarte de imagens e validacao de caminho dos modelos ONNX.
 - `test_edge_integracao.py`: pull, presenca, idempotencia, isolamento por no e comandos.
 - `test_frontend_api.py`: endpoints por papel, relatorios, fechamento de chamada e comando administrativo.
 - `test_interscity.py`: cliente HTTP e diagnostico dos cinco microsservicos.

@@ -58,6 +58,14 @@ cp .env.example .env
 
 Preencha os valores sensiveis que aparecem vazios, como `DJANGO_SECRET_KEY` e `DATABASE_PASSWORD`. O Compose e o backend devem falhar se uma variavel obrigatoria nao estiver configurada.
 
+Para usar cadastro biometrico real, baixe os modelos ONNX em `autoponto-backend/autoponto/data/models/` antes de subir o backend. Eles nao sao versionados:
+
+```bash
+mkdir -p autoponto-backend/autoponto/data/models
+wget https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx -O autoponto-backend/autoponto/data/models/face_detection_yunet.onnx
+wget https://github.com/opencv/opencv_zoo/raw/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx -O autoponto-backend/autoponto/data/models/face_recognition_sface.onnx
+```
+
 Suba os servicos:
 
 ```bash
@@ -104,6 +112,8 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
 ```
 
 No Compose de producao, somente o frontend publica porta local em `127.0.0.1:8088`; backend e PostgreSQL ficam privados na rede Docker.
+
+O build do React usa o prefixo publico completo, mas o Apache da VM pode remover esse prefixo antes de encaminhar para `127.0.0.1:8088`. Por isso o Nginx do frontend aceita tanto `/interscity_lh/catalog/autoponto/api/` quanto `/api/` e encaminha ambos para o backend interno. Para diagnostico na VM, `curl -i http://127.0.0.1:8088/api/health/` deve chegar ao Django.
 
 Criar administrador inicial em producao:
 

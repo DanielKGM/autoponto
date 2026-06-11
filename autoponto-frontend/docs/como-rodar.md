@@ -89,6 +89,8 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
 
 O container frontend fica publicado apenas em `127.0.0.1:8088:80`. O arquivo `nginx.prod.conf` serve o React no prefixo `/interscity_lh/catalog/autoponto/` e encaminha `/interscity_lh/catalog/autoponto/api/` para o backend interno.
 
+Como o Apache da VM pode remover o prefixo antes de chegar ao container, o mesmo Nginx tambem encaminha `/api/` para o backend. Assim, `curl -i http://127.0.0.1:8088/api/health/` deve responder pelo Django em producao.
+
 ## Login
 
 O login usa JWT:
