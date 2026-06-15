@@ -253,7 +253,8 @@ th {
 }
 
 .badge.presente,
-.badge.ok {
+.badge.ok,
+.badge.working {
   background: #dff3e9;
   color: #155649;
 }
@@ -261,12 +262,14 @@ th {
 .badge.ausente,
 .badge.erro_http,
 .badge.indisponivel,
-.badge.timeout {
+.badge.timeout,
+.badge.offline {
   background: #fde8e5;
   color: #992f22;
 }
 
-.badge.nao_configurado {
+.badge.nao_configurado,
+.badge.idle {
   background: #fff0ce;
   color: #75520a;
 }

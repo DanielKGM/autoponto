@@ -24,8 +24,6 @@ class Aula(BaseModel):
     data = models.DateField()
     inicio = models.DateTimeField()
     fim = models.DateTimeField()
-    chamada_inicio = models.DateTimeField()
-    chamada_fim = models.DateTimeField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PLANEJADA)
     fechada_em = models.DateTimeField(null=True, blank=True)
     fechada_por = models.ForeignKey(
@@ -41,20 +39,18 @@ class Aula(BaseModel):
         verbose_name = "Aula"
         verbose_name_plural = "Aulas"
         constraints = [
-            models.UniqueConstraint(fields=("horario", "data"), name="aula_unica_por_horario_data"),
+            models.UniqueConstraint(fields=("horario", "data"), name="uq_aula_horario_data"),
         ]
 
     def clean(self):
         if self.fim <= self.inicio:
-            raise ValidationError({"fim": "O fim da aula deve ser maior que o início."})
-        if self.chamada_fim <= self.chamada_inicio:
-            raise ValidationError({"chamada_fim": "O fim da chamada deve ser maior que o início da chamada."})
-        if self.chamada_inicio < self.inicio:
-            raise ValidationError({"chamada_inicio": "A chamada não pode abrir antes da aula."})
-        if self.chamada_fim > self.fim:
-            raise ValidationError({"chamada_fim": "A chamada não pode fechar depois da aula."})
-        if self.horario_id and self.data.weekday() != self.horario.dia_semana:
-            raise ValidationError({"data": "A data da aula não corresponde ao dia da semana do horário."})
+            raise ValidationError({"fim": "O fim da aula deve ser maior que o inicio."})
+        if self.horario_id and self.data.weekday() != self.horario.horario_padrao.weekday_python:
+            raise ValidationError({"data": "A data da aula nao corresponde ao dia da semana do horario."})
+        if self.horario_id:
+            periodo = self.horario.turma.periodo_letivo
+            if self.data < periodo.data_inicio or self.data > periodo.data_fim:
+                raise ValidationError({"data": "A data da aula deve estar dentro do periodo letivo da turma."})
 
     def __str__(self) -> str:
         return f"{self.horario.turma} em {self.data}"
@@ -86,15 +82,15 @@ class RegistroPresenca(BaseModel):
 
     class Meta:
         ordering = ("aula__data", "aluno__username")
-        verbose_name = "Registro de presença"
-        verbose_name_plural = "Registros de presença"
+        verbose_name = "Registro de presenca"
+        verbose_name_plural = "Registros de presenca"
         constraints = [
-            models.UniqueConstraint(fields=("aula", "aluno"), name="presenca_unica_por_aula_aluno"),
+            models.UniqueConstraint(fields=("aula", "aluno"), name="uq_presenca_aula_aluno"),
         ]
 
     def clean(self):
         if self.aluno.papel != PapelUsuario.ALUNO:
-            raise ValidationError({"aluno": "Presença só pode ser registrada para alunos."})
+            raise ValidationError({"aluno": "Presenca so pode ser registrada para alunos."})
         if self.aula_id:
             matriculado = MatriculaTurma.objects.filter(
                 turma=self.aula.horario.turma,
@@ -102,7 +98,7 @@ class RegistroPresenca(BaseModel):
                 ativo=True,
             ).exists()
             if not matriculado:
-                raise ValidationError({"aluno": "Aluno não está matriculado nessa turma."})
+                raise ValidationError({"aluno": "Aluno nao esta matriculado nessa turma."})
 
     def __str__(self) -> str:
         return f"{self.aluno} - {self.aula}"

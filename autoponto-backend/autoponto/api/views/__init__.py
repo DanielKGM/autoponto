@@ -3,6 +3,7 @@ from .academico import (
     CursoViewSet,
     DisciplinaViewSet,
     HorarioAulaViewSet,
+    HorarioPadraoUFMAViewSet,
     MatriculaTurmaViewSet,
     PeriodoLetivoViewSet,
     PredioViewSet,
@@ -11,14 +12,12 @@ from .academico import (
 )
 from .autenticacao import LogoutCookieView, TokenObtainCookieView, TokenRefreshCookieView
 from .biometria import EmbeddingFacialViewSet, PerfilBiometricoViewSet
-from .dispositivos import ComandoBordaViewSet, DispositivoEsp32ViewSet, NoBordaViewSet
+from .dispositivos import DispositivoEsp32ViewSet, NoBordaViewSet
 from .edge_contract import (
     EdgeAttendanceSlashAliasView,
     EdgeAttendanceView,
-    EdgeCommandAckSlashAliasView,
-    EdgeCommandAckView,
-    EdgeCommandListSlashAliasView,
-    EdgeCommandListView,
+    EdgeDeviceStatusSlashAliasView,
+    EdgeDeviceStatusView,
     EdgePullSlashAliasView,
     EdgePullView,
 )
@@ -34,29 +33,27 @@ from .frontend import (
 )
 from .health import HealthCheckView, ReadinessCheckView
 from .identidade import UsuarioViewSet
-from .interscity import InterSCityActuatorWebhookView, InterSCityDiagnosticoView
+from .interscity import InterSCityDiagnosticoView, InterSCitySincronizarRecursosView
 from .presencas import AulaViewSet, RegistroPresencaViewSet
 
 __all__ = [
     "AulaViewSet",
     "CampusViewSet",
-    "ComandoBordaViewSet",
     "CursoViewSet",
     "DisciplinaViewSet",
     "DispositivoEsp32ViewSet",
     "EdgeAttendanceSlashAliasView",
     "EdgeAttendanceView",
-    "EdgeCommandAckSlashAliasView",
-    "EdgeCommandAckView",
-    "EdgeCommandListSlashAliasView",
-    "EdgeCommandListView",
+    "EdgeDeviceStatusSlashAliasView",
+    "EdgeDeviceStatusView",
     "EdgePullSlashAliasView",
     "EdgePullView",
     "EmbeddingFacialViewSet",
     "HealthCheckView",
     "HorarioAulaViewSet",
-    "InterSCityActuatorWebhookView",
+    "HorarioPadraoUFMAViewSet",
     "InterSCityDiagnosticoView",
+    "InterSCitySincronizarRecursosView",
     "LogoutCookieView",
     "MatriculaTurmaViewSet",
     "MeView",

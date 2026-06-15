@@ -41,8 +41,6 @@ export type PresencaAluno = {
   data: string;
   inicio: string;
   fim: string;
-  chamada_inicio: string;
-  chamada_fim: string;
   sala: string;
   status: string;
   registrado_em: string;
@@ -55,8 +53,6 @@ export type RelatorioTurmaData = TurmaResumo & {
     aula_id: string;
     inicio: string;
     fim: string;
-    chamada_inicio: string;
-    chamada_fim: string;
     status: string;
     fechada_em: string | null;
     fechada_por: string | null;
@@ -91,4 +87,19 @@ export type TurmaCrud = {
   periodo_letivo: string;
   professores: string[];
   ativo: boolean;
+};
+
+export type DispositivoStatus = {
+  id: string;
+  codigo: string;
+  nome: string;
+  ativo: boolean;
+  status: "offline" | "working" | "idle";
+  status_efetivo: "offline" | "working" | "idle";
+  status_atualizado_em: string | null;
+  sala: string | null;
+  no: string | null;
+  interscity_uuid: string;
+  origem_status: "local" | "collector";
+  interscity_status?: string;
 };

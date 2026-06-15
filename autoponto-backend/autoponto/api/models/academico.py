@@ -1,3 +1,5 @@
+import re
+
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -7,7 +9,6 @@ from .identidade import PapelUsuario, Usuario
 
 class Campus(BaseModel):
     nome = models.CharField(max_length=255, unique=True)
-    codigo = models.CharField(max_length=20, unique=True)
     ativo = models.BooleanField(default=True)
 
     class Meta:
@@ -22,19 +23,18 @@ class Campus(BaseModel):
 class Predio(BaseModel):
     campus = models.ForeignKey(Campus, on_delete=models.CASCADE, related_name="predios")
     nome = models.CharField(max_length=255)
-    codigo = models.CharField(max_length=20)
     ativo = models.BooleanField(default=True)
 
     class Meta:
         ordering = ("campus__nome", "nome")
-        verbose_name = "Prédio"
-        verbose_name_plural = "Prédios"
+        verbose_name = "Predio"
+        verbose_name_plural = "Predios"
         constraints = [
-            models.UniqueConstraint(fields=("campus", "codigo"), name="predio_codigo_unico_por_campus"),
+            models.UniqueConstraint(fields=("campus", "nome"), name="uq_predio_campus_nome"),
         ]
 
     def __str__(self) -> str:
-        return f"{self.campus.codigo}-{self.nome}"
+        return f"{self.campus.nome} - {self.nome}"
 
 
 class Sala(BaseModel):
@@ -48,11 +48,11 @@ class Sala(BaseModel):
         verbose_name = "Sala"
         verbose_name_plural = "Salas"
         constraints = [
-            models.UniqueConstraint(fields=("predio", "codigo"), name="sala_codigo_unico_por_predio"),
+            models.UniqueConstraint(fields=("predio", "codigo"), name="uq_sala_predio_codigo"),
         ]
 
     def __str__(self) -> str:
-        return f"{self.predio.codigo}-{self.codigo}"
+        return f"{self.predio.nome}-{self.codigo}"
 
 
 class PeriodoLetivo(BaseModel):
@@ -63,12 +63,12 @@ class PeriodoLetivo(BaseModel):
 
     class Meta:
         ordering = ("-data_inicio",)
-        verbose_name = "Período letivo"
-        verbose_name_plural = "Períodos letivos"
+        verbose_name = "Periodo letivo"
+        verbose_name_plural = "Periodos letivos"
 
     def clean(self):
         if self.data_fim < self.data_inicio:
-            raise ValidationError({"data_fim": "A data final deve ser maior ou igual à data inicial."})
+            raise ValidationError({"data_fim": "A data final deve ser maior ou igual a data inicial."})
 
     def __str__(self) -> str:
         return self.nome
@@ -76,17 +76,19 @@ class PeriodoLetivo(BaseModel):
 
 class Curso(BaseModel):
     campus = models.ForeignKey(Campus, on_delete=models.PROTECT, related_name="cursos")
-    codigo = models.CharField(max_length=20, unique=True)
     nome = models.CharField(max_length=255)
     ativo = models.BooleanField(default=True)
 
     class Meta:
-        ordering = ("codigo",)
+        ordering = ("nome",)
         verbose_name = "Curso"
         verbose_name_plural = "Cursos"
+        constraints = [
+            models.UniqueConstraint(fields=("campus", "nome"), name="uq_curso_campus_nome"),
+        ]
 
     def __str__(self) -> str:
-        return f"{self.codigo} - {self.nome}"
+        return self.nome
 
 
 class Disciplina(BaseModel):
@@ -96,11 +98,11 @@ class Disciplina(BaseModel):
     ativo = models.BooleanField(default=True)
 
     class Meta:
-        ordering = ("curso__codigo", "codigo")
+        ordering = ("curso__nome", "codigo")
         verbose_name = "Disciplina"
         verbose_name_plural = "Disciplinas"
         constraints = [
-            models.UniqueConstraint(fields=("curso", "codigo"), name="disciplina_codigo_unico_por_curso"),
+            models.UniqueConstraint(fields=("curso", "codigo"), name="uq_disc_curso_codigo"),
         ]
 
     def __str__(self) -> str:
@@ -121,7 +123,7 @@ class Turma(BaseModel):
         constraints = [
             models.UniqueConstraint(
                 fields=("periodo_letivo", "disciplina", "codigo"),
-                name="turma_codigo_unico_por_periodo_disciplina",
+                name="uq_turma_periodo_disc_cod",
             ),
         ]
 
@@ -131,7 +133,7 @@ class Turma(BaseModel):
             return
         professores_invalidos = self.professores.exclude(papel=PapelUsuario.PROFESSOR)
         if professores_invalidos.exists():
-            raise ValidationError({"professores": "Apenas usuários professores podem ser vinculados à turma."})
+            raise ValidationError({"professores": "Apenas usuarios professores podem ser vinculados a turma."})
 
     def __str__(self) -> str:
         return f"{self.disciplina.codigo}-{self.codigo}"
@@ -144,79 +146,96 @@ class MatriculaTurma(BaseModel):
 
     class Meta:
         ordering = ("turma__disciplina__codigo", "aluno__username")
-        verbose_name = "Matrícula em turma"
-        verbose_name_plural = "Matrículas em turma"
+        verbose_name = "Matricula em turma"
+        verbose_name_plural = "Matriculas em turma"
         constraints = [
-            models.UniqueConstraint(fields=("turma", "aluno"), name="matricula_unica_por_turma_aluno"),
+            models.UniqueConstraint(fields=("turma", "aluno"), name="uq_matricula_turma_aluno"),
         ]
 
     def clean(self):
         if self.aluno.papel != PapelUsuario.ALUNO:
-            raise ValidationError({"aluno": "Apenas usuários alunos podem ser matriculados em turmas."})
+            raise ValidationError({"aluno": "Apenas usuarios alunos podem ser matriculados em turmas."})
 
     def __str__(self) -> str:
         return f"{self.aluno} em {self.turma}"
 
 
-class HorarioAula(BaseModel):
-    turma = models.ForeignKey(Turma, on_delete=models.CASCADE, related_name="horarios")
-    sala = models.ForeignKey(Sala, on_delete=models.PROTECT, related_name="horarios_aula")
-    dia_semana = models.PositiveSmallIntegerField()
+class HorarioPadraoUFMA(BaseModel):
+    class DiaSemana(models.IntegerChoices):
+        SEGUNDA = 2, "Segunda-feira"
+        TERCA = 3, "Terca-feira"
+        QUARTA = 4, "Quarta-feira"
+        QUINTA = 5, "Quinta-feira"
+        SEXTA = 6, "Sexta-feira"
+        SABADO = 7, "Sabado"
+
+    codigo = models.CharField(max_length=20, unique=True)
+    dia_semana = models.PositiveSmallIntegerField(choices=DiaSemana.choices)
     horario_inicio = models.TimeField()
     horario_fim = models.TimeField()
-    abre_chamada_minutos = models.PositiveSmallIntegerField(default=0)
-    fecha_chamada_minutos = models.PositiveSmallIntegerField(null=True, blank=True)
     ativo = models.BooleanField(default=True)
 
     class Meta:
-        ordering = ("turma__disciplina__codigo", "dia_semana", "horario_inicio")
-        verbose_name = "Horário de aula"
-        verbose_name_plural = "Horários de aula"
+        ordering = ("dia_semana", "horario_inicio", "codigo")
+        verbose_name = "Horario padrao UFMA"
+        verbose_name_plural = "Horarios padrao UFMA"
+
+    @property
+    def weekday_python(self) -> int:
+        return int(self.dia_semana) - 2
+
+    def clean(self):
+        self.codigo = (self.codigo or "").strip().upper()
+        if not re.fullmatch(r"[2-7][MTN][1-6]+", self.codigo):
+            raise ValidationError(
+                {
+                    "codigo": (
+                        "Use um codigo UFMA normalizado por dia, como 2M12. "
+                        "Codigos compostos como 25M34 devem virar 2M34 e 5M34."
+                    )
+                }
+            )
+        if int(self.codigo[0]) != int(self.dia_semana):
+            raise ValidationError({"dia_semana": "O dia da semana deve corresponder ao primeiro digito do codigo."})
+        if self.horario_fim <= self.horario_inicio:
+            raise ValidationError({"horario_fim": "O horario final deve ser maior que o inicial."})
+
+    def __str__(self) -> str:
+        return f"{self.codigo} {self.horario_inicio}-{self.horario_fim}"
+
+
+class HorarioAula(BaseModel):
+    turma = models.ForeignKey(Turma, on_delete=models.CASCADE, related_name="horarios")
+    sala = models.ForeignKey(Sala, on_delete=models.PROTECT, related_name="horarios_aula")
+    horario_padrao = models.ForeignKey(HorarioPadraoUFMA, on_delete=models.PROTECT, related_name="horarios_aula")
+    ativo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ("turma__disciplina__codigo", "horario_padrao__dia_semana", "horario_padrao__horario_inicio")
+        verbose_name = "Horario de aula"
+        verbose_name_plural = "Horarios de aula"
         constraints = [
             models.UniqueConstraint(
-                fields=("turma", "dia_semana", "horario_inicio"),
-                name="horario_unico_por_turma_dia_inicio",
+                fields=("turma", "horario_padrao"),
+                name="uq_horario_turma_slot",
             ),
         ]
 
     def clean(self):
-        if self.dia_semana > 6:
-            raise ValidationError({"dia_semana": "O dia da semana deve estar entre 0 e 6."})
-        if self.horario_fim <= self.horario_inicio:
-            raise ValidationError({"horario_fim": "O horário final deve ser maior que o inicial."})
-
-        duracao = (
-            self.horario_fim.hour * 60
-            + self.horario_fim.minute
-            - self.horario_inicio.hour * 60
-            - self.horario_inicio.minute
-        )
-        if self.abre_chamada_minutos >= duracao:
-            raise ValidationError(
-                {"abre_chamada_minutos": "A chamada deve abrir antes do fim da aula."}
-            )
-        if self.fecha_chamada_minutos is not None:
-            if self.fecha_chamada_minutos > duracao:
-                raise ValidationError(
-                    {"fecha_chamada_minutos": "A chamada não pode fechar depois do fim da aula."}
-                )
-            if self.fecha_chamada_minutos <= self.abre_chamada_minutos:
-                raise ValidationError(
-                    {"fecha_chamada_minutos": "O fechamento deve ser posterior à abertura da chamada."}
-                )
-        if not self.turma_id or not self.sala_id:
+        if not self.turma_id or not self.sala_id or not self.horario_padrao_id:
             return
 
+        horario_padrao = self.horario_padrao
         choque = HorarioAula.objects.filter(
             turma__periodo_letivo=self.turma.periodo_letivo,
             sala=self.sala,
-            dia_semana=self.dia_semana,
             ativo=True,
-            horario_inicio__lt=self.horario_fim,
-            horario_fim__gt=self.horario_inicio,
+            horario_padrao__dia_semana=horario_padrao.dia_semana,
+            horario_padrao__horario_inicio__lt=horario_padrao.horario_fim,
+            horario_padrao__horario_fim__gt=horario_padrao.horario_inicio,
         ).exclude(pk=self.pk)
         if choque.exists():
-            raise ValidationError({"sala": "Já existe aula nessa sala no período, dia e horário informados."})
+            raise ValidationError({"sala": "Ja existe aula nessa sala no periodo, dia e horario informados."})
 
     def __str__(self) -> str:
-        return f"{self.turma} {self.dia_semana} {self.horario_inicio}-{self.horario_fim}"
+        return f"{self.turma} {self.horario_padrao.codigo} {self.sala.codigo}"

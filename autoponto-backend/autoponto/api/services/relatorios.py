@@ -18,11 +18,11 @@ def usuario_pode_acessar_turma(usuario: Usuario, turma: Turma) -> bool:
 
 def listar_aulas_da_turma(turma: Turma, inicio, fim):
     aulas = []
-    horarios = turma.horarios.select_related("sala").filter(ativo=True)
+    horarios = turma.horarios.select_related("sala", "horario_padrao").filter(ativo=True)
     atual = inicio
     while atual <= fim:
         for horario in horarios:
-            if atual.weekday() == horario.dia_semana:
+            if atual.weekday() == horario.horario_padrao.weekday_python:
                 aula, _ = obter_ou_criar_aula(horario, atual)
                 if aula.status != Aula.STATUS_CANCELADA:
                     aulas.append(aula)
@@ -76,6 +76,7 @@ def presencas_do_aluno(aluno: Usuario):
         RegistroPresenca.objects.select_related(
             "aula",
             "aula__horario",
+            "aula__horario__horario_padrao",
             "aula__horario__turma",
             "aula__horario__turma__disciplina",
             "aula__horario__turma__periodo_letivo",
@@ -100,8 +101,6 @@ def payload_registro_presenca(registro: RegistroPresenca) -> dict:
         "data": aula.data.isoformat(),
         "inicio": aula.inicio.isoformat(),
         "fim": aula.fim.isoformat(),
-        "chamada_inicio": aula.chamada_inicio.isoformat(),
-        "chamada_fim": aula.chamada_fim.isoformat(),
         "sala": aula.horario.sala.nome,
         "status": registro.status,
         "registrado_em": registro.registrado_em.isoformat(),
@@ -140,8 +139,6 @@ def relatorio_presencas_turma_data(turma: Turma, data):
                 "aula_id": str(aula.id),
                 "inicio": aula.inicio.isoformat(),
                 "fim": aula.fim.isoformat(),
-                "chamada_inicio": aula.chamada_inicio.isoformat(),
-                "chamada_fim": aula.chamada_fim.isoformat(),
                 "status": aula.status,
                 "fechada_em": aula.fechada_em.isoformat() if aula.fechada_em else None,
                 "fechada_por": str(aula.fechada_por_id) if aula.fechada_por_id else None,
@@ -201,6 +198,7 @@ def historico_presencas_aluno(aluno: Usuario, turma_id=None, periodo_letivo_id=N
     registros = RegistroPresenca.objects.select_related(
         "aula",
         "aula__horario",
+        "aula__horario__horario_padrao",
         "aula__horario__turma",
         "aula__horario__turma__disciplina",
         "aula__horario__turma__periodo_letivo",

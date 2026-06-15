@@ -6,6 +6,7 @@ from api.models import (
     Disciplina,
     DispositivoEsp32,
     HorarioAula,
+    HorarioPadraoUFMA,
     MatriculaTurma,
     PapelUsuario,
     PeriodoLetivo,
@@ -17,8 +18,8 @@ from api.models import (
 
 
 def criar_contexto_academico():
-    campus = Campus.objects.create(nome="Campus Dom Delgado", codigo="SLZ")
-    predio = Predio.objects.create(campus=campus, nome="Centro de Ciencias Exatas e Tecnologia", codigo="CCET")
+    campus = Campus.objects.create(nome="Campus Dom Delgado")
+    predio = Predio.objects.create(campus=campus, nome="Centro de Ciencias Exatas e Tecnologia")
     sala = Sala.objects.create(predio=predio, nome="Laboratorio 101", codigo="LAB101")
     periodo = PeriodoLetivo.objects.create(
         nome="2026.1",
@@ -28,7 +29,6 @@ def criar_contexto_academico():
     )
     curso = Curso.objects.create(
         campus=campus,
-        codigo="ECP-UFMA",
         nome="Engenharia da Computacao",
     )
     disciplina = Disciplina.objects.create(
@@ -63,12 +63,16 @@ def criar_contexto_academico():
     turma = Turma.objects.create(periodo_letivo=periodo, disciplina=disciplina, codigo="A")
     turma.professores.add(professor)
     matricula = MatriculaTurma.objects.create(turma=turma, aluno=aluno)
+    horario_padrao = HorarioPadraoUFMA.objects.create(
+        codigo="2M12",
+        dia_semana=HorarioPadraoUFMA.DiaSemana.SEGUNDA,
+        horario_inicio=time(8, 0),
+        horario_fim=time(9, 40),
+    )
     horario = HorarioAula.objects.create(
         turma=turma,
         sala=sala,
-        dia_semana=0,
-        horario_inicio=time(8, 0),
-        horario_fim=time(9, 40),
+        horario_padrao=horario_padrao,
     )
     dispositivo = DispositivoEsp32.objects.create(
         codigo="ESP32-LAB101",
@@ -88,6 +92,7 @@ def criar_contexto_academico():
         "admin": admin,
         "turma": turma,
         "matricula": matricula,
+        "horario_padrao": horario_padrao,
         "horario": horario,
         "dispositivo": dispositivo,
         "data_aula": data_aula,

@@ -1,16 +1,14 @@
-from datetime import date, time, timedelta
+from datetime import date, time
 from unittest.mock import patch
 
 from django.test import override_settings
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from api.models import (
-    ComandoBorda,
-    DispositivoEsp32,
     EmbeddingFacial,
     HorarioAula,
+    HorarioPadraoUFMA,
     MatriculaTurma,
     NoBorda,
     PapelUsuario,
@@ -67,12 +65,16 @@ class SegurancaApiTests(APITestCase):
         )
         turma.professores.add(professor)
         MatriculaTurma.objects.create(turma=turma, aluno=aluno)
+        horario_padrao = HorarioPadraoUFMA.objects.create(
+            codigo="2M34",
+            dia_semana=HorarioPadraoUFMA.DiaSemana.SEGUNDA,
+            horario_inicio=time(10, 0),
+            horario_fim=time(11, 40),
+        )
         horario = HorarioAula.objects.create(
             turma=turma,
             sala=sala,
-            dia_semana=0,
-            horario_inicio=time(10, 0),
-            horario_fim=time(11, 40),
+            horario_padrao=horario_padrao,
         )
         aula, _ = obter_ou_criar_aula(horario, date(2026, 4, 20))
         return professor, aluno, turma, aula
@@ -148,65 +150,30 @@ class SegurancaApiTests(APITestCase):
 
         self.assertEqual(resposta.status_code, status.HTTP_403_FORBIDDEN)
 
-    @override_settings(INTERSCITY_ENABLED=True, INTERSCITY_WEBHOOK_SECRET="segredo")
-    def test_webhook_interscity_exige_segredo(self):
-        self.contexto["dispositivo"].interscity_uuid = "uuid-seguro"
-        self.contexto["dispositivo"].no = NoBorda.objects.create(codigo="NO-SEG", nome="No Seguro")
-        self.contexto["dispositivo"].save(update_fields=["interscity_uuid", "no", "atualizado_em"])
-        payload = {
-            "action": "actuator_command",
-            "command": {
-                "_id": {"$oid": "cmd-seguro-1"},
-                "uuid": "uuid-seguro",
-                "capability": "autoponto_edge_command",
-                "value": {"type": "display_message", "payload": {"message": "ok"}},
-            },
-        }
+    def test_node_token_nao_atualiza_status_de_dispositivo_de_outro_no(self):
+        no = NoBorda.objects.create(codigo="NO-STATUS", nome="No Status")
+        outro_no = NoBorda.objects.create(codigo="NO-OUTRO", nome="No Outro")
+        self.contexto["dispositivo"].no = outro_no
+        self.contexto["dispositivo"].save(update_fields=["no", "atualizado_em"])
+        _, token_bruto = TokenNoBorda.emitir_token(no, nome="status")
+        self.client.credentials(HTTP_AUTHORIZATION=f"NodeToken {token_bruto}")
 
-        sem_token = self.client.post("/api/interscity/webhooks/actuator/", payload, format="json")
-        errado = self.client.post(
-            "/api/interscity/webhooks/actuator/",
-            payload,
+        resposta = self.client.post(
+            "/api/edge/devices/status/",
+            {
+                "node_id": no.codigo,
+                "devices": [
+                    {
+                        "device_id": str(self.contexto["dispositivo"].id),
+                        "status": "working",
+                        "reported_at": "2026-04-20T10:00:00Z",
+                    }
+                ],
+            },
             format="json",
-            HTTP_X_AUTO_PONTO_WEBHOOK_TOKEN="errado",
-        )
-        correto = self.client.post(
-            "/api/interscity/webhooks/actuator/",
-            payload,
-            format="json",
-            HTTP_X_AUTO_PONTO_WEBHOOK_TOKEN="segredo",
         )
 
-        self.assertEqual(sem_token.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(errado.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(correto.status_code, status.HTTP_202_ACCEPTED)
-
-    @override_settings(INTERSCITY_ENABLED=True, INTERSCITY_WEBHOOK_SECRET="segredo")
-    def test_webhook_interscity_nao_reabre_comando_entregue_por_replay(self):
-        no = NoBorda.objects.create(codigo="NO-REPLAY", nome="No Replay")
-        self.contexto["dispositivo"].no = no
-        self.contexto["dispositivo"].interscity_uuid = "uuid-replay"
-        self.contexto["dispositivo"].save(update_fields=["no", "interscity_uuid", "atualizado_em"])
-        payload = {
-            "action": "actuator_command",
-            "command": {
-                "_id": {"$oid": "cmd-replay-1"},
-                "uuid": "uuid-replay",
-                "capability": "autoponto_edge_command",
-                "value": {"type": "display_message", "payload": {"message": "ok"}},
-            },
-        }
-        headers = {"HTTP_X_AUTO_PONTO_WEBHOOK_TOKEN": "segredo"}
-
-        primeira = self.client.post("/api/interscity/webhooks/actuator/", payload, format="json", **headers)
-        comando = ComandoBorda.objects.get()
-        comando.marcar_status("DELIVERED")
-        replay = self.client.post("/api/interscity/webhooks/actuator/", payload, format="json", **headers)
-
-        self.assertEqual(primeira.status_code, status.HTTP_202_ACCEPTED)
-        self.assertEqual(replay.status_code, status.HTTP_202_ACCEPTED)
-        comando.refresh_from_db()
-        self.assertEqual(comando.status, ComandoBorda.STATUS_ENTREGUE)
+        self.assertEqual(resposta.status_code, status.HTTP_400_BAD_REQUEST)
 
     @override_settings(FACE_MAX_CAPTURAS=1)
     @patch("api.services.biometria.GeradorEmbeddingVisao")

@@ -176,11 +176,10 @@ Scripts de `git pull`, SSH ou automacao de deploy devem ser mantidos na VM ou fo
 - `CORS_ALLOWED_ORIGINS`: origens aceitas para o frontend.
 - `INTERSCITY_ENABLED`: ativa/desativa integracao externa.
 - `INTERSCITY_BASE_URL` e `INTERSCITY_*_PATH`: base da instancia Interscity e path de cada microsservico.
-- `INTERSCITY_WEBHOOK_SECRET`: segredo exigido no header `X-AutoPonto-Webhook-Token` para aceitar comandos vindos do actuator.
 - `FACE_DETECT_MODEL_PATH`: caminho do YuNet ONNX usado para detectar rosto.
 - `FACE_RECOG_MODEL_PATH`: caminho do SFace ONNX usado para gerar embedding.
 - `FACE_MAX_CAPTURAS`, `FACE_MAX_IMAGE_BYTES` e `FACE_MAX_IMAGE_PIXELS`: limites de seguranca para cadastro biometrico.
 - `NODE_TOKEN_EXPIRATION_DAYS`: validade padrao dos tokens de `NoBorda`; tokens sem expiracao nao autenticam.
 - `JWT_REFRESH_COOKIE_*`: nome, caminho, seguranca e `SameSite` do cookie de refresh do frontend.
 - `FACE_DUPLICATE_THRESHOLD`: limite para bloquear rosto duplicado.
-- `EDGE_SYNC_DAYS_BACK` e `EDGE_SYNC_DAYS_FORWARD`: janela de sincronizacao do Raspberry.
+- `EDGE_SYNC_DAYS_BACK` e `EDGE_SYNC_DAYS_FORWARD`: periodo de sincronizacao do Raspberry.

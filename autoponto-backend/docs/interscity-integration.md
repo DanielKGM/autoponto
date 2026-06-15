@@ -1,111 +1,120 @@
 # Integracao AutoPonto E Interscity
 
-O AutoPonto continua sendo a fonte canonica para dominio academico, biometria, aulas e presencas. O Interscity fica centralizado na camada IoT: catalogo de recursos, capacidades, telemetria operacional, descoberta e comandos.
+O AutoPonto continua sendo a fonte canonica para usuarios, turmas, aulas, biometria e presencas. O Interscity e usado como camada IoT observavel: catalogo, descoberta, publicacao e consulta de telemetria operacional.
 
 ## Servicos Usados
 
 - Resource Catalog: registra recursos e capacidades.
-- Resource Adaptor: recebe dados de recursos e encaminha comandos.
-- Data Collector: disponibiliza historico e ultimo valor dos dados publicados.
-- Resource Discovery: descobre recursos por capacidade, localizacao e filtros.
-- Actuator Controller: cria comandos para recursos atuadores.
-
-O cliente `ClienteInterSCity` possui metodos para esses cinco pontos: `registrar_recurso_catalogo`, `publicar_dados_recurso`, `consultar_dados_coletor`, `descobrir_recursos` e `enviar_comando_atuador`.
+- Resource Discovery: permite descobrir recursos por capacidades.
+- Resource Adaptor: recebe dados publicados pelos recursos.
+- Data Collector: guarda historico e ultimo valor das capacidades.
+- Actuator Controller: fica apenas no diagnostico de disponibilidade; o MVP nao usa comandos externos.
 
 ## Recursos
 
-- ESP32/sala: recurso IoT principal, vinculado a `DispositivoEsp32.interscity_uuid`.
-- Raspberry/no: recurso opcional de infraestrutura, vinculado a `NoBorda.interscity_uuid`.
-- `Sala` continua sendo o local canonico no AutoPonto; no Interscity ela aparece indiretamente pelo recurso da ESP32.
+- `DispositivoEsp32`: recurso IoT principal, vinculado por `DispositivoEsp32.interscity_uuid`.
+- `NoBorda`: recurso opcional de infraestrutura, vinculado por `NoBorda.interscity_uuid`.
+- `Sala`: continua canonica no AutoPonto; no Interscity ela aparece como metadado do recurso ESP32.
 
-## Capacidades Iniciais
+## Capacidades
 
-- `autoponto_device_status` como `sensor`.
-- `autoponto_class_context` como `information`.
-- `autoponto_attendance_event` como `sensor`.
-- `autoponto_edge_command` como `actuator`.
+- `autoponto_device_status`: sensor com `offline`, `working` ou `idle`.
+- `autoponto_class_context`: informacao operacional sobre aula atual/proxima, sem dados pessoais.
+- `autoponto_attendance_event`: evento anonimo/agregavel de presenca.
 
-## Publicacao De Dados
+Comandos externos foram retirados do escopo da API principal; feedback visual/sonoro da ESP32 permanece local ao edge.
 
-A publicacao operacional usa o Resource Adaptor:
+## Sincronizacao De Recursos
+
+Endpoint administrativo:
 
 ```http
-POST /resources/{uuid}/data
+POST /api/interscity/sincronizar-recursos/
 ```
 
-Payload:
+Para cada `DispositivoEsp32` ativo, o backend envia ao Catalog um payload semelhante a:
+
+```json
+{
+  "data": {
+    "uri": "autoponto://dispositivos-esp32/uuid-da-esp32",
+    "description": "AutoPonto ESP32 ESP32-LAB101 - Laboratorio 101",
+    "status": "active",
+    "capabilities": [
+      "autoponto_device_status",
+      "autoponto_class_context",
+      "autoponto_attendance_event"
+    ],
+    "metadata": {
+      "autoponto_id": "uuid-da-esp32",
+      "codigo": "ESP32-LAB101",
+      "sala": "Laboratorio 101",
+      "predio": "Centro de Ciencias Exatas e Tecnologia",
+      "no": "NO-CCET-01"
+    }
+  }
+}
+```
+
+Se o Catalog retornar um UUID, ele e salvo em `DispositivoEsp32.interscity_uuid`.
+
+## Publicacao De Status
+
+Fluxo:
+
+1. ESP32 publica `sts/{device_id}` no MQTT do Raspberry.
+2. Edge salva o status no Redis local.
+3. Edge envia lote para `POST /api/edge/devices/status/`.
+4. Backend atualiza o banco local.
+5. Backend publica no Resource Adaptor quando `INTERSCITY_ENABLED=True` e existe `interscity_uuid`.
+
+Payload publicado:
 
 ```json
 {
   "data": {
     "autoponto_device_status": [
       {
-        "status": "online",
-        "date": "2026-04-20T10:00:00Z"
-      }
-    ]
-  }
-}
-```
-
-Eventos de presenca devem ser agregaveis e anonimizados quando publicados fora do AutoPonto:
-
-```json
-{
-  "data": {
-    "autoponto_attendance_event": [
-      {
-        "lesson_id": "uuid-da-aula",
+        "status": "working",
         "device_id": "uuid-da-esp32",
-        "recognized": true,
-        "score_bucket": "0.90-0.95",
-        "date": "2026-04-20T11:05:00Z"
+        "node_id": "NO-CCET-01",
+        "timestamp": "2026-06-15T10:30:00Z",
+        "source": "edge_mqtt"
       }
     ]
   }
 }
 ```
 
-Por padrao, nao enviar ao Interscity:
+## Dashboard E Fallback
 
-- frames ou imagens;
-- embeddings;
-- nome de aluno;
-- matricula de aluno;
-- dados biometricos brutos.
-
-## Comandos
-
-O Resource Adaptor chama a API principal em:
+O painel administrativo consulta:
 
 ```http
-POST /api/interscity/webhooks/actuator/
+GET /api/dispositivos-esp32/status-dashboard/?incluir_interscity=true
 ```
 
-Payload esperado:
+Resposta resumida:
 
 ```json
-{
-  "action": "actuator_command",
-  "command": {
-    "_id": {"$oid": "59395c1329d4b10379bed679"},
-    "uuid": "uuid-do-recurso-interscity",
-    "capability": "autoponto_edge_command",
-    "value": {
-      "type": "display_message",
-      "payload": {"message": "Chamada aberta"}
-    }
+[
+  {
+    "id": "uuid-da-esp32",
+    "codigo": "ESP32-LAB101",
+    "status": "working",
+    "status_efetivo": "working",
+    "status_atualizado_em": "2026-06-15T10:30:00Z",
+    "sala": "Laboratorio 101",
+    "no": "NO-CCET-01",
+    "interscity_uuid": "uuid-interscity",
+    "origem_status": "local"
   }
-}
+]
 ```
 
-A API converte isso em `ComandoBorda` pendente. O Raspberry busca em `/api/edge/commands` e confirma em `/api/edge/commands/ack`.
-
-Esse webhook e negado por padrao. Para aceitar comandos, configure `INTERSCITY_ENABLED=True` e envie o header `X-AutoPonto-Webhook-Token` com o mesmo valor de `INTERSCITY_WEBHOOK_SECRET`. A API tambem valida capacidade, tipo de comando, tamanho do payload, recurso ativo e `id` de origem para impedir replay que reabra comando ja entregue.
+Se o Collector responder, o campo `origem_status` pode indicar `collector`. Se Collector, Adaptor, Catalog, Discovery ou Actuator falharem, o backend retorna o snapshot local e nao bloqueia login, CRUD, biometria, presenca, relatorios ou sync edge.
 
 ## Configuracao
-
-Variaveis da API principal:
 
 ```env
 INTERSCITY_ENABLED=False
@@ -116,16 +125,11 @@ INTERSCITY_COLLECTOR_PATH=/collector
 INTERSCITY_ADAPTOR_PATH=/adaptor
 INTERSCITY_ACTUATOR_PATH=/actuator
 INTERSCITY_TIMEOUT_SECONDS=5
-INTERSCITY_WEBHOOK_SECRET=
 ```
 
-O backend monta cada URL final como `INTERSCITY_BASE_URL + INTERSCITY_*_PATH`. Assim a base da instancia UFMA fica em um so lugar. Com `INTERSCITY_ENABLED=False`, a API principal continua funcionando sem depender da plataforma.
+O backend monta cada URL como `INTERSCITY_BASE_URL + INTERSCITY_*_PATH`. A integracao fica desativada por padrao.
 
-## Tolerancia A Falhas
-
-Toda chamada ao Interscity passa pelo `ClienteInterSCity`, que usa timeout curto e retorna falha controlada. Erros no Catalog, Discovery, Collector, Adaptor ou Actuator nao bloqueiam login, CRUD academico, biometria, presenca, relatorios ou sincronizacao do edge.
-
-O diagnostico administrativo fica em:
+## Diagnostico
 
 ```http
 GET /api/interscity/diagnostico/
@@ -135,25 +139,22 @@ Resposta exemplo:
 
 ```json
 {
-  "catalog": {"ok": true, "status": "ok"},
-  "discovery": {"ok": false, "status": "timeout"},
-  "collector": {"ok": false, "status": "erro_http", "codigo_http": 500},
-  "adaptor": {"ok": false, "status": "indisponivel"},
-  "actuator": {"ok": false, "status": "nao_configurado"}
+  "catalog": { "ok": true, "status": "ok" },
+  "discovery": { "ok": false, "status": "timeout" },
+  "collector": { "ok": false, "status": "erro_http", "codigo_http": 500 },
+  "adaptor": { "ok": false, "status": "indisponivel" },
+  "actuator": { "ok": false, "status": "nao_configurado" }
 }
 ```
 
-Status possiveis:
+## Privacidade
 
-- `ok`: servico respondeu.
-- `timeout`: tempo limite excedido.
-- `erro_http`: servico respondeu com erro HTTP.
-- `indisponivel`: erro de rede, DNS ou conexao.
-- `nao_configurado`: integracao desabilitada ou URL ausente.
+Nao enviar ao Interscity:
 
-## Escopo UFMA
+- frames ou imagens;
+- embeddings;
+- nome de aluno;
+- matricula de aluno;
+- dados biometricos brutos.
 
-O seed `seed_dados_ufma` cria um exemplo para Engenharia da Computacao UFMA Sao Luis, sem impedir o cadastro de outros cursos. As fontes de referencia usadas para o exemplo sao:
-
-- Portal UFMA: https://portalpadrao.ufma.br/profissoes/nossos-centros-academicos/campus-sao-luis/saoluis-engenharia-da-computacao
-- SIGAA UFMA: https://sigaa.ufma.br/sigaa/link/public/curso/curriculo/16827494
+Eventos de presenca publicados no futuro devem ser anonimos ou agregaveis.

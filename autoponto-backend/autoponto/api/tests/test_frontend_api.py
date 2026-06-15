@@ -1,15 +1,14 @@
 from datetime import date
 from unittest.mock import patch
+from urllib.error import URLError
 
 from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from api.models import (
-    ComandoBorda,
     EmbeddingFacial,
     MatriculaTurma,
-    NoBorda,
     PapelUsuario,
     PerfilBiometrico,
     RegistroPresenca,
@@ -151,6 +150,7 @@ class FrontendApiTests(APITestCase):
 
     def test_professor_fecha_chamada_da_propria_aula(self):
         aula, _ = obter_ou_criar_aula(self.contexto["horario"], self.contexto["data_aula"])
+        fim_original = aula.fim
         self.autenticar("professor")
 
         resposta = self.client.post(f"/api/aulas/{aula.id}/fechar-chamada/")
@@ -159,6 +159,7 @@ class FrontendApiTests(APITestCase):
         aula.refresh_from_db()
         self.assertEqual(aula.status, "FECHADA")
         self.assertEqual(aula.fechada_por, self.contexto["professor"])
+        self.assertEqual(aula.fim, fim_original)
 
     def test_professor_nao_fecha_chamada_de_turma_alheia(self):
         outro_professor = Usuario.objects.create_user(
@@ -176,43 +177,22 @@ class FrontendApiTests(APITestCase):
 
         self.assertEqual(resposta.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_professor_define_janela_de_chamada_para_aulas_futuras(self):
-        self.autenticar("professor")
-
-        resposta = self.client.post(
-            f"/api/horarios-aula/{self.contexto['horario'].id}/definir-janela-chamada/",
-            {"abre_chamada_minutos": 5, "fecha_chamada_minutos": 60},
-            format="json",
-        )
-
-        self.assertEqual(resposta.status_code, status.HTTP_200_OK)
-        self.contexto["horario"].refresh_from_db()
-        self.assertEqual(self.contexto["horario"].abre_chamada_minutos, 5)
-        self.assertEqual(self.contexto["horario"].fecha_chamada_minutos, 60)
-
-    def test_admin_cria_comando_borda_com_usuario_emissor(self):
-        no = NoBorda.objects.create(codigo="NO-CCET-01", nome="Raspberry CCET 01")
-        dispositivo = self.contexto["dispositivo"]
-        dispositivo.no = no
-        dispositivo.save(update_fields=["no", "atualizado_em"])
+    @override_settings(INTERSCITY_ENABLED=True)
+    @patch("api.services.interscity.urlopen", side_effect=URLError("collector offline"))
+    def test_admin_lista_status_dispositivos_com_fallback_local_quando_collector_falha(self, urlopen):
+        self.contexto["dispositivo"].status = "idle"
+        self.contexto["dispositivo"].interscity_uuid = "uuid-esp32"
+        self.contexto["dispositivo"].save(update_fields=["status", "interscity_uuid", "atualizado_em"])
         self.autenticar("admin")
 
-        resposta = self.client.post(
-            "/api/comandos-borda/",
-            {
-                "no": str(no.id),
-                "dispositivo": str(dispositivo.id),
-                "tipo": "display_message",
-                "payload": {"message": "Chamada aberta"},
-                "capacidade": "autoponto_edge_command",
-            },
-            format="json",
-        )
+        resposta = self.client.get("/api/dispositivos-esp32/status-dashboard/", {"incluir_interscity": "true"})
 
-        self.assertEqual(resposta.status_code, status.HTTP_201_CREATED, resposta.data)
-        comando = ComandoBorda.objects.get()
-        self.assertEqual(comando.criado_por, self.contexto["admin"])
-        self.assertEqual(comando.origem, "backend")
+        self.assertEqual(resposta.status_code, status.HTTP_200_OK)
+        self.assertEqual(resposta.data[0]["id"], str(self.contexto["dispositivo"].id))
+        self.assertEqual(resposta.data[0]["status"], "idle")
+        self.assertEqual(resposta.data[0]["status_efetivo"], "offline")
+        self.assertEqual(resposta.data[0]["origem_status"], "local")
+        urlopen.assert_called()
 
     def test_admin_pesquisa_historico_de_presencas_do_aluno(self):
         aula, _ = obter_ou_criar_aula(self.contexto["horario"], self.contexto["data_aula"])

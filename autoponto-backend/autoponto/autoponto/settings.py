@@ -50,7 +50,9 @@ def env_bool(nome: str) -> bool:
 
 
 def env_lista(nome: str) -> list[str]:
-    valores = [item.strip() for item in env_obrigatoria(nome).split(",") if item.strip()]
+    valores = [
+        item.strip() for item in env_obrigatoria(nome).split(",") if item.strip()
+    ]
     if not valores:
         raise RuntimeError(f"Variavel {nome} deve conter ao menos um valor.")
     return valores
@@ -157,18 +159,14 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ),
-    "DEFAULT_PERMISSION_CLASSES": (
-        "rest_framework.permissions.IsAuthenticated",
-    ),
-    "DEFAULT_THROTTLE_CLASSES": (
-        "rest_framework.throttling.ScopedRateThrottle",
-    ),
+    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    "DEFAULT_THROTTLE_CLASSES": ("rest_framework.throttling.ScopedRateThrottle",),
     "DEFAULT_THROTTLE_RATES": {
         "auth_login": "100/min",
         "auth_refresh": "100/min",
         "biometria": "20/hour",
         "edge_attendance": "600/min",
-        "interscity_webhook": "120/min",
+        "edge_device_status": "600/min",
     },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_FILTER_BACKENDS": (
@@ -204,7 +202,6 @@ INTERSCITY_COLLECTOR_PATH = env_obrigatoria("INTERSCITY_COLLECTOR_PATH")
 INTERSCITY_ADAPTOR_PATH = env_obrigatoria("INTERSCITY_ADAPTOR_PATH")
 INTERSCITY_ACTUATOR_PATH = env_obrigatoria("INTERSCITY_ACTUATOR_PATH")
 INTERSCITY_TIMEOUT_SECONDS = env_int("INTERSCITY_TIMEOUT_SECONDS")
-INTERSCITY_WEBHOOK_SECRET = env_obrigatoria("INTERSCITY_WEBHOOK_SECRET", permitir_vazio=True)
 
 FACE_DETECT_MODEL_PATH = env_obrigatoria("FACE_DETECT_MODEL_PATH", permitir_vazio=True)
 FACE_RECOG_MODEL_PATH = env_obrigatoria("FACE_RECOG_MODEL_PATH", permitir_vazio=True)

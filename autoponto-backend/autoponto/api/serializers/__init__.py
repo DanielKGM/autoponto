@@ -3,7 +3,7 @@ from .academico import (
     CursoSerializer,
     DisciplinaSerializer,
     HorarioAulaSerializer,
-    JanelaChamadaSerializer,
+    HorarioPadraoUFMASerializer,
     MatriculaTurmaSerializer,
     PeriodoLetivoSerializer,
     PredioSerializer,
@@ -11,7 +11,7 @@ from .academico import (
     TurmaSerializer,
 )
 from .biometria import EmbeddingFacialSerializer, MatriculaBiometricaSerializer, PerfilBiometricoSerializer
-from .dispositivos import ComandoBordaSerializer, DispositivoEsp32Serializer, NoBordaSerializer, TokenNoBordaEmitirSerializer
+from .dispositivos import DispositivoEsp32Serializer, NoBordaSerializer, TokenNoBordaEmitirSerializer
 from .frontend import MatriculaBiometricaPropriaSerializer
 from .identidade import UsuarioSerializer
 from .presencas import AulaSerializer, RegistroPresencaSerializer
@@ -19,13 +19,12 @@ from .presencas import AulaSerializer, RegistroPresencaSerializer
 __all__ = [
     "AulaSerializer",
     "CampusSerializer",
-    "ComandoBordaSerializer",
     "CursoSerializer",
     "DisciplinaSerializer",
     "DispositivoEsp32Serializer",
     "EmbeddingFacialSerializer",
     "HorarioAulaSerializer",
-    "JanelaChamadaSerializer",
+    "HorarioPadraoUFMASerializer",
     "MatriculaBiometricaSerializer",
     "MatriculaBiometricaPropriaSerializer",
     "MatriculaTurmaSerializer",

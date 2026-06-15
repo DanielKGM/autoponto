@@ -3,13 +3,13 @@ from django.contrib import admin
 from api.models import (
     Aula,
     Campus,
-    ComandoBorda,
     Curso,
     Disciplina,
     DispositivoEsp32,
     EmbeddingFacial,
     EventoReconhecimento,
     HorarioAula,
+    HorarioPadraoUFMA,
     MatriculaTurma,
     NoBorda,
     PerfilBiometrico,
@@ -32,15 +32,15 @@ class UsuarioAdmin(admin.ModelAdmin):
 
 @admin.register(Campus)
 class CampusAdmin(admin.ModelAdmin):
-    list_display = ("codigo", "nome", "ativo")
-    search_fields = ("codigo", "nome")
+    list_display = ("nome", "ativo")
+    search_fields = ("nome",)
     list_filter = ("ativo",)
 
 
 @admin.register(Predio)
 class PredioAdmin(admin.ModelAdmin):
-    list_display = ("codigo", "nome", "campus", "ativo")
-    search_fields = ("codigo", "nome")
+    list_display = ("nome", "campus", "ativo")
+    search_fields = ("nome",)
     list_filter = ("campus", "ativo")
 
 
@@ -59,8 +59,8 @@ class PeriodoLetivoAdmin(admin.ModelAdmin):
 
 @admin.register(Curso)
 class CursoAdmin(admin.ModelAdmin):
-    list_display = ("codigo", "nome", "campus", "ativo")
-    search_fields = ("codigo", "nome")
+    list_display = ("nome", "campus", "ativo")
+    search_fields = ("nome",)
     list_filter = ("campus", "ativo")
 
 
@@ -86,19 +86,22 @@ class MatriculaTurmaAdmin(admin.ModelAdmin):
     list_filter = ("turma", "ativo")
 
 
+@admin.register(HorarioPadraoUFMA)
+class HorarioPadraoUFMAAdmin(admin.ModelAdmin):
+    list_display = ("codigo", "dia_semana", "horario_inicio", "horario_fim", "ativo")
+    search_fields = ("codigo",)
+    list_filter = ("dia_semana", "ativo")
+
+
 @admin.register(HorarioAula)
 class HorarioAulaAdmin(admin.ModelAdmin):
     list_display = (
         "turma",
         "sala",
-        "dia_semana",
-        "horario_inicio",
-        "horario_fim",
-        "abre_chamada_minutos",
-        "fecha_chamada_minutos",
+        "horario_padrao",
         "ativo",
     )
-    list_filter = ("dia_semana", "sala", "ativo")
+    list_filter = ("horario_padrao", "sala", "ativo")
 
 
 @admin.register(NoBorda)
@@ -117,14 +120,14 @@ class TokenNoBordaAdmin(admin.ModelAdmin):
 
 @admin.register(DispositivoEsp32)
 class DispositivoEsp32Admin(admin.ModelAdmin):
-    list_display = ("codigo", "nome", "no", "sala", "ativo", "interscity_uuid")
+    list_display = ("codigo", "nome", "no", "sala", "status", "status_atualizado_em", "ativo", "interscity_uuid")
     search_fields = ("codigo", "nome", "interscity_uuid")
-    list_filter = ("no", "sala", "ativo")
+    list_filter = ("no", "sala", "status", "ativo")
 
 
 @admin.register(Aula)
 class AulaAdmin(admin.ModelAdmin):
-    list_display = ("horario", "data", "inicio", "fim", "chamada_inicio", "chamada_fim", "status", "fechada_por")
+    list_display = ("horario", "data", "inicio", "fim", "status", "fechada_por")
     list_filter = ("status", "data")
 
 
@@ -152,9 +155,3 @@ class PerfilBiometricoAdmin(admin.ModelAdmin):
 class EmbeddingFacialAdmin(admin.ModelAdmin):
     list_display = ("perfil", "versao_modelo", "status", "ativo")
     list_filter = ("status", "ativo", "versao_modelo")
-
-
-@admin.register(ComandoBorda)
-class ComandoBordaAdmin(admin.ModelAdmin):
-    list_display = ("no", "dispositivo", "tipo", "status", "origem", "capacidade", "criado_por", "entregue_em")
-    list_filter = ("status", "origem", "capacidade", "criado_por")

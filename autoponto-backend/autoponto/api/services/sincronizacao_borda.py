@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
-import json
 
 from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -11,7 +10,6 @@ from rest_framework.exceptions import ValidationError
 
 from api.models import (
     Aula,
-    ComandoBorda,
     DispositivoEsp32,
     EmbeddingFacial,
     EventoReconhecimento,
@@ -23,19 +21,10 @@ from api.models import (
     Usuario,
 )
 from api.services.aulas import listar_aulas_do_dia
+from api.services.interscity import publicar_status_dispositivo_interscity
 
 
 ENTIDADES_SYNC = ("locales", "devices", "lessons", "students", "enrollments", "face_embeddings")
-CAPACIDADES_COMANDO_INTERSCITY = {"autoponto_edge_command"}
-TIPOS_COMANDO_INTERSCITY = {
-    "display_message",
-    "sync_now",
-    "set_context",
-    "restart_device",
-    "open_attendance",
-    "close_attendance",
-}
-TAMANHO_MAXIMO_PAYLOAD_COMANDO = 4096
 
 
 def parsear_cursor(valor: str | None):
@@ -77,7 +66,7 @@ def _max_cursor(itens) -> str:
     return _iso(max(datas) if datas else timezone.now())
 
 
-def _janela_padrao():
+def _periodo_padrao_sync():
     hoje = timezone.localdate()
     return (
         hoje - timedelta(days=settings.EDGE_SYNC_DAYS_BACK),
@@ -85,8 +74,8 @@ def _janela_padrao():
     )
 
 
-def _resolver_janela(params):
-    data_inicio, data_fim = _janela_padrao()
+def _resolver_periodo_sync(params):
+    data_inicio, data_fim = _periodo_padrao_sync()
     if params.get("from_date"):
         data_inicio = datetime.fromisoformat(params["from_date"]).date()
     if params.get("to_date"):
@@ -96,7 +85,7 @@ def _resolver_janela(params):
 
 def _validar_no(no: NoBorda, identificador: str | None):
     if identificador and identificador not in {str(no.id), no.codigo}:
-        raise ValidationError({"node_id": "Token do nó não corresponde ao node_id solicitado."})
+        raise ValidationError({"node_id": "Token do no nao corresponde ao node_id solicitado."})
 
 
 def _dispositivos_do_no(no: NoBorda):
@@ -114,7 +103,7 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
     _validar_no(no, query_params.get("node_id"))
 
     cursors = decodificar_cursors(query_params.get("cursors"))
-    data_inicio, data_fim = _resolver_janela(query_params)
+    data_inicio, data_fim = _resolver_periodo_sync(query_params)
     dispositivos = _dispositivos_do_no(no)
     dispositivos_ativos = [dispositivo for dispositivo in dispositivos if dispositivo.ativo and dispositivo.sala_id]
     salas_do_no = [dispositivo.sala for dispositivo in dispositivos if dispositivo.sala_id]
@@ -157,7 +146,12 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
             for sala in sorted(set(salas_ativas), key=lambda item: item.nome)
         ],
         "devices": [
-            {"id": str(dispositivo.id), "locale_id": str(dispositivo.sala_id), "active": dispositivo.ativo}
+            {
+                "id": str(dispositivo.id),
+                "locale_id": str(dispositivo.sala_id),
+                "active": dispositivo.ativo,
+                "status": dispositivo.status_efetivo,
+            }
             for dispositivo in dispositivos_ativos
         ],
         "lessons": [
@@ -167,8 +161,6 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
                 "locale_id": str(aula.horario.sala_id),
                 "starts_at": _iso(aula.inicio),
                 "ends_at": _iso(aula.fim),
-                "attendance_starts_at": _iso(aula.chamada_inicio),
-                "attendance_ends_at": _iso(aula.chamada_fim),
                 "status": aula.status,
             }
             for aula in aulas_disponiveis
@@ -243,7 +235,7 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
         "data": dados,
         "deleted": deletados,
         "cursors": {
-            "locales": _max_cursor(salas_do_no),
+            "locales": _max_cursor([sala for sala in salas_do_no if sala]),
             "devices": _max_cursor(dispositivos),
             "lessons": _max_cursor(aulas),
             "students": _max_cursor(alunos),
@@ -251,6 +243,55 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
             "face_embeddings": _max_cursor(embeddings),
         },
     }
+
+
+def _parsear_data_hora(valor: str):
+    try:
+        parseado = datetime.fromisoformat(str(valor).replace("Z", "+00:00"))
+    except (TypeError, ValueError) as exc:
+        raise ValidationError({"datetime": "Informe uma data e hora ISO valida."}) from exc
+    if parseado.tzinfo is None:
+        return timezone.make_aware(parseado)
+    return parseado
+
+
+def atualizar_status_dispositivos_borda(no: NoBorda, payload: dict) -> dict:
+    _validar_no(no, payload.get("node_id"))
+    dispositivos = payload.get("devices", [])
+    if not isinstance(dispositivos, list):
+        raise ValidationError({"devices": "Informe uma lista de status de dispositivos."})
+
+    atualizados = []
+    ignorados = []
+    for item in dispositivos:
+        dispositivo_id = item.get("device_id")
+        if not dispositivo_id:
+            raise ValidationError({"devices": "Todo status deve incluir device_id."})
+        try:
+            dispositivo = DispositivoEsp32.objects.select_related("no").get(id=dispositivo_id, no=no)
+        except DispositivoEsp32.DoesNotExist as exc:
+            raise ValidationError({"devices": "Dispositivo nao pertence ao no autenticado."}) from exc
+
+        try:
+            status_normalizado = DispositivoEsp32.normalizar_status(item.get("status"))
+        except DjangoValidationError as exc:
+            raise ValidationError(exc.message_dict) from exc
+
+        reportado_em = _parsear_data_hora(item.get("reported_at") or timezone.now().isoformat())
+        if dispositivo.status_atualizado_em and reportado_em < dispositivo.status_atualizado_em:
+            ignorados.append(str(dispositivo.id))
+            continue
+
+        dispositivo.status = status_normalizado
+        dispositivo.status_atualizado_em = reportado_em
+        dispositivo.ultimo_sync_em = timezone.now()
+        dispositivo.save(update_fields=["status", "status_atualizado_em", "ultimo_sync_em", "atualizado_em"])
+        publicar_status_dispositivo_interscity(dispositivo, reportado_em=reportado_em, origem="edge_mqtt")
+        atualizados.append(str(dispositivo.id))
+
+    no.ultimo_sync_em = timezone.now()
+    no.save(update_fields=["ultimo_sync_em", "atualizado_em"])
+    return {"updated_ids": atualizados, "ignored_ids": ignorados}
 
 
 def receber_presencas_borda(no: NoBorda, payload: dict) -> dict:
@@ -277,23 +318,21 @@ def _receber_evento_borda(no: NoBorda, evento: dict) -> str:
         aula = Aula.objects.select_related("horario", "horario__turma").get(id=evento["lesson_id"])
         aluno = Usuario.objects.get(id=evento["student_id"], papel=PapelUsuario.ALUNO, is_active=True)
     except (DispositivoEsp32.DoesNotExist, Aula.DoesNotExist, Usuario.DoesNotExist) as exc:
-        raise ValidationError({"events": "Evento referencia nó, dispositivo, aula ou aluno desconhecido."}) from exc
+        raise ValidationError({"events": "Evento referencia no, dispositivo, aula ou aluno desconhecido."}) from exc
 
     if aula.horario.sala_id != dispositivo.sala_id:
-        raise ValidationError({"events": "A aula do evento não pertence à sala do dispositivo."})
+        raise ValidationError({"events": "A aula do evento nao pertence a sala do dispositivo."})
 
     matriculado = MatriculaTurma.objects.filter(turma=aula.horario.turma, aluno=aluno, ativo=True).exists()
     if not matriculado:
-        raise ValidationError({"events": "Aluno não está matriculado na aula enviada."})
+        raise ValidationError({"events": "Aluno nao esta matriculado na aula enviada."})
 
-    reconhecido_em = datetime.fromisoformat(str(evento["recognized_at"]).replace("Z", "+00:00"))
-    if reconhecido_em.tzinfo is None:
-        reconhecido_em = timezone.make_aware(reconhecido_em)
+    reconhecido_em = _parsear_data_hora(evento["recognized_at"])
 
     if aula.status in {Aula.STATUS_FECHADA, Aula.STATUS_CANCELADA}:
-        raise ValidationError({"events": "A chamada da aula está fechada ou cancelada."})
-    if reconhecido_em < aula.chamada_inicio or reconhecido_em > aula.chamada_fim:
-        raise ValidationError({"events": "Evento fora da janela de chamada da aula."})
+        raise ValidationError({"events": "A chamada da aula esta fechada ou cancelada."})
+    if reconhecido_em < aula.inicio or reconhecido_em > aula.fim:
+        raise ValidationError({"events": "Evento fora da duracao da aula."})
 
     try:
         RegistroPresenca.objects.update_or_create(
@@ -321,63 +360,3 @@ def _receber_evento_borda(no: NoBorda, evento: dict) -> str:
         aula.status = Aula.STATUS_ABERTA
         aula.save(update_fields=["status", "atualizado_em"])
     return id_evento
-
-
-def criar_comando_por_interscity(payload_comando: dict) -> ComandoBorda:
-    if not isinstance(payload_comando, dict):
-        raise ValidationError({"command": "Comando IntersCity inválido."})
-
-    uuid = payload_comando.get("uuid")
-    capacidade = payload_comando.get("capability", "")
-    if capacidade not in CAPACIDADES_COMANDO_INTERSCITY:
-        raise ValidationError({"capability": "Capacidade IntersCity não autorizada."})
-
-    id_origem = payload_comando.get("_id", {})
-    if isinstance(id_origem, dict):
-        id_origem = id_origem.get("$oid", "")
-    id_origem = str(id_origem or payload_comando.get("id", ""))
-    if not id_origem:
-        raise ValidationError({"id": "Comandos IntersCity precisam de id de origem."})
-
-    valor = payload_comando.get("value", {})
-    tipo = valor.get("type") if isinstance(valor, dict) else capacidade
-    if tipo not in TIPOS_COMANDO_INTERSCITY:
-        raise ValidationError({"type": "Tipo de comando IntersCity não autorizado."})
-
-    payload = valor.get("payload", valor) if isinstance(valor, dict) else {"value": valor}
-    payload = payload if isinstance(payload, dict) else {"value": payload}
-    if len(json.dumps(payload, default=str).encode("utf-8")) > TAMANHO_MAXIMO_PAYLOAD_COMANDO:
-        raise ValidationError({"payload": "Payload do comando IntersCity excede o tamanho permitido."})
-
-    dispositivo = DispositivoEsp32.objects.select_related("no").filter(interscity_uuid=uuid, ativo=True).first()
-    no = dispositivo.no if dispositivo else NoBorda.objects.filter(interscity_uuid=uuid, ativo=True).first()
-    if no is None:
-        raise ValidationError({"uuid": "Nenhum recurso AutoPonto está vinculado a esse uuid do Interscity."})
-    if not no.ativo:
-        raise ValidationError({"uuid": "Nó de borda vinculado ao recurso está inativo."})
-
-    existente = ComandoBorda.objects.filter(origem="interscity", id_origem=id_origem).first()
-    dados_comando = {
-        "no": no,
-        "dispositivo": dispositivo,
-        "tipo": tipo or capacidade or "command",
-        "payload": payload,
-        "capacidade": capacidade,
-    }
-    if existente:
-        if (
-            existente.no_id != no.id
-            or existente.dispositivo_id != (dispositivo.id if dispositivo else None)
-            or existente.tipo != dados_comando["tipo"]
-            or existente.payload != payload
-            or existente.capacidade != capacidade
-        ):
-            raise ValidationError({"id": "Id de comando IntersCity reutilizado com payload diferente."})
-        return existente
-
-    comando, _ = ComandoBorda.objects.get_or_create(
-        origem="interscity",
-        id_origem=id_origem,
-        defaults={**dados_comando, "status": ComandoBorda.STATUS_PENDENTE},
-    )
-    return comando

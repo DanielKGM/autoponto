@@ -1,12 +1,9 @@
-from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
-from rest_framework.response import Response
-
 from api.models import (
     Campus,
     Curso,
     Disciplina,
     HorarioAula,
+    HorarioPadraoUFMA,
     MatriculaTurma,
     PapelUsuario,
     PeriodoLetivo,
@@ -14,20 +11,18 @@ from api.models import (
     Sala,
     Turma,
 )
-from api.permissions import IsProfessorOuAdministrador
 from api.serializers import (
     CampusSerializer,
     CursoSerializer,
     DisciplinaSerializer,
     HorarioAulaSerializer,
-    JanelaChamadaSerializer,
+    HorarioPadraoUFMASerializer,
     MatriculaTurmaSerializer,
     PeriodoLetivoSerializer,
     PredioSerializer,
     SalaSerializer,
     TurmaSerializer,
 )
-from api.services import recalcular_janelas_aulas_futuras
 from .mixins import AdminReadableModelViewSet
 
 
@@ -35,14 +30,14 @@ class CampusViewSet(AdminReadableModelViewSet):
     queryset = Campus.objects.all()
     serializer_class = CampusSerializer
     filterset_fields = ("ativo",)
-    search_fields = ("nome", "codigo")
+    search_fields = ("nome",)
 
 
 class PredioViewSet(AdminReadableModelViewSet):
     queryset = Predio.objects.select_related("campus").all()
     serializer_class = PredioSerializer
     filterset_fields = ("campus", "ativo")
-    search_fields = ("nome", "codigo")
+    search_fields = ("nome",)
 
 
 class SalaViewSet(AdminReadableModelViewSet):
@@ -63,14 +58,14 @@ class CursoViewSet(AdminReadableModelViewSet):
     queryset = Curso.objects.select_related("campus").all()
     serializer_class = CursoSerializer
     filterset_fields = ("campus", "ativo")
-    search_fields = ("nome", "codigo")
+    search_fields = ("nome",)
 
 
 class DisciplinaViewSet(AdminReadableModelViewSet):
     queryset = Disciplina.objects.select_related("curso").all()
     serializer_class = DisciplinaSerializer
     filterset_fields = ("curso", "ativo")
-    search_fields = ("nome", "codigo", "curso__nome", "curso__codigo")
+    search_fields = ("nome", "codigo", "curso__nome")
 
 
 class TurmaViewSet(AdminReadableModelViewSet):
@@ -100,10 +95,20 @@ class MatriculaTurmaViewSet(AdminReadableModelViewSet):
         return queryset.none()
 
 
+class HorarioPadraoUFMAViewSet(AdminReadableModelViewSet):
+    queryset = HorarioPadraoUFMA.objects.all()
+    serializer_class = HorarioPadraoUFMASerializer
+    filterset_fields = ("dia_semana", "ativo")
+    search_fields = ("codigo",)
+
+    def filtrar_queryset_por_usuario(self, queryset, usuario):
+        return queryset.filter(ativo=True)
+
+
 class HorarioAulaViewSet(AdminReadableModelViewSet):
-    queryset = HorarioAula.objects.select_related("turma", "turma__disciplina", "sala").all()
+    queryset = HorarioAula.objects.select_related("turma", "turma__disciplina", "sala", "horario_padrao").all()
     serializer_class = HorarioAulaSerializer
-    filterset_fields = ("turma", "sala", "dia_semana", "ativo")
+    filterset_fields = ("turma", "sala", "horario_padrao", "ativo")
 
     def filtrar_queryset_por_usuario(self, queryset, usuario):
         if getattr(usuario, "papel", None) == PapelUsuario.PROFESSOR:
@@ -111,29 +116,3 @@ class HorarioAulaViewSet(AdminReadableModelViewSet):
         if getattr(usuario, "papel", None) == PapelUsuario.ALUNO:
             return queryset.filter(turma__matriculas__aluno=usuario, turma__matriculas__ativo=True).distinct()
         return queryset.none()
-
-    @action(
-        detail=True,
-        methods=["post"],
-        permission_classes=[IsProfessorOuAdministrador],
-        serializer_class=JanelaChamadaSerializer,
-        url_path="definir-janela-chamada",
-    )
-    def definir_janela_chamada(self, request, pk=None):
-        horario = self.get_object()
-        if request.user.papel != PapelUsuario.ADMINISTRADOR:
-            if not horario.turma.professores.filter(id=request.user.id).exists():
-                raise PermissionDenied("Você não pode alterar a janela de chamada desta turma.")
-
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        horario.abre_chamada_minutos = serializer.validated_data["abre_chamada_minutos"]
-        horario.fecha_chamada_minutos = serializer.validated_data.get("fecha_chamada_minutos")
-        horario.save(update_fields=["abre_chamada_minutos", "fecha_chamada_minutos", "atualizado_em"])
-        aulas_atualizadas = recalcular_janelas_aulas_futuras(horario)
-        return Response(
-            {
-                "horario": HorarioAulaSerializer(horario, context=self.get_serializer_context()).data,
-                "aulas_atualizadas": aulas_atualizadas,
-            }
-        )

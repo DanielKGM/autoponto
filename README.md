@@ -44,7 +44,7 @@ Para producao provisoria na VM da faculdade, use `.env.prod` baseado em `.env.pr
 | Frontend | Vite | Build e servidor local | Build rapido, configuracao pequena e boa ergonomia para MVP. |
 | Frontend | Nginx | Servir build em container | Entrega arquivos estaticos e faz proxy de `/api/` para o backend no Compose. |
 | Infra | Docker Compose | Orquestracao local/deploy simples | Sobe PostgreSQL, backend e frontend com um comando, facilitando demonstracao do TCC. |
-| Integracao | Interscity UFMA | Camada IoT opcional | Representa recursos, capacidades, telemetria e comandos sem tornar o AutoPonto dependente da plataforma externa. |
+| Integracao | Interscity UFMA | Camada IoT opcional | Representa recursos, capacidades, descoberta e telemetria operacional sem tornar o AutoPonto dependente da plataforma externa. |
 
 ## Como Rodar Tudo
 
@@ -115,7 +115,7 @@ No Compose de producao, somente o frontend publica porta local em `127.0.0.1:808
 
 O build do React usa o prefixo publico completo, mas o Apache da VM pode remover esse prefixo antes de encaminhar para `127.0.0.1:8088`. Por isso o Nginx do frontend aceita tanto `/interscity_lh/catalog/autoponto/api/` quanto `/api/` e encaminha ambos para o backend interno. Para diagnostico na VM, `curl -i http://127.0.0.1:8088/api/health/` deve chegar ao Django.
 
-O refresh JWT fica em cookie `HttpOnly`. Em producao, mantenha `JWT_REFRESH_COOKIE_SECURE=True` e `JWT_REFRESH_COOKIE_PATH=/interscity_lh/catalog/autoponto/api/auth/`. Se `INTERSCITY_ENABLED=True`, defina tambem `INTERSCITY_WEBHOOK_SECRET`; sem esse segredo o webhook de comandos do IntersCity sera recusado.
+O refresh JWT fica em cookie `HttpOnly`. Em producao, mantenha `JWT_REFRESH_COOKIE_SECURE=True` e `JWT_REFRESH_COOKIE_PATH=/interscity_lh/catalog/autoponto/api/auth/`. Se `INTERSCITY_ENABLED=True`, preencha `INTERSCITY_BASE_URL` e os paths dos microsservicos; falhas no Interscity sao tratadas como indisponibilidade externa e nao bloqueiam login, presencas ou relatorios.
 
 Se o login retornar `400 Bad Request` com `content-type: text/html`, verifique os logs do backend: normalmente e rejeicao de host/proxy antes da view JWT. Confirme que a `.env.prod` real contem `DJANGO_ALLOWED_HOSTS=cidadesinteligentes.lsdi.ufma.br,192.168.10.104,localhost,127.0.0.1`. O Nginx de producao tambem sobrescreve `X-Forwarded-Host` com `$host` para evitar que um valor encaminhado pelo Apache quebre essa validacao.
 

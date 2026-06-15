@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ButtonHTMLAttributes, type ChangeEvent, type FormEvent } from "react";
 import { apiFetch, carregarSessaoAutenticada, detalheErro, login, logout, normalizarLista } from "./api";
 import type {
+  DispositivoStatus,
   MeResponse,
   PresencaAluno,
   RelatorioResumoTurma,
@@ -453,6 +454,7 @@ function ResumoTurma({ resumo }: { resumo: RelatorioResumoTurma }) {
 function AdminPainel() {
   const [usuarios, setUsuarios] = useState<UsuarioCrud[]>([]);
   const [turmas, setTurmas] = useState<TurmaCrud[]>([]);
+  const [dispositivos, setDispositivos] = useState<DispositivoStatus[]>([]);
   const [diagnostico, setDiagnostico] = useState<DiagnosticoInterSCity>({});
   const [mensagem, setMensagem] = useState("");
   const [erro, setErro] = useState("");
@@ -461,13 +463,15 @@ function AdminPainel() {
 
   async function carregar() {
     try {
-      const [usuariosApi, turmasApi, diagApi] = await Promise.all([
+      const [usuariosApi, turmasApi, dispositivosApi, diagApi] = await Promise.all([
         apiFetch<UsuarioCrud[] | { results: UsuarioCrud[] }>("/usuarios/"),
         apiFetch<TurmaCrud[] | { results: TurmaCrud[] }>("/turmas/"),
+        apiFetch<DispositivoStatus[]>("/dispositivos-esp32/status-dashboard/?incluir_interscity=true"),
         apiFetch<DiagnosticoInterSCity>("/interscity/diagnostico/"),
       ]);
       setUsuarios(normalizarLista(usuariosApi));
       setTurmas(normalizarLista(turmasApi));
+      setDispositivos(dispositivosApi);
       setDiagnostico(diagApi);
     } catch (e) {
       setErro(detalheErro(e));
@@ -566,6 +570,18 @@ function AdminPainel() {
     }
   }
 
+  async function sincronizarRecursosInterscity() {
+    setMensagem("");
+    setErro("");
+    try {
+      await apiFetch("/interscity/sincronizar-recursos/", { method: "POST", body: JSON.stringify({}) });
+      setMensagem("Recursos IoT sincronizados com o Interscity.");
+      await carregar();
+    } catch (e) {
+      setErro(detalheErro(e));
+    }
+  }
+
   return (
     <section className="page-grid">
       <header className="page-title">
@@ -581,6 +597,7 @@ function AdminPainel() {
         <div className="stat"><strong>{turmas.length}</strong><span>Turmas</span></div>
         <div className="stat"><strong>{alunos.length}</strong><span>Alunos</span></div>
         <div className="stat"><strong>{professores.length}</strong><span>Professores</span></div>
+        <div className="stat"><strong>{dispositivos.length}</strong><span>ESP32</span></div>
       </section>
 
       <section className="panel admin-grid">
@@ -636,6 +653,41 @@ function AdminPainel() {
           <input name="arquivo" type="file" accept="image/*" required />
           <Botao>Cadastrar rosto</Botao>
         </form>
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h3>Dispositivos ESP32</h3>
+          </div>
+          <Botao onClick={sincronizarRecursosInterscity}>Sincronizar Interscity</Botao>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Codigo</th>
+                <th>Sala</th>
+                <th>No</th>
+                <th>Status</th>
+                <th>Efetivo</th>
+                <th>Origem</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dispositivos.map((dispositivo) => (
+                <tr key={dispositivo.id}>
+                  <td>{dispositivo.codigo}</td>
+                  <td>{dispositivo.sala || "-"}</td>
+                  <td>{dispositivo.no || "-"}</td>
+                  <td><span className={`badge ${dispositivo.status}`}>{dispositivo.status}</span></td>
+                  <td><span className={`badge ${dispositivo.status_efetivo}`}>{dispositivo.status_efetivo}</span></td>
+                  <td>{dispositivo.origem_status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section className="panel">

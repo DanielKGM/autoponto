@@ -5,6 +5,7 @@ from api.models import (
     Curso,
     Disciplina,
     HorarioAula,
+    HorarioPadraoUFMA,
     MatriculaTurma,
     PapelUsuario,
     PeriodoLetivo,
@@ -77,13 +78,15 @@ class MatriculaTurmaSerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "criado_em", "atualizado_em")
 
 
+class HorarioPadraoUFMASerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HorarioPadraoUFMA
+        fields = "__all__"
+        read_only_fields = ("id", "criado_em", "atualizado_em")
+
+
 class HorarioAulaSerializer(serializers.ModelSerializer):
     class Meta:
         model = HorarioAula
         fields = "__all__"
         read_only_fields = ("id", "criado_em", "atualizado_em")
-
-
-class JanelaChamadaSerializer(serializers.Serializer):
-    abre_chamada_minutos = serializers.IntegerField(min_value=0)
-    fecha_chamada_minutos = serializers.IntegerField(min_value=1, required=False, allow_null=True)

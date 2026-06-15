@@ -1,12 +1,10 @@
 from unittest.mock import patch
-from datetime import timedelta
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase
-from django.utils import timezone
 
-from api.models import DispositivoEsp32, HorarioAula, MatriculaTurma, RegistroPresenca
-from api.services import matricular_biometria_aluno, obter_ou_criar_aula, recalcular_janelas_aulas_futuras
+from api.models import DispositivoEsp32, HorarioAula, HorarioPadraoUFMA, MatriculaTurma, RegistroPresenca
+from api.services import matricular_biometria_aluno, obter_ou_criar_aula
 from .helpers import criar_contexto_academico
 
 
@@ -31,9 +29,16 @@ class ModeloDominioTests(TestCase):
             HorarioAula.objects.create(
                 turma=outra_turma,
                 sala=self.contexto["sala"],
-                dia_semana=self.contexto["horario"].dia_semana,
-                horario_inicio=self.contexto["horario"].horario_inicio,
-                horario_fim=self.contexto["horario"].horario_fim,
+                horario_padrao=self.contexto["horario_padrao"],
+            )
+
+    def test_horario_padrao_ufma_valida_codigo_dia_e_intervalo(self):
+        with self.assertRaises(ValidationError):
+            HorarioPadraoUFMA.objects.create(
+                codigo="3M12",
+                dia_semana=HorarioPadraoUFMA.DiaSemana.SEGUNDA,
+                horario_inicio=self.contexto["horario_padrao"].horario_inicio,
+                horario_fim=self.contexto["horario_padrao"].horario_fim,
             )
 
     def test_apenas_um_dispositivo_ativo_por_sala(self):
@@ -51,41 +56,30 @@ class ModeloDominioTests(TestCase):
         with self.assertRaises(ValidationError):
             RegistroPresenca.objects.create(aula=aula, aluno=self.contexto["aluno"])
 
-    def test_aula_salva_snapshot_da_janela_de_chamada(self):
+    def test_aula_salva_snapshot_da_duracao_do_horario_ufma(self):
         horario = self.contexto["horario"]
-        horario.abre_chamada_minutos = 10
-        horario.fecha_chamada_minutos = 40
-        horario.save(update_fields=["abre_chamada_minutos", "fecha_chamada_minutos", "atualizado_em"])
 
         aula, _ = obter_ou_criar_aula(horario, self.contexto["data_aula"])
 
-        self.assertEqual(aula.chamada_inicio.minute, 10)
-        self.assertEqual(aula.chamada_fim.minute, 40)
+        self.assertEqual(aula.inicio.hour, 8)
+        self.assertEqual(aula.inicio.minute, 0)
+        self.assertEqual(aula.fim.hour, 9)
+        self.assertEqual(aula.fim.minute, 40)
 
-    def test_recalculo_de_janela_preserva_aulas_passadas_e_fechadas(self):
+    def test_aula_preserva_inicio_e_fim_se_horario_padrao_mudar_depois(self):
         horario = self.contexto["horario"]
-        aula_passada, _ = obter_ou_criar_aula(horario, self.contexto["data_aula"])
-        data_futura = timezone.localdate()
-        deslocamento = (horario.dia_semana - data_futura.weekday()) % 7 or 7
-        data_futura = data_futura + timedelta(days=deslocamento)
-        aula_futura, _ = obter_ou_criar_aula(horario, data_futura)
-        aula_fechada, _ = obter_ou_criar_aula(horario, data_futura + timedelta(days=7))
-        aula_fechada.status = aula_fechada.STATUS_FECHADA
-        aula_fechada.save(update_fields=["status", "atualizado_em"])
-        chamada_passada = aula_passada.chamada_fim
-        chamada_fechada = aula_fechada.chamada_fim
+        aula, _ = obter_ou_criar_aula(horario, self.contexto["data_aula"])
+        inicio_original = aula.inicio
+        fim_original = aula.fim
 
-        horario.fecha_chamada_minutos = 30
-        horario.save(update_fields=["fecha_chamada_minutos", "atualizado_em"])
-        atualizadas = recalcular_janelas_aulas_futuras(horario)
+        padrao = self.contexto["horario_padrao"]
+        padrao.horario_inicio = padrao.horario_inicio.replace(hour=10)
+        padrao.horario_fim = padrao.horario_fim.replace(hour=11)
+        padrao.save(update_fields=["horario_inicio", "horario_fim", "atualizado_em"])
 
-        aula_passada.refresh_from_db()
-        aula_futura.refresh_from_db()
-        aula_fechada.refresh_from_db()
-        self.assertEqual(atualizadas, 1)
-        self.assertEqual(aula_passada.chamada_fim, chamada_passada)
-        self.assertEqual(aula_fechada.chamada_fim, chamada_fechada)
-        self.assertEqual((aula_futura.chamada_fim - aula_futura.inicio).total_seconds(), 30 * 60)
+        aula.refresh_from_db()
+        self.assertEqual(aula.inicio, inicio_original)
+        self.assertEqual(aula.fim, fim_original)
 
     @patch("api.services.biometria.GeradorEmbeddingVisao")
     def test_matricula_biometrica_mantem_um_embedding_ativo(self, gerador_cls):
