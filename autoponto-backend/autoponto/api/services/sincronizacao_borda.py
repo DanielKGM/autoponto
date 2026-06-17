@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+﻿from datetime import datetime, timedelta
 from decimal import Decimal
 
 from django.conf import settings
@@ -21,7 +21,6 @@ from api.models import (
     Usuario,
 )
 from api.services.aulas import listar_aulas_do_dia
-from api.services.interscity import publicar_status_dispositivo_interscity
 
 
 ENTIDADES_SYNC = ("locales", "devices", "lessons", "students", "enrollments", "face_embeddings")
@@ -286,7 +285,6 @@ def atualizar_status_dispositivos_borda(no: NoBorda, payload: dict) -> dict:
         dispositivo.status_atualizado_em = reportado_em
         dispositivo.ultimo_sync_em = timezone.now()
         dispositivo.save(update_fields=["status", "status_atualizado_em", "ultimo_sync_em", "atualizado_em"])
-        publicar_status_dispositivo_interscity(dispositivo, reportado_em=reportado_em, origem="edge_mqtt")
         atualizados.append(str(dispositivo.id))
 
     no.ultimo_sync_em = timezone.now()

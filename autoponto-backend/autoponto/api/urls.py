@@ -1,4 +1,4 @@
-from django.urls import include, path
+﻿from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from api.views import (
@@ -17,7 +17,6 @@ from api.views import (
     HealthCheckView,
     HorarioAulaViewSet,
     InterSCityDiagnosticoView,
-    InterSCitySincronizarRecursosView,
     LogoutCookieView,
     MatriculaTurmaViewSet,
     MeView,
@@ -94,6 +93,5 @@ urlpatterns = [
     path("edge/devices/status", EdgeDeviceStatusView.as_view(), name="edge-devices-status-noslash"),
     path("edge/devices/status/", EdgeDeviceStatusSlashAliasView.as_view(), name="edge-devices-status"),
     path("interscity/diagnostico/", InterSCityDiagnosticoView.as_view(), name="interscity-diagnostico"),
-    path("interscity/sincronizar-recursos/", InterSCitySincronizarRecursosView.as_view(), name="interscity-sincronizar-recursos"),
     path("", include(router.urls)),
 ]

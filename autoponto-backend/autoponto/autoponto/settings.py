@@ -1,4 +1,4 @@
-import os
+﻿import os
 from datetime import timedelta
 from pathlib import Path
 
@@ -150,6 +150,7 @@ CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = env_lista("CSRF_TRUSTED_ORIGINS")
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
+PUBLIC_API_DOCS = env_bool("PUBLIC_API_DOCS")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "api.Usuario"
@@ -186,7 +187,7 @@ SIMPLE_JWT = {
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "AutoPonto API",
-    "DESCRIPTION": "API de automação de frequência acadêmica para o TCC AutoPonto.",
+    "DESCRIPTION": "API de automaÃ§Ã£o de frequÃªncia acadÃªmica para o TCC AutoPonto.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
 }

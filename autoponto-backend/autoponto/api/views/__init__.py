@@ -1,4 +1,4 @@
-from .academico import (
+﻿from .academico import (
     CampusViewSet,
     CursoViewSet,
     DisciplinaViewSet,
@@ -33,7 +33,7 @@ from .frontend import (
 )
 from .health import HealthCheckView, ReadinessCheckView
 from .identidade import UsuarioViewSet
-from .interscity import InterSCityDiagnosticoView, InterSCitySincronizarRecursosView
+from .interscity import InterSCityDiagnosticoView
 from .presencas import AulaViewSet, RegistroPresencaViewSet
 
 __all__ = [
@@ -53,7 +53,6 @@ __all__ = [
     "HorarioAulaViewSet",
     "HorarioPadraoUFMAViewSet",
     "InterSCityDiagnosticoView",
-    "InterSCitySincronizarRecursosView",
     "LogoutCookieView",
     "MatriculaTurmaViewSet",
     "MeView",

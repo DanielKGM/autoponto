@@ -1,4 +1,4 @@
-export type PapelUsuario = "ALUNO" | "PROFESSOR" | "ADMINISTRADOR";
+﻿export type PapelUsuario = "ALUNO" | "PROFESSOR" | "ADMINISTRADOR";
 
 export type UsuarioAtual = {
   id: string;
@@ -100,6 +100,7 @@ export type DispositivoStatus = {
   sala: string | null;
   no: string | null;
   interscity_uuid: string;
-  origem_status: "local" | "collector";
-  interscity_status?: string;
+  origem_status: "api_local";
 };
+
+export type DiagnosticoInterSCity = Record<string, { ok: boolean; status: string; codigo_http?: number; detalhe?: string }>;

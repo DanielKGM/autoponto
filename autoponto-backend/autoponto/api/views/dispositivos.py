@@ -1,10 +1,9 @@
-from rest_framework.decorators import action
+﻿from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from api.models import DispositivoEsp32, NoBorda
 from api.permissions import IsAdministrador
 from api.serializers import DispositivoEsp32Serializer, NoBordaSerializer, TokenNoBordaEmitirSerializer
-from api.services.interscity import consultar_status_interscity
 from .mixins import AdminReadableModelViewSet
 
 
@@ -48,29 +47,24 @@ class DispositivoEsp32ViewSet(AdminReadableModelViewSet):
 
     @action(detail=False, methods=["get"], permission_classes=[IsAdministrador], url_path="status-dashboard")
     def status_dashboard(self, request):
-        incluir_interscity = request.query_params.get("incluir_interscity") == "true"
         dispositivos = self.get_queryset().order_by("codigo")
         payload = []
         for dispositivo in dispositivos:
-            item = {
-                "id": str(dispositivo.id),
-                "codigo": dispositivo.codigo,
-                "nome": dispositivo.nome,
-                "ativo": dispositivo.ativo,
-                "status": dispositivo.status,
-                "status_efetivo": dispositivo.status_efetivo,
-                "status_atualizado_em": dispositivo.status_atualizado_em.isoformat()
-                if dispositivo.status_atualizado_em
-                else None,
-                "sala": dispositivo.sala.nome if dispositivo.sala else None,
-                "no": dispositivo.no.codigo if dispositivo.no else None,
-                "interscity_uuid": dispositivo.interscity_uuid,
-                "origem_status": "local",
-            }
-            if incluir_interscity and dispositivo.interscity_uuid:
-                consulta = consultar_status_interscity(dispositivo)
-                item["interscity_status"] = consulta.get("status")
-                if consulta.get("ok") and consulta.get("data"):
-                    item["origem_status"] = "collector"
-            payload.append(item)
+            payload.append(
+                {
+                    "id": str(dispositivo.id),
+                    "codigo": dispositivo.codigo,
+                    "nome": dispositivo.nome,
+                    "ativo": dispositivo.ativo,
+                    "status": dispositivo.status,
+                    "status_efetivo": dispositivo.status_efetivo,
+                    "status_atualizado_em": dispositivo.status_atualizado_em.isoformat()
+                    if dispositivo.status_atualizado_em
+                    else None,
+                    "sala": dispositivo.sala.nome if dispositivo.sala else None,
+                    "no": dispositivo.no.codigo if dispositivo.no else None,
+                    "interscity_uuid": dispositivo.interscity_uuid,
+                    "origem_status": "api_local",
+                }
+            )
         return Response(payload)
