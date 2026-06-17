@@ -1,9 +1,17 @@
-from unittest.mock import patch
+﻿from unittest.mock import patch
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
-from api.models import DispositivoEsp32, HorarioAula, HorarioPadraoUFMA, MatriculaTurma, RegistroPresenca
+from api.models import (
+    DispositivoEsp32,
+    HorarioAula,
+    HorarioPadraoUFMA,
+    MatriculaTurma,
+    PapelUsuario,
+    RegistroPresenca,
+    Usuario,
+)
 from api.services import matricular_biometria_aluno, obter_ou_criar_aula
 from .helpers import criar_contexto_academico
 
@@ -11,6 +19,17 @@ from .helpers import criar_contexto_academico
 class ModeloDominioTests(TestCase):
     def setUp(self):
         self.contexto = criar_contexto_academico()
+
+
+    def test_usuario_pode_ser_criado_sem_email(self):
+        usuario = Usuario.objects.create_user(
+            username="aluno-sem-email",
+            password="password123",
+            papel=PapelUsuario.ALUNO,
+            nome_completo="Aluno Sem Email",
+        )
+
+        self.assertEqual(usuario.email, "")
 
     def test_matricula_deve_ser_unica_por_aluno_e_turma(self):
         with self.assertRaises(ValidationError):

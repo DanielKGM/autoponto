@@ -15,14 +15,15 @@ Este documento traduz o comportamento atual da API em requisitos funcionais e na
 | RF-BE-07 | Permitir relatorio de presencas por turma e data para professor da turma ou admin. | `RelatorioPresencasTurmaDataView` |
 | RF-BE-08 | Permitir resumo de presenca por turma em um periodo. | `RelatorioResumoTurmaView` |
 | RF-BE-09 | Permitir historico de presenca de aluno apenas para admin, para o proprio aluno ou para professor que ministra turma daquele aluno. | `_usuario_pode_historico_aluno` em `views/frontend.py` |
-| RF-BE-10 | Permitir CRUD administrativo de usuarios, cursos, disciplinas, turmas, matriculas, salas, nos e ESP32. | ViewSets registrados em `api/urls.py` |
+| RF-BE-10 | Permitir CRUD administrativo de usuarios sem email obrigatorio, cursos, disciplinas, turmas, matriculas, salas, nos e ESP32. | ViewSets registrados em `api/urls.py` |
 | RF-BE-11 | Sincronizar dados academicos e biometricos com o no de borda por `GET /api/edge/pull`. | `montar_payload_pull` |
 | RF-BE-12 | Receber eventos de presenca do no por `POST /api/edge/attendance`, com idempotencia por id do evento. | `receber_presencas_borda` |
 | RF-BE-13 | Validar presenca somente entre `Aula.inicio` e `Aula.fim` e recusar aulas fechadas/canceladas. | `_receber_evento_borda` |
 | RF-BE-14 | Receber snapshot operacional local das ESP32 por `POST /api/edge/devices/status/`. | `atualizar_status_dispositivos_borda` |
 | RF-BE-15 | Permitir que professor da turma ou admin feche manualmente a chamada sem alterar a duracao historica da aula. | `fechar_chamada_aula` |
 | RF-BE-16 | Diagnosticar disponibilidade dos microsservicos IntersCity sem depender deles para o fluxo academico. | `GET /api/interscity/diagnostico/` |
-| RF-BE-17 | Disponibilizar documentacao OpenAPI/Swagger em `/api/schema/` e `/api/docs/` quando `PUBLIC_API_DOCS=True`. | `autoponto/urls.py` |
+| RF-BE-17 | Disponibilizar documentacao OpenAPI/Swagger em /api/schema/ e /api/docs/ quando PUBLIC_API_DOCS=True. | `autoponto/urls.py` |
+| RF-BE-18 | Popular ambiente de demonstracao com seed idempotente UFMA/TCC sem matricular alunos automaticamente. | seed_dados_ufma |
 
 ## Requisitos Nao Funcionais
 
