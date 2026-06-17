@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${DATABASE_NAME:?DATABASE_NAME obrigatoria no .env.prod}
       POSTGRES_USER: ${DATABASE_USER:?DATABASE_USER obrigatoria no .env.prod}
@@ -21,6 +22,7 @@ services:
     build:
       context: ./autoponto-backend
       dockerfile: Dockerfile
+    restart: unless-stopped
     env_file:
       - .env.prod
     environment:
@@ -53,6 +55,7 @@ services:
         VITE_API_URL: ${VITE_API_URL:?VITE_API_URL obrigatoria no .env.prod}
         VITE_BASE_PATH: ${VITE_BASE_PATH:?VITE_BASE_PATH obrigatoria no .env.prod}
         NGINX_CONF: nginx.prod.conf
+    restart: unless-stopped
     depends_on:
       - backend
     security_opt:
