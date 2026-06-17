@@ -1,7 +1,5 @@
-from datetime import date
+﻿from datetime import date
 from unittest.mock import patch
-from urllib.error import URLError
-
 from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -177,22 +175,19 @@ class FrontendApiTests(APITestCase):
 
         self.assertEqual(resposta.status_code, status.HTTP_403_FORBIDDEN)
 
-    @override_settings(INTERSCITY_ENABLED=True)
-    @patch("api.services.interscity.urlopen", side_effect=URLError("collector offline"))
-    def test_admin_lista_status_dispositivos_com_fallback_local_quando_collector_falha(self, urlopen):
+    def test_admin_lista_status_dispositivos_com_snapshot_local(self):
         self.contexto["dispositivo"].status = "idle"
         self.contexto["dispositivo"].interscity_uuid = "uuid-esp32"
         self.contexto["dispositivo"].save(update_fields=["status", "interscity_uuid", "atualizado_em"])
         self.autenticar("admin")
 
-        resposta = self.client.get("/api/dispositivos-esp32/status-dashboard/", {"incluir_interscity": "true"})
+        resposta = self.client.get("/api/dispositivos-esp32/status-dashboard/")
 
         self.assertEqual(resposta.status_code, status.HTTP_200_OK)
         self.assertEqual(resposta.data[0]["id"], str(self.contexto["dispositivo"].id))
         self.assertEqual(resposta.data[0]["status"], "idle")
         self.assertEqual(resposta.data[0]["status_efetivo"], "offline")
-        self.assertEqual(resposta.data[0]["origem_status"], "local")
-        urlopen.assert_called()
+        self.assertEqual(resposta.data[0]["origem_status"], "api_local")
 
     def test_admin_pesquisa_historico_de_presencas_do_aluno(self):
         aula, _ = obter_ou_criar_aula(self.contexto["horario"], self.contexto["data_aula"])

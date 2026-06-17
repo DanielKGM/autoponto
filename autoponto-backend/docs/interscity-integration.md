@@ -1,120 +1,66 @@
-# Integracao AutoPonto E Interscity
+﻿# Integracao AutoPonto E IntersCity
 
-O AutoPonto continua sendo a fonte canonica para usuarios, turmas, aulas, biometria e presencas. O Interscity e usado como camada IoT observavel: catalogo, descoberta, publicacao e consulta de telemetria operacional.
+## Papel Atual No MVP
 
-## Servicos Usados
+O AutoPonto principal nao publica nem sincroniza recursos de negocio no IntersCity neste momento. A API principal continua canonica para usuarios, turmas, aulas, biometria, presencas e relatorios.
 
-- Resource Catalog: registra recursos e capacidades.
-- Resource Discovery: permite descobrir recursos por capacidades.
-- Resource Adaptor: recebe dados publicados pelos recursos.
-- Data Collector: guarda historico e ultimo valor das capacidades.
-- Actuator Controller: fica apenas no diagnostico de disponibilidade; o MVP nao usa comandos externos.
+No MVP atual, o IntersCity sera usado somente como camada de observabilidade IoT alimentada pelo `edge-node`. O Raspberry solicita estatisticas das ESP32 por MQTT, recebe o payload de log do firmware e publica periodicamente esses dados diretamente no Resource Adaptor.
 
-## Recursos
+## Fluxo Definido
 
-- `DispositivoEsp32`: recurso IoT principal, vinculado por `DispositivoEsp32.interscity_uuid`.
-- `NoBorda`: recurso opcional de infraestrutura, vinculado por `NoBorda.interscity_uuid`.
-- `Sala`: continua canonica no AutoPonto; no Interscity ela aparece como metadado do recurso ESP32.
+1. O firmware da ESP32 recebe pelo MQTT local um comando JSON com `stats=true`.
+2. A ESP32 executa `publishSystemStats()` e publica em `log/{device_id}`.
+3. O edge-node assina `log/+`, valida o payload e associa o `device_id` ao recurso IntersCity configurado.
+4. O edge-node publica no Resource Adaptor.
+5. O Data Collector passa a armazenar o ultimo estado operacional.
+6. Futuramente, uma pagina publica do AutoPonto podera consultar Discovery/Collector sob demanda, com botao de atualizar mapa, sem websocket/webhook.
 
-## Capacidades
+## Capability Unica Do MVP
 
-- `autoponto_device_status`: sensor com `offline`, `working` ou `idle`.
-- `autoponto_class_context`: informacao operacional sobre aula atual/proxima, sem dados pessoais.
-- `autoponto_attendance_event`: evento anonimo/agregavel de presenca.
+Capability sugerida:
 
-Comandos externos foram retirados do escopo da API principal; feedback visual/sonoro da ESP32 permanece local ao edge.
-
-## Sincronizacao De Recursos
-
-Endpoint administrativo:
-
-```http
-POST /api/interscity/sincronizar-recursos/
+```text
+autoponto_device_stats
 ```
 
-Para cada `DispositivoEsp32` ativo, o backend envia ao Catalog um payload semelhante a:
+Payload publicado pelo edge-node no IntersCity:
 
 ```json
 {
   "data": {
-    "uri": "autoponto://dispositivos-esp32/uuid-da-esp32",
-    "description": "AutoPonto ESP32 ESP32-LAB101 - Laboratorio 101",
-    "status": "active",
-    "capabilities": [
-      "autoponto_device_status",
-      "autoponto_class_context",
-      "autoponto_attendance_event"
-    ],
-    "metadata": {
-      "autoponto_id": "uuid-da-esp32",
-      "codigo": "ESP32-LAB101",
-      "sala": "Laboratorio 101",
-      "predio": "Centro de Ciencias Exatas e Tecnologia",
-      "no": "NO-CCET-01"
-    }
-  }
-}
-```
-
-Se o Catalog retornar um UUID, ele e salvo em `DispositivoEsp32.interscity_uuid`.
-
-## Publicacao De Status
-
-Fluxo:
-
-1. ESP32 publica `sts/{device_id}` no MQTT do Raspberry.
-2. Edge salva o status no Redis local.
-3. Edge envia lote para `POST /api/edge/devices/status/`.
-4. Backend atualiza o banco local.
-5. Backend publica no Resource Adaptor quando `INTERSCITY_ENABLED=True` e existe `interscity_uuid`.
-
-Payload publicado:
-
-```json
-{
-  "data": {
-    "autoponto_device_status": [
+    "autoponto_device_stats": [
       {
-        "status": "working",
         "device_id": "uuid-da-esp32",
-        "node_id": "NO-CCET-01",
-        "timestamp": "2026-06-15T10:30:00Z",
-        "source": "edge_mqtt"
+        "state": "idle",
+        "rssi": -61,
+        "now_ms": 12345678,
+        "cpu_freq": 240,
+        "heap_free": 180000,
+        "heap_min": 120000,
+        "context": {
+          "lesson": "Desenvolvimento de Sistemas Web - A",
+          "remaining_ms": 500000,
+          "next_ms": 1200000
+        },
+        "source": "edge_mqtt_log"
       }
     ]
   }
 }
 ```
 
-## Dashboard E Fallback
+Dados biometricos, imagens, embeddings, nomes de alunos e presencas individuais nao entram no IntersCity.
 
-O painel administrativo consulta:
+## Uso Da API Principal
 
-```http
-GET /api/dispositivos-esp32/status-dashboard/?incluir_interscity=true
-```
+A API principal mantem apenas:
 
-Resposta resumida:
+- `GET /api/interscity/diagnostico/`: endpoint administrativo para verificar disponibilidade de Catalog, Discovery, Collector, Adaptor e Actuator.
+- Campos `interscity_uuid` em modelos de infraestrutura: ficam reservados para mapeamento futuro ou cadastro manual de recursos, mas o backend nao chama Catalog/Adaptor no fluxo atual.
 
-```json
-[
-  {
-    "id": "uuid-da-esp32",
-    "codigo": "ESP32-LAB101",
-    "status": "working",
-    "status_efetivo": "working",
-    "status_atualizado_em": "2026-06-15T10:30:00Z",
-    "sala": "Laboratorio 101",
-    "no": "NO-CCET-01",
-    "interscity_uuid": "uuid-interscity",
-    "origem_status": "local"
-  }
-]
-```
+Nao existe mais endpoint de sincronizacao de recursos IntersCity no backend.
 
-Se o Collector responder, o campo `origem_status` pode indicar `collector`. Se Collector, Adaptor, Catalog, Discovery ou Actuator falharem, o backend retorna o snapshot local e nao bloqueia login, CRUD, biometria, presenca, relatorios ou sync edge.
-
-## Configuracao
+## Variaveis
 
 ```env
 INTERSCITY_ENABLED=False
@@ -127,34 +73,4 @@ INTERSCITY_ACTUATOR_PATH=/actuator
 INTERSCITY_TIMEOUT_SECONDS=5
 ```
 
-O backend monta cada URL como `INTERSCITY_BASE_URL + INTERSCITY_*_PATH`. A integracao fica desativada por padrao.
-
-## Diagnostico
-
-```http
-GET /api/interscity/diagnostico/
-```
-
-Resposta exemplo:
-
-```json
-{
-  "catalog": { "ok": true, "status": "ok" },
-  "discovery": { "ok": false, "status": "timeout" },
-  "collector": { "ok": false, "status": "erro_http", "codigo_http": 500 },
-  "adaptor": { "ok": false, "status": "indisponivel" },
-  "actuator": { "ok": false, "status": "nao_configurado" }
-}
-```
-
-## Privacidade
-
-Nao enviar ao Interscity:
-
-- frames ou imagens;
-- embeddings;
-- nome de aluno;
-- matricula de aluno;
-- dados biometricos brutos.
-
-Eventos de presenca publicados no futuro devem ser anonimos ou agregaveis.
+Mesmo com `INTERSCITY_ENABLED=True`, falhas desses microsservicos nao bloqueiam login, CRUD, biometria, presencas, relatorios ou sync edge.

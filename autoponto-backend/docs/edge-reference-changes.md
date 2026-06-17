@@ -1,14 +1,30 @@
-# Ajustes Necessarios No referencia-edge
+﻿# Ajustes Necessarios No referencia-edge
 
 Este arquivo lista mudancas esperadas no `referencia-edge`. O codigo de referencia continua somente como referencia local e nao deve ser editado neste repositorio.
 
-## Contrato Geral
+## Contrato Geral Com A API Principal
 
 - Configure `MAIN_API_URL` apontando para a API principal com prefixo `/api`, por exemplo `http://backend:8000/api`.
 - Configure `MAIN_API_TOKEN` com token emitido por `POST /api/nos-borda/{id}/emitir-token/`.
 - O edge deve enviar `Authorization: NodeToken <token>`.
 - O `node_id` usado nos endpoints deve ser o `codigo` ou UUID de `NoBorda`.
 - ESP32 nao autentica diretamente no backend principal; ela continua subordinada ao Raspberry.
+
+## Coerencia De Modelos Edge/API
+
+A API principal usa nomes internos em portugues, mas o payload de sincronizacao mantem nomes compativeis com `referencia-edge/services/edge-app/app/models.py`:
+
+| Edge model | Payload da API | Origem no backend |
+| --- | --- | --- |
+| `Locale` | `locales[]` com `id`, `name` | `Sala` |
+| `Device` | `devices[]` com `id`, `locale_id`, `active`, `status` | `DispositivoEsp32` |
+| `Lesson` | `lessons[]` com `id`, `name`, `locale_id`, `starts_at`, `ends_at`, `status` | `Aula` |
+| `Student` | `students[]` com `id`, `registration`, `name`, `active` | `Usuario` aluno |
+| `Enrollment` | `enrollments[]` | `MatriculaTurma` expandida por aula |
+| `FaceEmbedding` | `face_embeddings[]` | `EmbeddingFacial` ativo |
+| `AttendanceEvent` | push em `/api/edge/attendance` | evento pendente do edge |
+
+Mudanca sugerida no edge: adicionar campos opcionais `status` em `Device` e `Lesson`, mantendo compatibilidade com payload antigo.
 
 ## Pull
 
@@ -51,13 +67,7 @@ Exemplo de aula:
 }
 ```
 
-Mudancas importantes:
-
-- Campos separados de validade manual foram removidos.
-- O intervalo valido da chamada e sempre `starts_at <= recognized_at <= ends_at`.
-- Aulas `FECHADA` ou `CANCELADA` aparecem em `deleted.lessons` para o edge remover/desabilitar no cache local.
-- `devices[].status` informa o status efetivo conhecido pelo backend: `offline`, `working` ou `idle`.
-- Cursores continuam sendo enviados pelo edge como `msgpack` em hexadecimal.
+O intervalo valido da chamada e sempre `starts_at <= recognized_at <= ends_at`. Aulas `FECHADA` ou `CANCELADA` aparecem em `deleted.lessons` para o edge remover/desabilitar no cache local.
 
 ## Attendance
 
@@ -79,23 +89,11 @@ Mudancas importantes:
 }
 ```
 
-A API valida:
+A API valida posse do dispositivo, sala da aula, matricula do aluno, intervalo da aula e status da aula. Evento repetido com o mesmo `id` e idempotente.
 
-- dispositivo pertence ao no autenticado;
-- aula pertence a sala do dispositivo;
-- aluno esta matriculado na turma da aula;
-- `recognized_at` esta entre `Aula.inicio` e `Aula.fim`;
-- aula nao esta `FECHADA` nem `CANCELADA`.
+## Status Local Das ESP32 Na API Principal
 
-Evento repetido com o mesmo `id` e idempotente. A resposta confirma os eventos aceitos:
-
-```json
-{"synced_ids": ["edge-event-1"]}
-```
-
-## Status Das ESP32
-
-O firmware publica status no MQTT local do Raspberry:
+O firmware publica status simples no MQTT local:
 
 ```text
 sts/{device_id}
@@ -109,21 +107,7 @@ working
 idle
 ```
 
-O `referencia-edge` ja possui a base desse fluxo em:
-
-```python
-client.subscribe("sts/+")
-save_device_status(device_id, state)
-```
-
-e salva no Redis:
-
-```text
-device:{device_id}:status
-devices:last_seen
-```
-
-Mudanca sugerida no loop de sync do edge: ler esses status do Redis e enviar periodicamente ao backend:
+O edge ja assina `sts/+` em `app/mqtt.py` e salva esse snapshot. Mudanca sugerida no loop de sync: ler os status salvos no Redis e enviar para a API principal:
 
 ```http
 POST /api/edge/devices/status/
@@ -142,10 +126,68 @@ POST /api/edge/devices/status/
 }
 ```
 
-O backend atualiza `DispositivoEsp32.status`, `status_atualizado_em` e publica `autoponto_device_status` no Interscity quando configurado.
+Esse endpoint atualiza somente o snapshot local da API principal. Ele nao publica no IntersCity.
+
+## Publicacao De Stats No IntersCity Pelo Edge
+
+O IntersCity, no escopo atual, deve ser alimentado diretamente pelo edge-node, nao pela API principal.
+
+Mudancas sugeridas no `referencia-edge`:
+
+1. Assinar tambem `log/+` no MQTT local, alem de `sts/+`.
+2. Publicar periodicamente em `cmd/{device_id}` um comando JSON para pedir stats ao firmware:
+
+```json
+{ "stats": true }
+```
+
+3. Receber em `log/{device_id}` o payload gerado pelo firmware em `publishSystemStats()`:
+
+```json
+{
+  "id": "uuid-da-esp32",
+  "state": "idle",
+  "cpu_freq": 240,
+  "rssi": -61,
+  "heap_free": 180000,
+  "heap_min": 120000,
+  "now_ms": 12345678,
+  "context": {
+    "lesson": "Desenvolvimento de Sistemas Web - A",
+    "remaining_ms": 500000,
+    "next_ms": 1200000
+  }
+}
+```
+
+4. Publicar esse dado no Resource Adaptor usando uma capability unica, por exemplo `autoponto_device_stats`.
+5. Manter o UUID/recurso IntersCity por configuracao do edge-node ou por cadastro manual na plataforma.
+
+Exemplo de payload ao Resource Adaptor:
+
+```json
+{
+  "data": {
+    "autoponto_device_stats": [
+      {
+        "device_id": "uuid-da-esp32",
+        "state": "idle",
+        "rssi": -61,
+        "now_ms": 12345678,
+        "context": {
+          "lesson": "Desenvolvimento de Sistemas Web - A",
+          "remaining_ms": 500000,
+          "next_ms": 1200000
+        },
+        "source": "edge_mqtt_log"
+      }
+    ]
+  }
+}
+```
 
 ## Comandos
 
-Nao existem mais comandos vindos da API principal para o edge neste MVP.
+Nao existem comandos vindos da API principal para o edge neste MVP.
 
-O topico MQTT local `cmd/{device_id}`, usado pelo `referencia-edge` para feedback imediato da ESP32 apos reconhecimento, pode continuar existindo no Raspberry. Ele nao e fila de comando do backend e nao tem endpoints correspondentes na API principal.
+O topico MQTT local `cmd/{device_id}` continua permitido dentro do Raspberry para feedback imediato da ESP32 e para solicitar `stats=true`. Ele nao representa fila de comandos do backend e nao possui endpoints correspondentes na API principal.

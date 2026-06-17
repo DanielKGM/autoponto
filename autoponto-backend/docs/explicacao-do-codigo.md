@@ -1,4 +1,4 @@
-# Explicacao Geral Do Backend
+﻿# Explicacao Geral Do Backend
 
 O backend e uma API Django/DRF para frequencia academica automatizada por IoT. Ele guarda apenas o necessario para presenca, biometria, relatorios, sincronizacao com Raspberry/ESP32 e integracao Interscity.
 
@@ -217,7 +217,7 @@ Trecho essencial:
 ```python
 dispositivo.status = status_normalizado
 dispositivo.status_atualizado_em = reportado_em
-publicar_status_dispositivo_interscity(dispositivo, reportado_em=reportado_em)
+atualizar_status_dispositivos_borda(no, payload)
 ```
 
 O status vem do MQTT local `sts/{device_id}` no edge. O backend so aceita status de dispositivos pertencentes ao no autenticado.
@@ -228,10 +228,7 @@ O status vem do MQTT local `sts/{device_id}` no edge. O backend so aceita status
 
 Uso atual:
 
-- registrar/atualizar ESP32 no Catalog;
-- publicar `autoponto_device_status` no Adaptor;
-- consultar ultimo status no Collector para enriquecer dashboard;
-- diagnosticar Catalog, Discovery, Collector, Adaptor e Actuator.
+- diagnosticar Catalog, Discovery, Collector, Adaptor e Actuator. A publicacao de telemetria no IntersCity fica no edge-node, que envia `autoponto_device_stats` diretamente ao Resource Adaptor.
 
 Falha externa nao bloqueia o AutoPonto; o banco local e o fallback.
 
@@ -249,5 +246,5 @@ As imagens/base64 sao processadas e descartadas. Apenas embedding e metadados se
 - `test_models.py`: regras de dominio, horario UFMA, unicidade e biometria ativa.
 - `test_edge_integracao.py`: pull, attendance, idempotencia, isolamento por no e status ESP32.
 - `test_frontend_api.py`: endpoints por papel, relatorios, fechamento e dashboard.
-- `test_interscity.py`: cliente HTTP, diagnostico, Catalog e falhas.
+- `test_interscity.py`: diagnostico tolerante a falhas dos microsservicos IntersCity.
 - `test_seguranca.py`: isolamento por papel, NodeToken, biometria e cookie de refresh.

@@ -1,4 +1,4 @@
-# Explicacao Geral Do Frontend
+﻿# Explicacao Geral Do Frontend
 
 O frontend e um painel React + Vite para demonstrar o MVP do AutoPonto. Ele nao substitui o admin do Django; ele oferece uma interface simples para os tres papeis do sistema: aluno, professor e administrador.
 
@@ -90,7 +90,7 @@ Usa CRUDs do backend e endpoints de relatorio:
 - `POST /api/matriculas-turma/`
 - `PATCH /api/turmas/{id}/`
 - `POST /api/perfis-biometricos/matricular/`
-- `GET /api/interscity/diagnostico/`
+- `GET /api/interscity/diagnostico/`: mostra a saude dos microsservicos; a telemetria IntersCity do MVP e publicada diretamente pelo edge-node.
 
 O objetivo e demonstrar cadastro basico, vinculos academicos e monitoramento da integracao IoT.
 
@@ -103,3 +103,17 @@ O CSS usa uma interface operacional: tabelas, formularios e paineis compactos. A
 - As telas administrativas sao simples e nao cobrem todos os campos de todos os cadastros.
 - Nao usa React Query ou roteamento por URL para manter o projeto menor.
 - O access token fica somente em memoria no React; o refresh token fica em cookie `HttpOnly`, reduzindo exposicao em caso de XSS.
+
+## Estrutura Atual Do Frontend
+
+O frontend foi separado de forma minimalista para continuar facil de estudar:
+
+- `src/app/App.tsx`: orquestra sessao, area ativa e navegacao por papel.
+- `src/components/`: componentes pequenos e reutilizaveis, como `Botao` e `Mensagem`.
+- `src/features/auth/`: tela de login.
+- `src/features/aluno/`: painel do aluno, turmas, presencas e biometria propria.
+- `src/features/professor/`: painel de professor e relatorios.
+- `src/features/admin/`: painel administrativo, cadastros principais, status local de ESP32 e diagnostico IntersCity.
+- `src/shared/`: funcoes auxiliares de formatacao e biometria.
+- `src/api.ts`: cliente HTTP, access token em memoria, refresh via cookie e tratamento de erros.
+- `src/types.ts`: contratos TypeScript retornados pelo backend.

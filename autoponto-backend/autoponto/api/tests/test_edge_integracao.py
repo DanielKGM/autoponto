@@ -1,7 +1,4 @@
-from datetime import datetime, timezone
-from unittest.mock import patch
-
-from django.test import override_settings
+﻿from datetime import datetime, timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -167,11 +164,7 @@ class IntegracaoEdgeTests(APITestCase):
         self.assertEqual(resposta.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(RegistroPresenca.objects.count(), 0)
 
-    @override_settings(INTERSCITY_ENABLED=True)
-    @patch("api.services.interscity.urlopen")
-    def test_status_dispositivo_atualiza_snapshot_local_e_publica_no_interscity(self, urlopen):
-        self.contexto["dispositivo"].interscity_uuid = "0dbdae10-4156-4433-9291-5d261eb0d8eb"
-        self.contexto["dispositivo"].save(update_fields=["interscity_uuid", "atualizado_em"])
+    def test_status_dispositivo_atualiza_snapshot_local(self):
 
         resposta = self.client.post(
             "/api/edge/devices/status/",
@@ -193,9 +186,6 @@ class IntegracaoEdgeTests(APITestCase):
         self.contexto["dispositivo"].refresh_from_db()
         self.assertEqual(self.contexto["dispositivo"].status, "working")
         self.assertIsNotNone(self.contexto["dispositivo"].status_atualizado_em)
-        requisicao = urlopen.call_args.args[0]
-        self.assertIn("/adaptor/resources/0dbdae10-4156-4433-9291-5d261eb0d8eb/data", requisicao.full_url)
-        self.assertIn(b"autoponto_device_status", requisicao.data)
 
     def test_status_dispositivo_rejeita_dispositivo_de_outro_no(self):
         outro_no = NoBorda.objects.create(codigo="NO-CCET-02", nome="Raspberry CCET 02")

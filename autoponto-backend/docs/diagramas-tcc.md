@@ -1,4 +1,4 @@
-# Diagramas Uteis Para O TCC
+﻿# Diagramas Uteis Para O TCC
 
 Diagramas em Mermaid para explicar o MVP AutoPonto.
 
@@ -13,7 +13,7 @@ flowchart LR
     Edge <--> Cache["SQLite/Redis local"]
     Edge -->|"pull, attendance, status"| API["AutoPonto API\nDjango REST"]
     API <--> DB["PostgreSQL"]
-    API -. "Catalog/Adaptor/Collector/Discovery" .-> IC["Interscity UFMA"]
+    Edge -. "stats MQTT -> Resource Adaptor" .-> IC["Interscity UFMA"]
     Front["Frontend React"] --> API
 ```
 
@@ -135,9 +135,10 @@ sequenceDiagram
     Edge->>Edge: Salva Redis device:{id}:status
     Edge->>API: POST /api/edge/devices/status/
     API->>DB: Atualiza DispositivoEsp32.status
-    API-->>IC: Publica autoponto_device_status
+    Edge-->>IC: Publica autoponto_device_stats
     Front->>API: GET status-dashboard
-    API-->>Front: status local + fallback Collector
+    API-->>Front: snapshot local
+    PublicMap["Mapa publico futuro"]->>IC: consulta Collector/Discovery sob demanda
 ```
 
 ## 7. Fechamento Manual
@@ -209,7 +210,7 @@ flowchart LR
     API --> Vetor["EmbeddingFacial.vetor"]
     API --> Presenca["RegistroPresenca"]
     API --> Evento["EventoReconhecimento\nsem frame bruto"]
-    API -. "somente telemetria anonima" .-> IC["Interscity"]
+    Edge["NoBorda"] -. "telemetria tecnica das ESP32" .-> IC["Interscity"]
     Capturas -. "descartadas" .-> Descarte["Sem persistencia"]
 ```
 
