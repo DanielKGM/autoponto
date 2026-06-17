@@ -10,6 +10,8 @@ __pycache__/
 referencia-edge
 referencia-interscity
 
+backups/
+
 # AI Agent
 .codex/*
 !.codex/.gitkeep
