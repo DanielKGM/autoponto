@@ -4,20 +4,34 @@ import { Botao } from "../components/Botao";
 import { AdminPainel } from "../features/admin/AdminPainel";
 import { AlunoPainel } from "../features/aluno/AlunoPainel";
 import { LoginScreen } from "../features/auth/LoginScreen";
+import { MapaOperacional } from "../features/mapa/MapaOperacional";
+import { PerfilPainel } from "../features/perfil/PerfilPainel";
 import { ProfessorPainel } from "../features/professor/ProfessorPainel";
 import type { MeResponse } from "../types";
 
-function areaInicial(me: MeResponse): string {
+type AreaApp = "aluno" | "professor" | "admin" | "mapa" | "perfil";
+
+function areaInicial(me: MeResponse): AreaApp {
   if (me.permissoes.areas.includes("admin")) return "admin";
   if (me.permissoes.areas.includes("professor")) return "professor";
   return "aluno";
+}
+
+function areasDisponiveis(me: MeResponse): AreaApp[] {
+  const areas = me.permissoes.areas.filter((item): item is AreaApp => item === "admin" || item === "professor" || item === "aluno");
+  return [...areas, "mapa", "perfil"];
+}
+
+function rotuloArea(area: AreaApp): string {
+  const rotulos: Record<AreaApp, string> = { aluno: "Aluno", professor: "Professor", admin: "Admin", mapa: "Mapa", perfil: "Perfil" };
+  return rotulos[area];
 }
 
 export default function App() {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
-  const [area, setArea] = useState("aluno");
+  const [area, setArea] = useState<AreaApp>("aluno");
 
   useEffect(() => {
     async function carregarSessao() {
@@ -50,9 +64,9 @@ export default function App() {
       <header className="topbar">
         <div><strong>AutoPonto</strong><span>{me.usuario.nome_completo || me.usuario.username}</span></div>
         <nav>
-          {me.permissoes.areas.map((item) => (
+          {areasDisponiveis(me).map((item) => (
             <Botao key={item} className={area === item ? "ativo" : ""} onClick={() => setArea(item)}>
-              {item === "admin" ? "Admin" : item === "professor" ? "Professor" : "Aluno"}
+              {rotuloArea(item)}
             </Botao>
           ))}
           <Botao onClick={sair}>Sair</Botao>
@@ -61,6 +75,8 @@ export default function App() {
       {area === "aluno" && <AlunoPainel />}
       {area === "professor" && <ProfessorPainel />}
       {area === "admin" && <AdminPainel />}
+      {area === "mapa" && <MapaOperacional />}
+      {area === "perfil" && <PerfilPainel me={me} />}
     </main>
   );
 }

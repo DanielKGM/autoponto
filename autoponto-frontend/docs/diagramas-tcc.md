@@ -1,4 +1,4 @@
-# Diagramas Uteis Do Frontend
+﻿# Diagramas Uteis Do Frontend
 
 Estes diagramas ajudam a explicar o painel web do AutoPonto no TCC.
 
@@ -8,7 +8,7 @@ Estes diagramas ajudam a explicar o painel web do AutoPonto no TCC.
 flowchart TB
     Front["autoponto-frontend/"]
     Main["src/main.tsx\nentrada React"]
-    App["src/App.tsx\ntelas do MVP"]
+    App["src/app/App.tsx\nshell do app"]
     Api["src/api.ts\ncliente HTTP/JWT"]
     Types["src/types.ts\ntipos das respostas"]
     Styles["src/styles.css\nlayout visual"]
@@ -53,8 +53,8 @@ flowchart LR
     Professor --> TurmasProfessor["Turmas ministradas"]
     Professor --> Relatorios["Relatorios de presenca"]
 
-    Admin --> Cadastros["Usuarios, matriculas e vinculos"]
-    Admin --> Diagnostico["Diagnostico Interscity"]
+    Admin --> Cadastros["Usuarios, academico, matriculas e vinculos"]
+    Admin --> Diagnostico["Mapa, IoT e diagnostico Interscity"]
     Admin --> RelatoriosAdmin["Relatorios gerais"]
 ```
 

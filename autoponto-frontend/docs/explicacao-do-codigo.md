@@ -8,7 +8,7 @@ O frontend e um painel React + Vite para demonstrar o MVP do AutoPonto. Ele nao 
 - `vite.config.ts`: configuracao do servidor Vite.
 - `index.html`: ponto de entrada HTML.
 - `src/main.tsx`: monta a aplicacao React dentro do elemento `root`.
-- `src/App.tsx`: concentra as telas do MVP.
+- `src/app/App.tsx`: orquestra sessao, navegacao e paginas do MVP.
 - `src/api.ts`: cliente HTTP com JWT, refresh simples e tratamento de erros.
 - `src/types.ts`: tipos TypeScript usados nas respostas da API.
 - `src/styles.css`: estilo visual do painel.
@@ -56,7 +56,7 @@ Na VM, `nginx.prod.conf` serve o app em `/interscity_lh/catalog/autoponto/` e en
 
 ## Telas
 
-Todas as telas estao em `src/App.tsx` para manter o MVP pequeno e facil de explicar.
+As telas ficam separadas por dominio em `src/features/`, enquanto `src/app/App.tsx` apenas controla sessao e navegacao.
 
 ### Login
 
@@ -100,7 +100,7 @@ O CSS usa uma interface operacional: tabelas, formularios e paineis compactos. A
 
 ## Limitacoes Do MVP
 
-- As telas administrativas sao simples e nao cobrem todos os campos de todos os cadastros.
+- As telas administrativas cobrem os cadastros necessarios ao MVP, mas continuam simples para permitir retrabalho visual posterior.
 - Nao usa React Query ou roteamento por URL para manter o projeto menor.
 - O access token fica somente em memoria no React; o refresh token fica em cookie `HttpOnly`, reduzindo exposicao em caso de XSS.
 
@@ -113,7 +113,7 @@ O frontend foi separado de forma minimalista para continuar facil de estudar:
 - `src/features/auth/`: tela de login.
 - `src/features/aluno/`: painel do aluno, turmas, presencas e biometria propria.
 - `src/features/professor/`: painel de professor e relatorios.
-- `src/features/admin/`: painel administrativo, cadastros principais, status local de ESP32 e diagnostico IntersCity.
+- `src/features/admin/`: painel administrativo, cadastros academicos, matriculas, vinculos, biometria, status local de ESP32, mapa operacional e diagnostico IntersCity.
 - `src/shared/`: funcoes auxiliares de formatacao e biometria.
 - `src/api.ts`: cliente HTTP, access token em memoria, refresh via cookie e tratamento de erros.
 - `src/types.ts`: contratos TypeScript retornados pelo backend.

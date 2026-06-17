@@ -80,13 +80,37 @@ export type UsuarioCrud = UsuarioAtual & {
   is_active: boolean;
 };
 
-export type TurmaCrud = {
+export type CampusCrud = { id: string; nome: string; ativo: boolean };
+export type PredioCrud = { id: string; campus: string; nome: string; ativo: boolean };
+export type SalaCrud = { id: string; predio: string; nome: string; codigo: string; ativo: boolean };
+export type PeriodoLetivoCrud = { id: string; nome: string; data_inicio: string; data_fim: string; ativo: boolean };
+export type CursoCrud = { id: string; campus: string; nome: string; ativo: boolean };
+export type DisciplinaCrud = { id: string; curso: string; codigo: string; nome: string; ativo: boolean };
+export type TurmaCrud = { id: string; codigo: string; disciplina: string; periodo_letivo: string; professores: string[]; ativo: boolean };
+export type MatriculaTurmaCrud = { id: string; turma: string; aluno: string; ativo: boolean };
+export type HorarioPadraoUFMACrud = {
   id: string;
   codigo: string;
-  disciplina: string;
-  periodo_letivo: string;
-  professores: string[];
+  dia_semana: number;
+  horario_inicio: string;
+  horario_fim: string;
   ativo: boolean;
+};
+export type HorarioAulaCrud = { id: string; turma: string; sala: string; horario_padrao: string; ativo: boolean };
+export type NoBordaCrud = { id: string; codigo: string; nome: string; ativo: boolean; interscity_uuid: string };
+export type DispositivoEsp32Crud = {
+  id: string;
+  no: string | null;
+  sala: string | null;
+  codigo: string;
+  nome: string;
+  ativo: boolean;
+  status: "offline" | "working" | "idle";
+  status_efetivo: "offline" | "working" | "idle";
+  status_atualizado_em: string | null;
+  sala_nome?: string | null;
+  no_codigo?: string | null;
+  interscity_uuid: string;
 };
 
 export type DispositivoStatus = {

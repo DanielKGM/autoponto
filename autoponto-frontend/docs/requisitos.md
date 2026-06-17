@@ -15,8 +15,10 @@ Este documento descreve os requisitos implementados na interface React/Vite do M
 | RF-FE-07 | Professor deve selecionar turma e data para gerar relatorio de presenca. | `features/professor/ProfessorPainel.tsx` |
 | RF-FE-08 | Professor deve visualizar resumo de presenca da turma. | `ResumoTurma` |
 | RF-FE-09 | Admin deve cadastrar usuarios, matricular alunos, vincular professores e cadastrar biometria de aluno. | `features/admin/AdminPainel.tsx` |
-| RF-FE-10 | Admin deve visualizar snapshot local de dispositivos ESP32 e diagnostico dos microsservicos IntersCity. | `features/admin/AdminPainel.tsx` |
+| RF-FE-10 | Admin deve visualizar snapshot local de dispositivos ESP32 e diagnostico dos microsservicos IntersCity. | `features/admin/InfraestruturaIot.tsx` |
 | RF-FE-11 | A interface deve tratar erros 400, 401, 403 e 409 com mensagens compreensiveis. | `detalheErro` em `api.ts` |
+| RF-FE-12 | Admin deve cadastrar estrutura academica completa, horarios UFMA, matriculas, professores, nos e ESP32. | `features/admin/*` |
+| RF-FE-13 | Usuario autenticado deve acessar pagina de perfil e mapa operacional. | `features/perfil`, `features/mapa` |
 
 ## Requisitos Nao Funcionais
 
@@ -24,7 +26,7 @@ Este documento descreve os requisitos implementados na interface React/Vite do M
 | --- | --- | --- |
 | RNF-FE-01 | O access token deve ficar apenas em memoria; refresh fica em cookie `HttpOnly`. | `api.ts` |
 | RNF-FE-02 | O frontend deve ser configurado por `VITE_API_URL` e `VITE_BASE_PATH`. | `vite.config.ts`, `.env.example` |
-| RNF-FE-03 | O projeto deve manter estrutura simples e evolutiva: `app`, `components`, `features` e `shared`. | `src/` |
+| RNF-FE-03 | O projeto deve manter estrutura simples e evolutiva: `app`, `components`, `features`, `features/admin` e `shared`. | `src/` |
 | RNF-FE-04 | Validacoes de biometria no cliente devem reduzir envio acidental de arquivos invalidos ou grandes. | `shared/biometria.ts` |
 | RNF-FE-05 | O build deve funcionar no subcaminho publico `/interscity_lh/catalog/autoponto/`. | `nginx.prod.conf`, `VITE_BASE_PATH` |
 | RNF-FE-06 | A interface deve permanecer funcional mesmo quando o IntersCity estiver indisponivel; apenas o diagnostico deve refletir a falha. | Admin usa snapshot local da API |
