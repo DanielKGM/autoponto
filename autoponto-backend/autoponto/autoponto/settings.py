@@ -187,8 +187,11 @@ SIMPLE_JWT = {
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "AutoPonto API",
-    "DESCRIPTION": "API de automaÃ§Ã£o de frequÃªncia acadÃªmica para o TCC AutoPonto.",
+    "DESCRIPTION": "API de automacao de frequencia academica para o TCC AutoPonto.",
     "VERSION": "1.0.0",
+    "SERVERS": [
+        {"url": "/interscity_lh/catalog/autoponto", "description": "Public reverse proxy"},
+    ],
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
