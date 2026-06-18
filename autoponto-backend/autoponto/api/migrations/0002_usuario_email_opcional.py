@@ -13,10 +13,20 @@ class Migration(migrations.Migration):
             name="usuario",
             options={"ordering": ("username",), "verbose_name": "Usuario", "verbose_name_plural": "Usuarios"},
         ),
-        migrations.AlterField(
-            model_name="usuario",
-            name="email",
-            field=models.EmailField(blank=True, default="", max_length=254),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                migrations.RunSQL(
+                    sql='ALTER TABLE "api_usuario" DROP CONSTRAINT IF EXISTS "api_usuario_email_key";',
+                    reverse_sql=migrations.RunSQL.noop,
+                ),
+            ],
+            state_operations=[
+                migrations.AlterField(
+                    model_name="usuario",
+                    name="email",
+                    field=models.EmailField(blank=True, default="", max_length=254),
+                ),
+            ],
         ),
         migrations.AddConstraint(
             model_name="usuario",
@@ -27,4 +37,3 @@ class Migration(migrations.Migration):
             ),
         ),
     ]
-
