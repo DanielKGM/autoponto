@@ -10,7 +10,6 @@ import type {
   DisciplinaCrud,
   DispositivoEsp32Crud,
   DispositivoStatus,
-  HorarioAulaCrud,
   HorarioPadraoUFMACrud,
   MatriculaTurmaCrud,
   NoBordaCrud,
@@ -39,7 +38,6 @@ type EstadoAdmin = {
   turmas: TurmaCrud[];
   matriculas: MatriculaTurmaCrud[];
   horariosPadrao: HorarioPadraoUFMACrud[];
-  horariosAula: HorarioAulaCrud[];
   nos: NoBordaCrud[];
   dispositivos: DispositivoEsp32Crud[];
   status: DispositivoStatus[];
@@ -57,7 +55,6 @@ const estadoInicial: EstadoAdmin = {
   turmas: [],
   matriculas: [],
   horariosPadrao: [],
-  horariosAula: [],
   nos: [],
   dispositivos: [],
   status: [],
@@ -73,7 +70,7 @@ export function AdminPainel() {
   const professores = useMemo(() => dados.usuarios.filter((u) => u.papel === "PROFESSOR"), [dados.usuarios]);
 
   async function carregar() {
-    const [usuarios, campi, predios, salas, periodos, cursos, disciplinas, turmas, matriculas, horariosPadrao, horariosAula, nos, dispositivos, status, diagnostico] = await Promise.all([
+    const [usuarios, campi, predios, salas, periodos, cursos, disciplinas, turmas, matriculas, horariosPadrao, nos, dispositivos, status, diagnostico] = await Promise.all([
       apiFetch<UsuarioCrud[] | { results: UsuarioCrud[] }>("/usuarios/"),
       apiFetch<CampusCrud[] | { results: CampusCrud[] }>("/campi/"),
       apiFetch<PredioCrud[] | { results: PredioCrud[] }>("/predios/"),
@@ -84,7 +81,6 @@ export function AdminPainel() {
       apiFetch<TurmaCrud[] | { results: TurmaCrud[] }>("/turmas/"),
       apiFetch<MatriculaTurmaCrud[] | { results: MatriculaTurmaCrud[] }>("/matriculas-turma/"),
       apiFetch<HorarioPadraoUFMACrud[] | { results: HorarioPadraoUFMACrud[] }>("/horarios-padrao-ufma/"),
-      apiFetch<HorarioAulaCrud[] | { results: HorarioAulaCrud[] }>("/horarios-aula/"),
       apiFetch<NoBordaCrud[] | { results: NoBordaCrud[] }>("/nos-borda/"),
       apiFetch<DispositivoEsp32Crud[] | { results: DispositivoEsp32Crud[] }>("/dispositivos-esp32/"),
       apiFetch<DispositivoStatus[]>("/public/mapa/dispositivos/"),
@@ -101,7 +97,6 @@ export function AdminPainel() {
       turmas: normalizarLista(turmas),
       matriculas: normalizarLista(matriculas),
       horariosPadrao: normalizarLista(horariosPadrao),
-      horariosAula: normalizarLista(horariosAula),
       nos: normalizarLista(nos),
       dispositivos: normalizarLista(dispositivos),
       status,

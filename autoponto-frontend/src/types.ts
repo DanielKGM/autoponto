@@ -96,7 +96,6 @@ export type HorarioPadraoUFMACrud = {
   horario_fim: string;
   ativo: boolean;
 };
-export type HorarioAulaCrud = { id: string; turma: string; sala: string; horario_padrao: string; ativo: boolean };
 export type NoBordaCrud = { id: string; codigo: string; nome: string; ativo: boolean };
 export type DispositivoEsp32Crud = {
   id: string;
