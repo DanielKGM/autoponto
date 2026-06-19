@@ -9,8 +9,18 @@ from rest_framework.views import APIView
 from api.models import DispositivoEsp32
 from api.services.interscity import ClienteInterSCity
 
-
-CAPACIDADES_MAPA = ["status", "rssi", "heap_min", "lesson", "remainingms", "nextms", "now_ms"]
+CAPACIDADES_MAPA = [
+    "now_ms",
+    "next_ms",
+    "remaining_ms",
+    "heap_free",
+    "psram_free",
+    "lesson",
+    "heap_min",
+    "rssi",
+    "status",
+    "presenca",
+]
 
 
 def _iso(valor):
@@ -87,7 +97,9 @@ class MapaDispositivosPublicosView(APIView):
     permission_classes = (AllowAny,)
 
     def get(self, request):
-        return Response([_payload_dispositivo(dispositivo) for dispositivo in _queryset_mapa()])
+        return Response(
+            [_payload_dispositivo(dispositivo) for dispositivo in _queryset_mapa()]
+        )
 
 
 class MapaDispositivoHistoricoView(APIView):
@@ -110,7 +122,9 @@ class MapaDispositivoHistoricoView(APIView):
             start_date=_iso(inicio),
             end_date=_iso(fim),
         )
-        historico = _filtrar_capacidades(resultado.get("resources", []), dispositivo.interscity_uuid)
+        historico = _filtrar_capacidades(
+            resultado.get("resources", []), dispositivo.interscity_uuid
+        )
         return Response(
             {
                 "dispositivo": _payload_dispositivo(dispositivo),
