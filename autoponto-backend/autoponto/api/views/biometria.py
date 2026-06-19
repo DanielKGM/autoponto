@@ -5,8 +5,8 @@ from rest_framework.response import Response
 
 from api.models import EmbeddingFacial, PapelUsuario, PerfilBiometrico, Usuario
 from api.permissions import IsAdministrador
-from api.serializers import EmbeddingFacialSerializer, MatriculaBiometricaSerializer, PerfilBiometricoSerializer
-from api.services import matricular_biometria_aluno
+from api.serializers.biometria import EmbeddingFacialSerializer, MatriculaBiometricaSerializer, PerfilBiometricoSerializer
+from api.services.biometria import matricular_biometria_aluno
 from api.services.errors import AppError
 from .mixins import AdminReadableModelViewSet
 

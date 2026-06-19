@@ -84,14 +84,6 @@ def _filtrar_capacidades(resources: list[dict], interscity_uuid: str) -> dict:
     return {}
 
 
-def _ultimos_valores(historico: dict) -> dict:
-    ultimos = {}
-    for nome, valores in historico.items():
-        if valores:
-            ultimos[nome] = valores[-1]
-    return ultimos
-
-
 class MapaDispositivosPublicosView(APIView):
     authentication_classes = ()
     permission_classes = (AllowAny,)
@@ -130,6 +122,10 @@ class MapaDispositivoHistoricoView(APIView):
                 "dispositivo": _payload_dispositivo(dispositivo),
                 "collector_status": resultado["status"],
                 "historico": historico,
-                "ultimo": _ultimos_valores(historico),
+                "ultimo": {
+                    nome: valores[-1]
+                    for nome, valores in historico.items()
+                    if valores
+                },
             }
         )

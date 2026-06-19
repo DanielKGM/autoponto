@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 
 from api.authentication import EdgeNodeTokenAuthentication
 from api.permissions import IsNoBorda
-from api.services import montar_payload_pull, receber_presencas_borda
+from api.services.sincronizacao_borda import montar_payload_pull, receber_presencas_borda
 
 
 class EdgePullView(APIView):
@@ -18,12 +18,6 @@ class EdgePullView(APIView):
         return Response(montar_payload_pull(request.user, request.query_params))
 
 
-class EdgePullSlashAliasView(EdgePullView):
-    @extend_schema(exclude=True)
-    def get(self, request):
-        return super().get(request)
-
-
 class EdgeAttendanceView(APIView):
     authentication_classes = (EdgeNodeTokenAuthentication,)
     permission_classes = (IsNoBorda,)
@@ -32,9 +26,3 @@ class EdgeAttendanceView(APIView):
     @extend_schema(request=OpenApiTypes.OBJECT, responses=OpenApiTypes.OBJECT)
     def post(self, request):
         return Response(receber_presencas_borda(request.user, request.data), status=status.HTTP_200_OK)
-
-
-class EdgeAttendanceSlashAliasView(EdgeAttendanceView):
-    @extend_schema(exclude=True)
-    def post(self, request):
-        return super().post(request)

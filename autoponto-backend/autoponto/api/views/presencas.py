@@ -6,9 +6,9 @@ from rest_framework.response import Response
 
 from api.models import Aula, PapelUsuario, RegistroPresenca
 from api.permissions import IsProfessorOuAdministrador
-from api.selectors import obter_aulas_acessiveis
-from api.serializers import AulaSerializer, RegistroPresencaSerializer
-from api.services import fechar_chamada_aula
+from api.selectors.presencas import obter_aulas_acessiveis
+from api.serializers.presencas import AulaSerializer, RegistroPresencaSerializer
+from api.services.aulas import fechar_chamada_aula
 from api.services.errors import AppError
 
 

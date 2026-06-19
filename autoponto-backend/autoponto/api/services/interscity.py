@@ -27,13 +27,10 @@ class ClienteInterSCity:
     def _url_servico(self, caminho: str) -> str:
         return f"{self.base_url}/{caminho.strip('/')}".rstrip("/")
 
-    def _habilitado(self, base_url: str) -> bool:
-        return bool(settings.INTERSCITY_ENABLED and base_url)
-
     def _request_status(
         self, metodo: str, base_url: str, caminho: str, corpo: dict | None = None
     ) -> dict:
-        if not self._habilitado(base_url):
+        if not settings.INTERSCITY_ENABLED or not base_url:
             return {
                 "ok": False,
                 "status": STATUS_NAO_CONFIGURADO,
@@ -86,7 +83,7 @@ class ClienteInterSCity:
     def _request_json(
         self, metodo: str, base_url: str, caminho: str, corpo: dict | None = None
     ) -> dict:
-        if not self._habilitado(base_url):
+        if not settings.INTERSCITY_ENABLED or not base_url:
             return {
                 "ok": False,
                 "status": STATUS_NAO_CONFIGURADO,

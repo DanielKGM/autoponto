@@ -2,7 +2,7 @@ from rest_framework import viewsets
 
 from api.models import Usuario
 from api.permissions import IsAdministrador
-from api.serializers import UsuarioSerializer
+from api.serializers.identidade import UsuarioSerializer
 
 
 class UsuarioViewSet(viewsets.ModelViewSet):

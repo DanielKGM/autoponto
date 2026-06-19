@@ -11,7 +11,7 @@ from api.models import (
     Sala,
     Turma,
 )
-from api.serializers import (
+from api.serializers.academico import (
     CampusSerializer,
     CursoSerializer,
     DisciplinaSerializer,

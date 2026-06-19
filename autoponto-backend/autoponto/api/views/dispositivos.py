@@ -3,7 +3,7 @@ from rest_framework.response import Response
 
 from api.models import DispositivoEsp32, NoBorda
 from api.permissions import IsAdministrador
-from api.serializers import DispositivoEsp32Serializer, NoBordaSerializer, TokenNoBordaEmitirSerializer
+from api.serializers.dispositivos import DispositivoEsp32Serializer, NoBordaSerializer, TokenNoBordaEmitirSerializer
 from .mixins import AdminReadableModelViewSet
 
 

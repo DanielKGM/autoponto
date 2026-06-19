@@ -10,11 +10,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from api.models import PapelUsuario, Turma, Usuario
-from api.serializers import MatriculaBiometricaPropriaSerializer
-from api.services import matricular_biometria_aluno
+from api.serializers.frontend import MatriculaBiometricaPropriaSerializer
+from api.services.biometria import matricular_biometria_aluno
 from api.services.errors import AppError
 from api.services.relatorios import (
     historico_presencas_aluno,
+    payload_turma,
     presencas_do_aluno,
     relatorio_presencas_turma_data,
     relatorio_resumo_turma,
@@ -177,8 +178,6 @@ class ProfessorTurmasView(APIView):
             turmas = Turma.objects.select_related("disciplina", "disciplina__curso", "periodo_letivo").prefetch_related(
                 "professores",
             ).filter(ativo=True)
-            from api.services.relatorios import payload_turma
-
             return Response([payload_turma(turma) for turma in turmas])
         return Response(turmas_do_professor(request.user))
 
