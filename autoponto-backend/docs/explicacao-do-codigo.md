@@ -1,4 +1,4 @@
-﻿# Explicacao Geral Do Backend
+# Explicacao Geral Do Backend
 
 O backend e uma API Django/DRF para frequencia academica automatizada por IoT. Ele guarda apenas o necessario para presenca, biometria, relatorios, sincronizacao com Raspberry/ESP32 e integracao Interscity.
 
@@ -161,12 +161,12 @@ Authorization: NodeToken <token>
 Trecho essencial:
 
 ```python
-for data in _intervalo_datas(data_inicio, data_fim):
-    for sala in salas_ativas:
-        aulas.extend(listar_aulas_do_dia(data, sala=sala))
+data_sync = timezone.localdate()
+for sala in salas_ativas:
+    aulas.extend(listar_aulas_do_dia(data_sync, sala=sala))
 ```
 
-O backend materializa aulas, busca matriculas e embeddings, e retorna:
+O backend materializa somente as aulas do dia local atual da API, busca matriculas e embeddings dessas aulas, e retorna:
 
 - `salas`: salas do no;
 - `dispositivos`: ESP32 do no, usando `DispositivoEsp32.codigo` como `id`;

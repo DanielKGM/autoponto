@@ -64,6 +64,7 @@ Campos enviados:
 
 Detalhes importantes:
 
+- O pull retorna apenas aulas da data local atual da API. Nao existe janela configuravel de dias anteriores/posteriores nem parametros de periodo.
 - `dispositivos[].id` e `deleted.dispositivos[]` usam `DispositivoEsp32.codigo`, o mesmo identificador usado pelo firmware.
 - `NoBorda` nao possui recurso IntersCity. Apenas `DispositivoEsp32.interscity_uuid` representa recurso IoT.
 - `alunos[]` nao envia `ativo`; aluno inativo simplesmente deixa de aparecer no cache.

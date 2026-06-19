@@ -184,4 +184,3 @@ Scripts de `git pull`, SSH ou automacao de deploy devem ser mantidos na VM ou fo
 - `NODE_TOKEN_EXPIRATION_DAYS`: validade padrao dos tokens de `NoBorda`; tokens sem expiracao nao autenticam.
 - `JWT_REFRESH_COOKIE_*`: nome, caminho, seguranca e `SameSite` do cookie de refresh do frontend.
 - `FACE_DUPLICATE_THRESHOLD`: limite para bloquear rosto duplicado.
-- `EDGE_SYNC_DAYS_BACK` e `EDGE_SYNC_DAYS_FORWARD`: periodo de sincronizacao do Raspberry.

@@ -1,7 +1,6 @@
-﻿from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 
-from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Q
@@ -49,13 +48,6 @@ def decodificar_cursors(valor_bruto: str | None) -> dict[str, str]:
         return {}
 
 
-def _intervalo_datas(data_inicio, data_fim):
-    atual = data_inicio
-    while atual <= data_fim:
-        yield atual
-        atual += timedelta(days=1)
-
-
 def _iso(valor):
     return valor.isoformat().replace("+00:00", "Z")
 
@@ -63,23 +55,6 @@ def _iso(valor):
 def _max_cursor(itens) -> str:
     datas = [item.atualizado_em for item in itens if getattr(item, "atualizado_em", None)]
     return _iso(max(datas) if datas else timezone.now())
-
-
-def _periodo_padrao_sync():
-    hoje = timezone.localdate()
-    return (
-        hoje - timedelta(days=settings.EDGE_SYNC_DAYS_BACK),
-        hoje + timedelta(days=settings.EDGE_SYNC_DAYS_FORWARD),
-    )
-
-
-def _resolver_periodo_sync(params):
-    data_inicio, data_fim = _periodo_padrao_sync()
-    if params.get("from_date"):
-        data_inicio = datetime.fromisoformat(params["from_date"]).date()
-    if params.get("to_date"):
-        data_fim = datetime.fromisoformat(params["to_date"]).date()
-    return data_inicio, data_fim
 
 
 def _validar_no(no: NoBorda, identificador: str | None):
@@ -102,16 +77,15 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
     _validar_no(no, query_params.get("node_id"))
 
     cursors = decodificar_cursors(query_params.get("cursors"))
-    data_inicio, data_fim = _resolver_periodo_sync(query_params)
+    data_sync = timezone.localdate()
     dispositivos = _dispositivos_do_no(no)
     dispositivos_ativos = [dispositivo for dispositivo in dispositivos if dispositivo.ativo and dispositivo.sala_id]
     salas_do_no = [dispositivo.sala for dispositivo in dispositivos if dispositivo.sala_id]
     salas_ativas = [sala for sala in salas_do_no if isinstance(sala, Sala) and sala.ativo]
 
     aulas = []
-    for data in _intervalo_datas(data_inicio, data_fim):
-        for sala in salas_ativas:
-            aulas.extend(listar_aulas_do_dia(data, sala=sala))
+    for sala in salas_ativas:
+        aulas.extend(listar_aulas_do_dia(data_sync, sala=sala))
     aulas_disponiveis = [
         aula for aula in aulas if aula.status not in {Aula.STATUS_FECHADA, Aula.STATUS_CANCELADA}
     ]
@@ -194,8 +168,7 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
     aulas_canceladas = _filtrar_alterados(
         Aula.objects.filter(
             horario__sala_id__in=[sala.id for sala in salas_do_no if sala],
-            data__gte=data_inicio,
-            data__lte=data_fim,
+            data=data_sync,
         ).filter(
             Q(status__in=[Aula.STATUS_FECHADA, Aula.STATUS_CANCELADA])
             | Q(horario__ativo=False)

@@ -1,4 +1,4 @@
-﻿import os
+import os
 from datetime import timedelta
 from pathlib import Path
 
@@ -194,8 +194,6 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
-EDGE_SYNC_DAYS_BACK = env_int("EDGE_SYNC_DAYS_BACK")
-EDGE_SYNC_DAYS_FORWARD = env_int("EDGE_SYNC_DAYS_FORWARD")
 
 INTERSCITY_ENABLED = env_bool("INTERSCITY_ENABLED")
 INTERSCITY_BASE_URL = env_obrigatoria("INTERSCITY_BASE_URL").rstrip("/")
