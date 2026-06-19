@@ -11,7 +11,7 @@ from .academico import (
     Turma,
 )
 from .base import BaseModel
-from .biometria import EmbeddingFacial, PerfilBiometrico
+from .biometria import EmbeddingFacial
 from .dispositivos import DispositivoEsp32, NoBorda, TokenNoBorda
 from .identidade import PapelUsuario, Usuario
 from .presencas import Aula, EventoReconhecimento, RegistroPresenca
@@ -30,7 +30,6 @@ __all__ = [
     "MatriculaTurma",
     "NoBorda",
     "PapelUsuario",
-    "PerfilBiometrico",
     "PeriodoLetivo",
     "Predio",
     "RegistroPresenca",

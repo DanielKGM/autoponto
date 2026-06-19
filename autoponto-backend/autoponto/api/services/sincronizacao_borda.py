@@ -102,8 +102,8 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
     aluno_ids = {matricula.aluno_id for matricula in matriculas}
     alunos = list(Usuario.objects.filter(id__in=aluno_ids).order_by("username"))
     embeddings = list(
-        EmbeddingFacial.objects.select_related("perfil", "perfil__aluno").filter(
-            perfil__aluno_id__in=aluno_ids,
+        EmbeddingFacial.objects.select_related("aluno").filter(
+            aluno_id__in=aluno_ids,
             ativo=True,
             status="ATIVO",
         )
@@ -152,7 +152,7 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
             for aula in aulas_por_turma.get(matricula.turma_id, [])
         ],
         "embeddings_faciais": [
-            {"id": str(embedding.id), "aluno_id": str(embedding.perfil.aluno_id), "vetor": embedding.vetor}
+            {"id": str(embedding.id), "aluno_id": str(embedding.aluno_id), "vetor": embedding.vetor}
             for embedding in embeddings
         ],
     }
@@ -185,7 +185,7 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
         cursors.get("alunos"),
     )
     embeddings_inativos = _filtrar_alterados(
-        EmbeddingFacial.objects.filter(perfil__aluno_id__in=aluno_ids).filter(Q(ativo=False) | ~Q(status="ATIVO")),
+        EmbeddingFacial.objects.filter(aluno_id__in=aluno_ids).filter(Q(ativo=False) | ~Q(status="ATIVO")),
         cursors.get("embeddings_faciais"),
     )
 

@@ -1,26 +1,21 @@
 from rest_framework import serializers
 
-from api.models import EmbeddingFacial, PerfilBiometrico
+from api.models import EmbeddingFacial
 from api.services.biometria import validar_capturas_biometricas
 from api.services.errors import DomainValidationError
 
 
-class PerfilBiometricoSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = PerfilBiometrico
-        fields = "__all__"
-        read_only_fields = ("id", "criado_em", "atualizado_em")
-
-
 class EmbeddingFacialSerializer(serializers.ModelSerializer):
-    aluno_id = serializers.UUIDField(source="perfil.aluno_id", read_only=True)
+    aluno_id = serializers.UUIDField(source="aluno.id", read_only=True)
+    aluno_nome = serializers.CharField(source="aluno.nome_completo", read_only=True)
 
     class Meta:
         model = EmbeddingFacial
         fields = (
             "id",
+            "aluno",
             "aluno_id",
-            "perfil",
+            "aluno_nome",
             "versao_modelo",
             "status",
             "ativo",

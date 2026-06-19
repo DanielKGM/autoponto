@@ -18,7 +18,7 @@ from api.views.autenticacao import (
     TokenObtainCookieView,
     TokenRefreshCookieView,
 )
-from api.views.biometria import EmbeddingFacialViewSet, PerfilBiometricoViewSet
+from api.views.biometria import EmbeddingFacialViewSet
 from api.views.dispositivos import DispositivoEsp32ViewSet, NoBordaViewSet
 from api.views.edge_contract import EdgeAttendanceView, EdgePullView
 from api.views.frontend import (
@@ -60,9 +60,6 @@ router.register(
 )
 router.register("aulas", AulaViewSet, basename="aula")
 router.register("presencas", RegistroPresencaViewSet, basename="presenca")
-router.register(
-    "perfis-biometricos", PerfilBiometricoViewSet, basename="perfil-biometrico"
-)
 router.register(
     "embeddings-faciais", EmbeddingFacialViewSet, basename="embedding-facial"
 )

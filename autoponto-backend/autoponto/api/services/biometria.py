@@ -6,7 +6,7 @@ from pathlib import Path
 from django.conf import settings
 from django.db import transaction
 
-from api.models import EmbeddingFacial, PapelUsuario, PerfilBiometrico, Usuario
+from api.models import EmbeddingFacial, PapelUsuario, Usuario
 from .errors import ConflictError, DomainValidationError
 
 
@@ -123,10 +123,10 @@ def calcular_similaridade_cosseno(vetor_a: list[float], vetor_b: list[float]) ->
 
 def validar_rosto_unico(*, aluno: Usuario, vetor: list[float]) -> None:
     limite = float(getattr(settings, "FACE_DUPLICATE_THRESHOLD", 0.92))
-    embeddings = EmbeddingFacial.objects.select_related("perfil", "perfil__aluno").filter(
+    embeddings = EmbeddingFacial.objects.select_related("aluno").filter(
         ativo=True,
         status="ATIVO",
-    ).exclude(perfil__aluno=aluno)
+    ).exclude(aluno=aluno)
 
     melhor_similaridade = 0.0
     aluno_semelhante = None
@@ -134,7 +134,7 @@ def validar_rosto_unico(*, aluno: Usuario, vetor: list[float]) -> None:
         similaridade = calcular_similaridade_cosseno(vetor, embedding.vetor)
         if similaridade > melhor_similaridade:
             melhor_similaridade = similaridade
-            aluno_semelhante = embedding.perfil.aluno
+            aluno_semelhante = embedding.aluno
 
     if aluno_semelhante and melhor_similaridade >= limite:
         raise ConflictError(
@@ -160,16 +160,12 @@ def matricular_biometria_aluno(
     vetor, _ = _gerar_vetor_embedding(capturas)
     validar_rosto_unico(aluno=aluno, vetor=vetor)
 
-    perfil, _ = PerfilBiometrico.objects.get_or_create(aluno=aluno, defaults={"status": "PENDENTE"})
-    perfil.status = "ATIVO"
-    perfil.save()
-
-    perfil.embeddings.filter(ativo=True).update(ativo=False, status="INATIVO")
+    EmbeddingFacial.objects.filter(aluno=aluno, ativo=True).update(ativo=False, status="INATIVO")
     embedding = EmbeddingFacial.objects.create(
-        perfil=perfil,
+        aluno=aluno,
         versao_modelo=versao_modelo,
         vetor=vetor,
         status="ATIVO",
         ativo=True,
     )
-    return perfil, embedding
+    return embedding

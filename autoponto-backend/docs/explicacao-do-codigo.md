@@ -134,11 +134,9 @@ Nao salva imagem, frame, embedding bruto de captura nem payload tecnico bruto.
 - `DispositivoEsp32.interscity_uuid`: recurso IoT no Interscity.
 - `DispositivoEsp32.latitude` e `longitude`: coordenadas usadas pelo mapa publico.
 
-### PerfilBiometrico E EmbeddingFacial
+### EmbeddingFacial
 
-- `PerfilBiometrico.aluno`: dono da biometria.
-- `PerfilBiometrico.status`: `PENDENTE`, `ATIVO` ou `INATIVO`.
-- `EmbeddingFacial.perfil`: perfil dono do vetor.
+- `EmbeddingFacial.aluno`: aluno dono do vetor biometrico.
 - `EmbeddingFacial.versao_modelo`: modelo usado, como `sface`.
 - `EmbeddingFacial.vetor`: embedding facial enviado ao edge.
 - `EmbeddingFacial.status`: `ATIVO`, `INATIVO` ou `REVOGADO`.

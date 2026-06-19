@@ -12,7 +12,6 @@ from api.models import (
     HorarioPadraoUFMA,
     MatriculaTurma,
     NoBorda,
-    PerfilBiometrico,
     PeriodoLetivo,
     Predio,
     RegistroPresenca,
@@ -144,14 +143,8 @@ class EventoReconhecimentoAdmin(admin.ModelAdmin):
     list_filter = ("reconhecido", "dispositivo")
 
 
-@admin.register(PerfilBiometrico)
-class PerfilBiometricoAdmin(admin.ModelAdmin):
-    list_display = ("aluno", "status")
-    search_fields = ("aluno__username", "aluno__matricula")
-    list_filter = ("status",)
-
-
 @admin.register(EmbeddingFacial)
 class EmbeddingFacialAdmin(admin.ModelAdmin):
-    list_display = ("perfil", "versao_modelo", "status", "ativo")
+    list_display = ("aluno", "versao_modelo", "status", "ativo")
+    search_fields = ("aluno__username", "aluno__matricula", "aluno__nome_completo")
     list_filter = ("status", "ativo", "versao_modelo")

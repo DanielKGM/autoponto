@@ -150,7 +150,7 @@ class MinhaBiometriaView(APIView):
         serializer.is_valid(raise_exception=True)
 
         try:
-            perfil, embedding = matricular_biometria_aluno(
+            embedding = matricular_biometria_aluno(
                 aluno=request.user,
                 capturas=serializer.validated_data["capturas"],
                 versao_modelo=serializer.validated_data.get("versao_modelo", "sface"),
@@ -160,9 +160,8 @@ class MinhaBiometriaView(APIView):
 
         return Response(
             {
-                "perfil_id": str(perfil.id),
                 "embedding_id": str(embedding.id),
-                "status": perfil.status,
+                "status": embedding.status,
             },
             status=status.HTTP_201_CREATED,
         )

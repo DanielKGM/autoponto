@@ -42,8 +42,7 @@ erDiagram
     Sala ||--o{ DispositivoEsp32 : contem
     DispositivoEsp32 ||--o{ EventoReconhecimento : produz
     Aula ||--o{ EventoReconhecimento : contextualiza
-    Usuario ||--|| PerfilBiometrico : possui
-    PerfilBiometrico ||--o{ EmbeddingFacial : possui
+    Usuario ||--o{ EmbeddingFacial : possui
 
     HorarioPadraoUFMA {
         uuid id PK
@@ -177,7 +176,7 @@ sequenceDiagram
     API->>DB: Compara com embeddings ativos
     API->>DB: Inativa embedding anterior
     API->>DB: Salva novo EmbeddingFacial ativo
-    API-->>Usuario: perfil e embedding
+    API-->>Usuario: embedding ativo
 ```
 
 ## 9. Estados Da Aula

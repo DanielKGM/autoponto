@@ -29,7 +29,7 @@ export function BiometriaAdmin({ alunos, onCriado, onErro }: Props) {
       return;
     }
     const capturas = [await arquivoParaBase64(arquivo)];
-    await apiFetch("/perfis-biometricos/matricular/", {
+    await apiFetch("/embeddings-faciais/matricular/", {
       method: "POST",
       body: JSON.stringify({ aluno_id: String(dados.get("aluno_id") || ""), capturas, versao_modelo: "sface" }),
     });

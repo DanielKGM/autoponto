@@ -6,33 +6,8 @@ from .base import BaseModel
 from .identidade import PapelUsuario, Usuario
 
 
-class PerfilBiometrico(BaseModel):
-    aluno = models.OneToOneField(Usuario, on_delete=models.CASCADE, related_name="perfil_biometrico")
-    status = models.CharField(
-        max_length=20,
-        choices=(
-            ("PENDENTE", "Pendente"),
-            ("ATIVO", "Ativo"),
-            ("INATIVO", "Inativo"),
-        ),
-        default="PENDENTE",
-    )
-
-    class Meta:
-        ordering = ("aluno__username",)
-        verbose_name = "Perfil biométrico"
-        verbose_name_plural = "Perfis biométricos"
-
-    def clean(self):
-        if self.aluno.papel != PapelUsuario.ALUNO:
-            raise ValidationError({"aluno": "Perfis biométricos só podem ser criados para alunos."})
-
-    def __str__(self) -> str:
-        return f"Perfil biométrico de {self.aluno}"
-
-
 class EmbeddingFacial(BaseModel):
-    perfil = models.ForeignKey(PerfilBiometrico, on_delete=models.CASCADE, related_name="embeddings")
+    aluno = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name="embeddings_faciais")
     versao_modelo = models.CharField(max_length=50)
     vetor = models.JSONField()
     status = models.CharField(
@@ -47,16 +22,20 @@ class EmbeddingFacial(BaseModel):
     ativo = models.BooleanField(default=True)
 
     class Meta:
-        ordering = ("perfil__aluno__username", "-criado_em")
+        ordering = ("aluno__username", "-criado_em")
         verbose_name = "Embedding facial"
         verbose_name_plural = "Embeddings faciais"
         constraints = [
             models.UniqueConstraint(
-                fields=("perfil",),
+                fields=("aluno",),
                 condition=Q(ativo=True),
-                name="embedding_ativo_unico_por_perfil",
+                name="uq_embedding_ativo_aluno",
             ),
         ]
 
+    def clean(self):
+        if self.aluno.papel != PapelUsuario.ALUNO:
+            raise ValidationError({"aluno": "Embeddings faciais so podem ser criados para alunos."})
+
     def __str__(self) -> str:
-        return f"{self.perfil.aluno.username} ({self.versao_modelo})"
+        return f"{self.aluno.username} ({self.versao_modelo})"
