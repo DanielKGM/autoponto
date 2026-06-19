@@ -116,10 +116,12 @@ cd ..
 docker compose up --build
 ```
 
+Se a porta `8080` estiver ocupada, edite `FRONTEND_PORT` no `.env` da raiz, por exemplo `FRONTEND_PORT=8081`.
+
 Servicos:
 
 - Backend: `http://localhost:8000/api/`
-- Frontend: `http://localhost:8080`
+- Frontend: `http://localhost:${FRONTEND_PORT}`; no exemplo padrao, `http://localhost:8080`
 - Banco: container `db`
 
 ## Producao Provisoria Na VM

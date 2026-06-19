@@ -2,6 +2,8 @@ FROM python:3.13-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV HOME=/tmp
+ENV XDG_CACHE_HOME=/tmp/.cache
 
 WORKDIR /app
 
@@ -25,4 +27,4 @@ USER autoponto
 EXPOSE 8000
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["gunicorn", "autoponto.wsgi:application", "--chdir", "/app/autoponto", "--bind", "0.0.0.0:8000", "--workers", "3"]
+CMD ["gunicorn", "autoponto.wsgi:application", "--chdir", "/app/autoponto", "--bind", "0.0.0.0:8000", "--workers", "3", "--worker-tmp-dir", "/tmp"]

@@ -74,9 +74,11 @@ cd ..
 docker compose up --build
 ```
 
+Se a porta `8080` estiver ocupada, altere `FRONTEND_PORT` no `.env` da raiz e use a nova porta no navegador.
+
 Servicos:
 
-- Frontend: `http://localhost:8080`
+- Frontend: `http://localhost:${FRONTEND_PORT}`; no exemplo padrao, `http://localhost:8080`
 - Backend: `http://localhost:8000/api/`
 
 ## Producao Provisoria Na VM

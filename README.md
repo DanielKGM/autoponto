@@ -72,9 +72,11 @@ Suba os servicos:
 docker compose up --build
 ```
 
+Se a porta `8080` ja estiver ocupada no Windows, altere `FRONTEND_PORT` no `.env` da raiz, por exemplo `FRONTEND_PORT=8081`, e suba novamente.
+
 URLs:
 
-- Frontend: `http://localhost:8080`
+- Frontend: `http://localhost:${FRONTEND_PORT}` (por padrao, `http://localhost:8080`)
 - Backend: `http://localhost:8000/api/`
 - Health check: `http://localhost:8000/api/health/`
 - PostgreSQL local: `localhost:5432`
