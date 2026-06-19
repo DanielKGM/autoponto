@@ -87,7 +87,7 @@ export function AdminPainel() {
       apiFetch<HorarioAulaCrud[] | { results: HorarioAulaCrud[] }>("/horarios-aula/"),
       apiFetch<NoBordaCrud[] | { results: NoBordaCrud[] }>("/nos-borda/"),
       apiFetch<DispositivoEsp32Crud[] | { results: DispositivoEsp32Crud[] }>("/dispositivos-esp32/"),
-      apiFetch<DispositivoStatus[]>("/dispositivos-esp32/status-dashboard/"),
+      apiFetch<DispositivoStatus[]>("/public/mapa/dispositivos/"),
       apiFetch<DiagnosticoInterSCity>("/interscity/diagnostico/"),
     ]);
     setDados({
@@ -186,7 +186,7 @@ function ResumoAdmin({ dados, alunos, professores, onCriarUsuario }: { dados: Es
         <div className="stat"><strong>{professores}</strong><span>Professores</span></div>
         <div className="stat"><strong>{dados.turmas.length}</strong><span>Turmas</span></div>
         <div className="stat"><strong>{dados.matriculas.length}</strong><span>Matriculas</span></div>
-        <div className="stat"><strong>{dados.status.length}</strong><span>ESP32</span></div>
+        <div className="stat"><strong>{dados.dispositivos.length}</strong><span>ESP32</span></div>
       </section>
       <section className="panel form-section">
         <h3>Cadastrar usuario</h3>

@@ -13,7 +13,7 @@ export function MapaOperacional() {
   async function carregar() {
     try {
       setErro("");
-      const dados = await apiFetch<DispositivoStatus[]>("/dispositivos-esp32/status-dashboard/");
+      const dados = await apiFetch<DispositivoStatus[]>("/public/mapa/dispositivos/");
       setStatus(dados);
       setAtualizadoEm(new Date().toLocaleString("pt-BR"));
     } catch (e) {
@@ -25,7 +25,7 @@ export function MapaOperacional() {
 
   return (
     <section className="page-grid">
-      <header className="page-title"><h2>Mapa operacional</h2><p>Dispositivos cadastrados, sala e ultimo estado conhecido.</p></header>
+      <header className="page-title"><h2>Mapa operacional</h2><p>ESP32 cadastradas com localizacao e recurso IntersCity.</p></header>
       <div className="panel-header map-actions"><span>{atualizadoEm ? `Atualizado em ${atualizadoEm}` : "Aguardando atualizacao"}</span><Botao onClick={() => void carregar()}>Atualizar</Botao></div>
       {erro && <Mensagem tipo="erro" texto={erro} />}
       <MapaDispositivos status={status} />

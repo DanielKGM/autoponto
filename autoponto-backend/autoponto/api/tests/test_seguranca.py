@@ -150,30 +150,18 @@ class SegurancaApiTests(APITestCase):
 
         self.assertEqual(resposta.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_node_token_nao_atualiza_status_de_dispositivo_de_outro_no(self):
+    def test_node_token_nao_tem_endpoint_de_status_de_dispositivo(self):
         no = NoBorda.objects.create(codigo="NO-STATUS", nome="No Status")
-        outro_no = NoBorda.objects.create(codigo="NO-OUTRO", nome="No Outro")
-        self.contexto["dispositivo"].no = outro_no
-        self.contexto["dispositivo"].save(update_fields=["no", "atualizado_em"])
         _, token_bruto = TokenNoBorda.emitir_token(no, nome="status")
         self.client.credentials(HTTP_AUTHORIZATION=f"NodeToken {token_bruto}")
 
         resposta = self.client.post(
             "/api/edge/devices/status/",
-            {
-                "node_id": no.codigo,
-                "devices": [
-                    {
-                        "device_id": str(self.contexto["dispositivo"].id),
-                        "status": "working",
-                        "reported_at": "2026-04-20T10:00:00Z",
-                    }
-                ],
-            },
+            {"node_id": no.codigo, "devices": []},
             format="json",
         )
 
-        self.assertEqual(resposta.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(resposta.status_code, status.HTTP_404_NOT_FOUND)
 
     @override_settings(FACE_MAX_CAPTURAS=1)
     @patch("api.services.biometria.GeradorEmbeddingVisao")

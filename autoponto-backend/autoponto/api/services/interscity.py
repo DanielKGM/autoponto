@@ -56,6 +56,44 @@ class ClienteInterSCity:
             if resposta and hasattr(resposta, "close"):
                 resposta.close()
 
+    def _request_json(self, metodo: str, base_url: str, caminho: str, corpo: dict | None = None) -> dict:
+        if not self._habilitado(base_url):
+            return {
+                "ok": False,
+                "status": STATUS_NAO_CONFIGURADO,
+                "detalhe": "Integracao desabilitada ou URL ausente.",
+                "data": {},
+            }
+
+        dados = json.dumps(corpo or {}).encode("utf-8") if corpo is not None else None
+        requisicao = Request(
+            f"{base_url}{caminho}",
+            data=dados,
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            method=metodo,
+        )
+        resposta = None
+        try:
+            resposta = urlopen(requisicao, timeout=self.timeout)
+            conteudo = resposta.read().decode("utf-8") if hasattr(resposta, "read") else "{}"
+            return {
+                "ok": True,
+                "status": STATUS_OK,
+                "codigo_http": getattr(resposta, "status", None),
+                "data": json.loads(conteudo or "{}"),
+            }
+        except (TimeoutError, SocketTimeout):
+            return {"ok": False, "status": STATUS_TIMEOUT, "detalhe": "Tempo limite excedido.", "data": {}}
+        except HTTPError as exc:
+            return {"ok": False, "status": STATUS_ERRO_HTTP, "codigo_http": exc.code, "detalhe": str(exc.reason), "data": {}}
+        except URLError as exc:
+            return {"ok": False, "status": STATUS_INDISPONIVEL, "detalhe": str(exc.reason), "data": {}}
+        except (OSError, ValueError) as exc:
+            return {"ok": False, "status": STATUS_INDISPONIVEL, "detalhe": str(exc), "data": {}}
+        finally:
+            if resposta and hasattr(resposta, "close"):
+                resposta.close()
+
     def diagnosticar_servicos(self) -> dict:
         servicos = {
             "catalog": (self.catalog_url, "/"),
@@ -65,3 +103,25 @@ class ClienteInterSCity:
             "actuator": (self.actuator_url, "/"),
         }
         return {nome: self._request_status("GET", base_url, caminho) for nome, (base_url, caminho) in servicos.items()}
+
+    def buscar_historico_recursos(
+        self,
+        *,
+        uuids: list[str],
+        capabilities: list[str],
+        start_date: str,
+        end_date: str,
+    ) -> dict:
+        corpo = {
+            "uuids": uuids,
+            "capabilities": capabilities,
+            "start_date": start_date,
+            "end_date": end_date,
+        }
+        resposta = self._request_json("POST", self.collector_url, "/resources/data", corpo)
+        return {
+            "ok": resposta["ok"],
+            "status": resposta["status"],
+            "resources": resposta.get("data", {}).get("resources", []),
+            "detalhe": resposta.get("detalhe"),
+        }

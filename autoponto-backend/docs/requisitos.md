@@ -19,11 +19,12 @@ Este documento traduz o comportamento atual da API em requisitos funcionais e na
 | RF-BE-11 | Sincronizar dados academicos e biometricos com o no de borda por `GET /api/edge/pull`. | `montar_payload_pull` |
 | RF-BE-12 | Receber eventos de presenca do no por `POST /api/edge/attendance`, com idempotencia por id do evento. | `receber_presencas_borda` |
 | RF-BE-13 | Validar presenca somente entre `Aula.inicio` e `Aula.fim` e recusar aulas fechadas/canceladas. | `_receber_evento_borda` |
-| RF-BE-14 | Receber snapshot operacional local das ESP32 por `POST /api/edge/devices/status/`. | `atualizar_status_dispositivos_borda` |
+| RF-BE-14 | Expor mapa publico de ESP32 ativas com recurso IntersCity e coordenadas. | `GET /api/public/mapa/dispositivos/` |
 | RF-BE-15 | Permitir que professor da turma ou admin feche manualmente a chamada sem alterar a duracao historica da aula. | `fechar_chamada_aula` |
 | RF-BE-16 | Diagnosticar disponibilidade dos microsservicos IntersCity sem depender deles para o fluxo academico. | `GET /api/interscity/diagnostico/` |
 | RF-BE-17 | Disponibilizar documentacao OpenAPI/Swagger em /api/schema/ e /api/docs/ quando PUBLIC_API_DOCS=True. | `autoponto/urls.py` |
 | RF-BE-18 | Popular ambiente de demonstracao com seed idempotente UFMA/TCC sem matricular alunos automaticamente. | seed_dados_ufma |
+| RF-BE-19 | Consultar historico operacional das ESP32 no Data Collector por proxy publico tolerante a falhas. | `GET /api/public/mapa/dispositivos/{id}/historico/` |
 
 ## Requisitos Nao Funcionais
 
@@ -36,6 +37,6 @@ Este documento traduz o comportamento atual da API em requisitos funcionais e na
 | RNF-BE-05 | Tokens do no de borda devem expirar e so autenticar endpoints `/api/edge/*`. | `TokenNoBorda`, `EdgeNodeTokenAuthentication` |
 | RNF-BE-06 | Falhas do IntersCity nao podem bloquear login, CRUD, presenca, biometria, relatorios ou sync edge. | Cliente IntersCity isolado para diagnostico |
 | RNF-BE-07 | A documentacao externa da API deve expor contrato, nao dados; endpoints continuam protegidos por autenticacao/permissao. | `PUBLIC_API_DOCS` controla schema/docs |
-| RNF-BE-08 | O contrato com o edge deve manter nomes compativeis com `referencia-edge/services/edge-app/app/models.py`. | Payloads `locales`, `devices`, `lessons`, `students`, `enrollments`, `face_embeddings` |
+| RNF-BE-08 | O contrato com o edge deve manter nomes compativeis com `referencia-edge/autoponto-edgenode/services/edge-app/app/models.py`. | Payloads `salas`, `dispositivos`, `aulas`, `alunos`, `matriculas_aula`, `embeddings_faciais` |
 | RNF-BE-09 | O deploy deve funcionar atras do prefixo `/interscity_lh/catalog/autoponto/`. | Compose/Nginx/proxy docs |
 | RNF-BE-10 | O MVP deve ser explicavel: modelos enxutos, horarios UFMA tabelados e regras academicas concentradas em services/views. | `HorarioPadraoUFMA`, `services/aulas.py`, `services/relatorios.py` |

@@ -11,10 +11,12 @@ flowchart LR
     MQTT --> Edge
     Edge --> Face["face-worker\nYuNet/SFace"]
     Edge <--> Cache["SQLite/Redis local"]
-    Edge -->|"pull, attendance, status"| API["AutoPonto API\nDjango REST"]
+    Edge -->|"pull, attendance"| API["AutoPonto API\nDjango REST"]
     API <--> DB["PostgreSQL"]
-    Edge -. "stats MQTT -> Resource Adaptor" .-> IC["Interscity UFMA"]
+    Edge -. "status/logs -> Resource Adaptor" .-> IC["Interscity UFMA"]
     Front["Frontend React"] --> API
+    Public["Mapa publico"] --> API
+    API -. "historico Collector" .-> IC
 ```
 
 ## 2. Entidade E Relacionamento Principal
@@ -64,9 +66,9 @@ erDiagram
     DispositivoEsp32 {
         uuid id PK
         string codigo
-        string status
-        datetime status_atualizado_em
         string interscity_uuid
+        decimal latitude
+        decimal longitude
     }
 ```
 
@@ -93,7 +95,7 @@ sequenceDiagram
     API->>DB: Busca ESP32 e salas do no
     API->>DB: Materializa Aula pelo periodo de sync
     API->>DB: Busca alunos, matriculas e embeddings ativos
-    API-->>Edge: locales, devices, lessons, students, enrollments, face_embeddings
+    API-->>Edge: salas, dispositivos, aulas, alunos, matriculas_aula, embeddings_faciais
     Edge->>Edge: Atualiza cache local
 ```
 
@@ -109,16 +111,16 @@ sequenceDiagram
 
     ESP->>Edge: Envia frame
     Edge->>Face: Reconhecimento facial
-    Face-->>Edge: aluno_id, lesson_id, score
+    Face-->>Edge: aluno_id, aula_id, score
     Edge->>API: POST /api/edge/attendance
     API->>DB: Valida no, dispositivo, sala e matricula
-    API->>DB: Valida Aula.inicio <= recognized_at <= Aula.fim
+    API->>DB: Valida Aula.inicio <= reconhecido_em <= Aula.fim
     API->>DB: Upsert RegistroPresenca
     API->>DB: Cria EventoReconhecimento sem imagem
     API-->>Edge: synced_ids
 ```
 
-## 6. Status IoT E Interscity
+## 6. Interscity E Mapa Publico
 
 ```mermaid
 sequenceDiagram
@@ -126,19 +128,21 @@ sequenceDiagram
     participant MQTT as Mosquitto
     participant Edge as NoBorda
     participant API as API AutoPonto
-    participant DB as PostgreSQL
     participant IC as Interscity
-    participant Front as Dashboard
+    participant Front as Mapa publico
 
-    ESP->>MQTT: sts/{device_id} = working
-    MQTT->>Edge: status MQTT
-    Edge->>Edge: Salva Redis device:{id}:status
-    Edge->>API: POST /api/edge/devices/status/
-    API->>DB: Atualiza DispositivoEsp32.status
-    Edge-->>IC: Publica autoponto_device_stats
-    Front->>API: GET status-dashboard
-    API-->>Front: snapshot local
-    PublicMap["Mapa publico futuro"]->>IC: consulta Collector/Discovery sob demanda
+    Edge->>API: GET /api/edge/pull
+    API-->>Edge: dispositivos com interscity_uuid
+    Edge->>MQTT: cmd/{device_id} {"stats": true}
+    ESP->>MQTT: log/{device_id}
+    MQTT->>Edge: status, rssi, heap_min, lesson, remainingms, nextms, now_ms
+    Edge-->>IC: POST /adaptor/resources/{uuid}/data
+    Front->>API: GET /api/public/mapa/dispositivos/
+    API-->>Front: ESP32 + latitude/longitude + uuid
+    Front->>API: GET /api/public/mapa/dispositivos/{id}/historico/?dias=7
+    API->>IC: POST /collector/resources/data
+    IC-->>API: historico filtrado
+    API-->>Front: historico + ultimo valor
 ```
 
 ## 7. Fechamento Manual
@@ -155,7 +159,7 @@ sequenceDiagram
     API->>DB: Marca Aula como FECHADA
     API->>DB: Salva fechada_em e fechada_por
     Edge->>API: GET /api/edge/pull
-    API-->>Edge: aula em deleted.lessons
+    API-->>Edge: aula em deleted.aulas
 ```
 
 ## 8. Biometria
@@ -190,19 +194,7 @@ stateDiagram-v2
     CANCELADA --> [*]
 ```
 
-## 10. Estados Do Dispositivo
-
-```mermaid
-stateDiagram-v2
-    [*] --> offline
-    offline --> working: firmware publica status
-    working --> idle: firmware ocioso
-    idle --> working: novo processamento
-    working --> offline: timeout sem status
-    idle --> offline: timeout sem status
-```
-
-## 11. Privacidade
+## 10. Privacidade
 
 ```mermaid
 flowchart LR
@@ -211,6 +203,7 @@ flowchart LR
     API --> Presenca["RegistroPresenca"]
     API --> Evento["EventoReconhecimento\nsem frame bruto"]
     Edge["NoBorda"] -. "telemetria tecnica das ESP32" .-> IC["Interscity"]
+    Mapa["Mapa publico"] -. "historico operacional filtrado" .-> APIMapa["API publica"]
     Capturas -. "descartadas" .-> Descarte["Sem persistencia"]
 ```
 
@@ -219,6 +212,6 @@ flowchart LR
 - Arquitetura: diagrama 1.
 - Banco/modelagem: diagramas 2 e 3.
 - Operacao normal: diagramas 4 e 5.
-- IoT/Interscity: diagrama 6.
+- IoT/Interscity e mapa publico: diagrama 6.
 - Fechamento manual: diagrama 7.
-- Biometria, estados e privacidade: diagramas 8 a 11.
+- Biometria, estados e privacidade: diagramas 8 a 10.

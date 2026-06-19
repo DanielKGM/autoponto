@@ -97,7 +97,7 @@ export type HorarioPadraoUFMACrud = {
   ativo: boolean;
 };
 export type HorarioAulaCrud = { id: string; turma: string; sala: string; horario_padrao: string; ativo: boolean };
-export type NoBordaCrud = { id: string; codigo: string; nome: string; ativo: boolean; interscity_uuid: string };
+export type NoBordaCrud = { id: string; codigo: string; nome: string; ativo: boolean };
 export type DispositivoEsp32Crud = {
   id: string;
   no: string | null;
@@ -105,26 +105,22 @@ export type DispositivoEsp32Crud = {
   codigo: string;
   nome: string;
   ativo: boolean;
-  status: "offline" | "working" | "idle";
-  status_efetivo: "offline" | "working" | "idle";
-  status_atualizado_em: string | null;
   sala_nome?: string | null;
   no_codigo?: string | null;
   interscity_uuid: string;
+  latitude: string | null;
+  longitude: string | null;
 };
 
 export type DispositivoStatus = {
   id: string;
   codigo: string;
   nome: string;
-  ativo: boolean;
-  status: "offline" | "working" | "idle";
-  status_efetivo: "offline" | "working" | "idle";
-  status_atualizado_em: string | null;
   sala: string | null;
-  no: string | null;
+  predio: string | null;
+  latitude: string | null;
+  longitude: string | null;
   interscity_uuid: string;
-  origem_status: "api_local";
 };
 
 export type DiagnosticoInterSCity = Record<string, { ok: boolean; status: string; codigo_http?: number; detalhe?: string }>;

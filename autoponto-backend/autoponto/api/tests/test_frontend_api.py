@@ -175,19 +175,22 @@ class FrontendApiTests(APITestCase):
 
         self.assertEqual(resposta.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_admin_lista_status_dispositivos_com_snapshot_local(self):
-        self.contexto["dispositivo"].status = "idle"
+    def test_admin_lista_dispositivos_com_recurso_interscity_e_localizacao(self):
         self.contexto["dispositivo"].interscity_uuid = "uuid-esp32"
-        self.contexto["dispositivo"].save(update_fields=["status", "interscity_uuid", "atualizado_em"])
+        self.contexto["dispositivo"].latitude = "-2.558300"
+        self.contexto["dispositivo"].longitude = "-44.307700"
+        self.contexto["dispositivo"].save(update_fields=["interscity_uuid", "latitude", "longitude", "atualizado_em"])
         self.autenticar("admin")
 
-        resposta = self.client.get("/api/dispositivos-esp32/status-dashboard/")
+        resposta = self.client.get("/api/dispositivos-esp32/")
 
         self.assertEqual(resposta.status_code, status.HTTP_200_OK)
-        self.assertEqual(resposta.data[0]["id"], str(self.contexto["dispositivo"].id))
-        self.assertEqual(resposta.data[0]["status"], "idle")
-        self.assertEqual(resposta.data[0]["status_efetivo"], "offline")
-        self.assertEqual(resposta.data[0]["origem_status"], "api_local")
+        dispositivo = resposta.data["results"][0]
+        self.assertEqual(dispositivo["id"], str(self.contexto["dispositivo"].id))
+        self.assertEqual(dispositivo["interscity_uuid"], "uuid-esp32")
+        self.assertEqual(dispositivo["latitude"], "-2.558300")
+        self.assertEqual(dispositivo["longitude"], "-44.307700")
+        self.assertNotIn("status", dispositivo)
 
     def test_admin_pesquisa_historico_de_presencas_do_aluno(self):
         aula, _ = obter_ou_criar_aula(self.contexto["horario"], self.contexto["data_aula"])

@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 
 from api.authentication import EdgeNodeTokenAuthentication
 from api.permissions import IsNoBorda
-from api.services import atualizar_status_dispositivos_borda, montar_payload_pull, receber_presencas_borda
+from api.services import montar_payload_pull, receber_presencas_borda
 
 
 class EdgePullView(APIView):
@@ -35,22 +35,6 @@ class EdgeAttendanceView(APIView):
 
 
 class EdgeAttendanceSlashAliasView(EdgeAttendanceView):
-    @extend_schema(exclude=True)
-    def post(self, request):
-        return super().post(request)
-
-
-class EdgeDeviceStatusView(APIView):
-    authentication_classes = (EdgeNodeTokenAuthentication,)
-    permission_classes = (IsNoBorda,)
-    throttle_scope = "edge_device_status"
-
-    @extend_schema(request=OpenApiTypes.OBJECT, responses=OpenApiTypes.OBJECT)
-    def post(self, request):
-        return Response(atualizar_status_dispositivos_borda(request.user, request.data), status=status.HTTP_200_OK)
-
-
-class EdgeDeviceStatusSlashAliasView(EdgeDeviceStatusView):
     @extend_schema(exclude=True)
     def post(self, request):
         return super().post(request)

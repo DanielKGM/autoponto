@@ -323,7 +323,6 @@ class Command(BaseCommand):
             defaults={
                 "nome": "raspberry-tcc",
                 "ativo": True,
-                "interscity_uuid": "91723758-5fe0-4a76-8f1a-6aaf97463d66",
             },
         )
         DispositivoEsp32.objects.update_or_create(
@@ -333,7 +332,6 @@ class Command(BaseCommand):
                 "no": no,
                 "sala": sala,
                 "ativo": True,
-                "status": DispositivoEsp32.STATUS_OFFLINE,
                 "interscity_uuid": "8cf4ce45-3aff-4aa2-81e0-27a2fc361f09",
             },
         )

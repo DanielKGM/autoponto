@@ -106,8 +106,8 @@ class HorarioAulaAdmin(admin.ModelAdmin):
 
 @admin.register(NoBorda)
 class NoBordaAdmin(admin.ModelAdmin):
-    list_display = ("codigo", "nome", "ativo", "ultimo_sync_em", "interscity_uuid")
-    search_fields = ("codigo", "nome", "interscity_uuid")
+    list_display = ("codigo", "nome", "ativo", "ultimo_sync_em")
+    search_fields = ("codigo", "nome")
     list_filter = ("ativo",)
 
 
@@ -120,9 +120,9 @@ class TokenNoBordaAdmin(admin.ModelAdmin):
 
 @admin.register(DispositivoEsp32)
 class DispositivoEsp32Admin(admin.ModelAdmin):
-    list_display = ("codigo", "nome", "no", "sala", "status", "status_atualizado_em", "ativo", "interscity_uuid")
+    list_display = ("codigo", "nome", "no", "sala", "ativo", "interscity_uuid", "latitude", "longitude")
     search_fields = ("codigo", "nome", "interscity_uuid")
-    list_filter = ("no", "sala", "status", "ativo")
+    list_filter = ("no", "sala", "ativo")
 
 
 @admin.register(Aula)

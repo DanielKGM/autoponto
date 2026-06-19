@@ -3,7 +3,7 @@ import secrets
 from datetime import timedelta
 
 from django.conf import settings
-from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
@@ -17,7 +17,6 @@ class NoBorda(BaseModel):
     nome = models.CharField(max_length=255)
     ativo = models.BooleanField(default=True)
     ultimo_sync_em = models.DateTimeField(null=True, blank=True)
-    interscity_uuid = models.CharField(max_length=64, blank=True, db_index=True)
 
     @property
     def is_authenticated(self):
@@ -81,15 +80,6 @@ class TokenNoBorda(BaseModel):
 
 
 class DispositivoEsp32(BaseModel):
-    STATUS_OFFLINE = "offline"
-    STATUS_WORKING = "working"
-    STATUS_IDLE = "idle"
-    STATUS_CHOICES = (
-        (STATUS_OFFLINE, "Offline"),
-        (STATUS_WORKING, "Working"),
-        (STATUS_IDLE, "Idle"),
-    )
-
     no = models.ForeignKey(
         NoBorda,
         on_delete=models.PROTECT,
@@ -107,12 +97,21 @@ class DispositivoEsp32(BaseModel):
     codigo = models.CharField(max_length=50, unique=True)
     nome = models.CharField(max_length=255)
     ativo = models.BooleanField(default=True)
-    status = models.CharField(
-        max_length=20, choices=STATUS_CHOICES, default=STATUS_OFFLINE
-    )
-    status_atualizado_em = models.DateTimeField(null=True, blank=True)
-    ultimo_sync_em = models.DateTimeField(null=True, blank=True)
     interscity_uuid = models.CharField(max_length=64, blank=True, db_index=True)
+    latitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(-90), MaxValueValidator(90)],
+    )
+    longitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(-180), MaxValueValidator(180)],
+    )
 
     class Meta:
         ordering = ("codigo",)
@@ -125,22 +124,6 @@ class DispositivoEsp32(BaseModel):
                 name="uq_disp_sala_ativo",
             ),
         ]
-
-    @staticmethod
-    def normalizar_status(valor: str) -> str:
-        status = str(valor or "").strip().lower()
-        permitidos = {choice[0] for choice in DispositivoEsp32.STATUS_CHOICES}
-        if status not in permitidos:
-            raise ValidationError(
-                {"status": "Status de dispositivo deve ser offline, working ou idle."}
-            )
-        return status
-
-    @property
-    def status_efetivo(self) -> str:
-        if not self.ativo or not self.status_atualizado_em:
-            return self.STATUS_OFFLINE
-        return self.status
 
     def __str__(self) -> str:
         return f"{self.codigo} - {self.nome}"

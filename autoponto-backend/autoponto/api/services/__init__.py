@@ -5,13 +5,11 @@ from .aulas import (
 )
 from .biometria import matricular_biometria_aluno
 from .sincronizacao_borda import (
-    atualizar_status_dispositivos_borda,
     montar_payload_pull,
     receber_presencas_borda,
 )
 
 __all__ = [
-    "atualizar_status_dispositivos_borda",
     "fechar_chamada_aula",
     "listar_aulas_do_dia",
     "matricular_biometria_aluno",

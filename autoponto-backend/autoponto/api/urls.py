@@ -9,8 +9,6 @@ from api.views import (
     DispositivoEsp32ViewSet,
     EdgeAttendanceSlashAliasView,
     EdgeAttendanceView,
-    EdgeDeviceStatusSlashAliasView,
-    EdgeDeviceStatusView,
     EdgePullSlashAliasView,
     EdgePullView,
     EmbeddingFacialViewSet,
@@ -39,6 +37,8 @@ from api.views import (
     TokenRefreshCookieView,
     UsuarioViewSet,
     HorarioPadraoUFMAViewSet,
+    MapaDispositivoHistoricoView,
+    MapaDispositivosPublicosView,
 )
 
 router = DefaultRouter()
@@ -90,8 +90,12 @@ urlpatterns = [
     path("edge/pull/", EdgePullSlashAliasView.as_view(), name="edge-pull"),
     path("edge/attendance", EdgeAttendanceView.as_view(), name="edge-attendance-noslash"),
     path("edge/attendance/", EdgeAttendanceSlashAliasView.as_view(), name="edge-attendance"),
-    path("edge/devices/status", EdgeDeviceStatusView.as_view(), name="edge-devices-status-noslash"),
-    path("edge/devices/status/", EdgeDeviceStatusSlashAliasView.as_view(), name="edge-devices-status"),
+    path("public/mapa/dispositivos/", MapaDispositivosPublicosView.as_view(), name="mapa-dispositivos-publicos"),
+    path(
+        "public/mapa/dispositivos/<uuid:dispositivo_id>/historico/",
+        MapaDispositivoHistoricoView.as_view(),
+        name="mapa-dispositivo-historico",
+    ),
     path("interscity/diagnostico/", InterSCityDiagnosticoView.as_view(), name="interscity-diagnostico"),
     path("", include(router.urls)),
 ]

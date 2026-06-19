@@ -18,7 +18,8 @@ class IntegracaoEdgeTests(APITestCase):
         self.contexto = criar_contexto_academico()
         self.no = NoBorda.objects.create(codigo="NO-CCET-01", nome="Raspberry CCET 01")
         self.contexto["dispositivo"].no = self.no
-        self.contexto["dispositivo"].save(update_fields=["no", "atualizado_em"])
+        self.contexto["dispositivo"].interscity_uuid = "f3e29da0-e958-4f6a-90eb-cef7804cd28c"
+        self.contexto["dispositivo"].save(update_fields=["no", "interscity_uuid", "atualizado_em"])
         _, self.token_bruto = TokenNoBorda.emitir_token(self.no, nome="teste-no")
         self.client.credentials(HTTP_AUTHORIZATION=f"NodeToken {self.token_bruto}")
 
@@ -36,6 +37,7 @@ class IntegracaoEdgeTests(APITestCase):
             "/api/edge/pull",
             {
                 "node_id": self.no.codigo,
+                "cursors": "80",
                 "from_date": "2026-04-20",
                 "to_date": "2026-04-20",
             },
@@ -44,22 +46,32 @@ class IntegracaoEdgeTests(APITestCase):
         self.assertEqual(resposta.status_code, status.HTTP_200_OK)
         payload = resposta.data
         self.assertEqual(set(payload.keys()), {"data", "deleted", "cursors"})
-        self.assertEqual(payload["data"]["locales"][0]["id"], str(self.contexto["sala"].id))
-        self.assertEqual(payload["data"]["devices"][0]["id"], str(self.contexto["dispositivo"].id))
-        self.assertEqual(payload["data"]["devices"][0]["locale_id"], str(self.contexto["sala"].id))
-        self.assertEqual(payload["data"]["students"][0]["registration"], self.contexto["aluno"].matricula)
-        self.assertEqual(payload["data"]["face_embeddings"][0]["embedding"], self.embedding.vetor)
-
-        aula = payload["data"]["lessons"][0]
-        self.assertEqual(aula["locale_id"], str(self.contexto["sala"].id))
-        self.assertIn("Desenvolvimento de Sistemas Web", aula["name"])
         self.assertEqual(
-            payload["data"]["enrollments"][0],
-            {"lesson_id": aula["id"], "student_id": str(self.contexto["aluno"].id)},
+            set(payload["data"].keys()),
+            {"salas", "dispositivos", "aulas", "alunos", "matriculas_aula", "embeddings_faciais"},
         )
-        self.assertEqual(set(aula.keys()), {"id", "name", "locale_id", "starts_at", "ends_at", "status"})
+        self.assertEqual(set(payload["deleted"].keys()), set(payload["data"].keys()))
+        self.assertEqual(set(payload["cursors"].keys()), set(payload["data"].keys()))
+        self.assertEqual(payload["data"]["salas"][0], {"id": str(self.contexto["sala"].id), "nome": self.contexto["sala"].nome})
+        self.assertEqual(payload["data"]["dispositivos"][0]["id"], self.contexto["dispositivo"].codigo)
+        self.assertEqual(payload["data"]["dispositivos"][0]["sala_id"], str(self.contexto["sala"].id))
+        self.assertEqual(payload["data"]["dispositivos"][0]["ativo"], True)
+        self.assertEqual(payload["data"]["dispositivos"][0]["interscity_uuid"], self.contexto["dispositivo"].interscity_uuid)
+        self.assertNotIn("status", payload["data"]["dispositivos"][0])
+        self.assertEqual(payload["data"]["alunos"][0]["matricula"], self.contexto["aluno"].matricula)
+        self.assertNotIn("ativo", payload["data"]["alunos"][0])
+        self.assertEqual(payload["data"]["embeddings_faciais"][0]["vetor"], self.embedding.vetor)
+
+        aula = payload["data"]["aulas"][0]
+        self.assertEqual(aula["sala_id"], str(self.contexto["sala"].id))
+        self.assertIn("Desenvolvimento de Sistemas Web", aula["nome"])
+        self.assertEqual(
+            payload["data"]["matriculas_aula"][0],
+            {"aula_id": aula["id"], "aluno_id": str(self.contexto["aluno"].id)},
+        )
+        self.assertEqual(set(aula.keys()), {"id", "nome", "sala_id", "inicio", "fim", "status"})
         self.assertEqual(aula["status"], "PLANEJADA")
-        self.assertIn("lessons", payload["cursors"])
+        self.assertIn("aulas", payload["cursors"])
 
     def test_pull_incremental_informa_dispositivo_inativo_como_deleted(self):
         self.contexto["dispositivo"].ativo = False
@@ -75,8 +87,8 @@ class IntegracaoEdgeTests(APITestCase):
         )
 
         self.assertEqual(resposta.status_code, status.HTTP_200_OK)
-        self.assertEqual(resposta.data["data"]["devices"], [])
-        self.assertIn(str(self.contexto["dispositivo"].id), resposta.data["deleted"]["devices"])
+        self.assertEqual(resposta.data["data"]["dispositivos"], [])
+        self.assertIn(self.contexto["dispositivo"].codigo, resposta.data["deleted"]["dispositivos"])
 
     def test_envio_de_presenca_e_idempotente_e_confirma_synced_ids(self):
         aula_id = self.client.get(
@@ -86,18 +98,18 @@ class IntegracaoEdgeTests(APITestCase):
                 "from_date": "2026-04-20",
                 "to_date": "2026-04-20",
             },
-        ).data["data"]["lessons"][0]["id"]
+        ).data["data"]["aulas"][0]["id"]
         evento = {
             "id": "edge-event-1",
-            "student_id": str(self.contexto["aluno"].id),
-            "lesson_id": aula_id,
-            "device_id": str(self.contexto["dispositivo"].id),
-            "recognized_at": datetime(2026, 4, 20, 11, 5, tzinfo=timezone.utc).isoformat(),
+            "aluno_id": str(self.contexto["aluno"].id),
+            "aula_id": aula_id,
+            "dispositivo_id": self.contexto["dispositivo"].codigo,
+            "reconhecido_em": datetime(2026, 4, 20, 11, 5, tzinfo=timezone.utc).isoformat(),
             "score": 0.91,
         }
 
-        primeira = self.client.post("/api/edge/attendance", {"node_id": self.no.codigo, "events": [evento]}, format="json")
-        segunda = self.client.post("/api/edge/attendance", {"node_id": self.no.codigo, "events": [evento]}, format="json")
+        primeira = self.client.post("/api/edge/attendance", {"node_id": self.no.codigo, "eventos": [evento]}, format="json")
+        segunda = self.client.post("/api/edge/attendance", {"node_id": self.no.codigo, "eventos": [evento]}, format="json")
 
         self.assertEqual(primeira.status_code, status.HTTP_200_OK)
         self.assertEqual(segunda.status_code, status.HTTP_200_OK)
@@ -111,19 +123,19 @@ class IntegracaoEdgeTests(APITestCase):
         aula_id = self.client.get(
             "/api/edge/pull",
             {"node_id": self.no.codigo, "from_date": "2026-04-20", "to_date": "2026-04-20"},
-        ).data["data"]["lessons"][0]["id"]
+        ).data["data"]["aulas"][0]["id"]
 
         resposta = self.client.post(
             "/api/edge/attendance",
             {
                 "node_id": self.no.codigo,
-                "events": [
+                "eventos": [
                     {
                         "id": "edge-event-fora",
-                        "student_id": str(self.contexto["aluno"].id),
-                        "lesson_id": aula_id,
-                        "device_id": str(self.contexto["dispositivo"].id),
-                        "recognized_at": "2026-04-20T10:00:00-03:00",
+                        "aluno_id": str(self.contexto["aluno"].id),
+                        "aula_id": aula_id,
+                        "dispositivo_id": self.contexto["dispositivo"].codigo,
+                        "reconhecido_em": "2026-04-20T10:00:00-03:00",
                         "score": 0.91,
                     }
                 ],
@@ -138,7 +150,7 @@ class IntegracaoEdgeTests(APITestCase):
         aula_id = self.client.get(
             "/api/edge/pull",
             {"node_id": self.no.codigo, "from_date": "2026-04-20", "to_date": "2026-04-20"},
-        ).data["data"]["lessons"][0]["id"]
+        ).data["data"]["aulas"][0]["id"]
         outro_no = NoBorda.objects.create(codigo="NO-CCET-02", nome="Raspberry CCET 02")
         dispositivo = self.contexto["dispositivo"]
         dispositivo.no = outro_no
@@ -147,13 +159,13 @@ class IntegracaoEdgeTests(APITestCase):
             "/api/edge/attendance",
             {
                 "node_id": self.no.codigo,
-                "events": [
+                "eventos": [
                     {
                         "id": "edge-event-2",
-                        "student_id": str(self.contexto["aluno"].id),
-                        "lesson_id": aula_id,
-                        "device_id": str(dispositivo.id),
-                        "recognized_at": "2026-04-20T08:05:00-03:00",
+                        "aluno_id": str(self.contexto["aluno"].id),
+                        "aula_id": aula_id,
+                        "dispositivo_id": dispositivo.codigo,
+                        "reconhecido_em": "2026-04-20T08:05:00-03:00",
                         "score": 0.91,
                     }
                 ],
@@ -164,47 +176,11 @@ class IntegracaoEdgeTests(APITestCase):
         self.assertEqual(resposta.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(RegistroPresenca.objects.count(), 0)
 
-    def test_status_dispositivo_atualiza_snapshot_local(self):
-
+    def test_status_dispositivo_nao_faz_parte_do_contrato_ativo(self):
         resposta = self.client.post(
             "/api/edge/devices/status/",
-            {
-                "node_id": self.no.codigo,
-                "devices": [
-                    {
-                        "device_id": str(self.contexto["dispositivo"].id),
-                        "status": "working",
-                        "reported_at": "2026-04-20T10:00:00Z",
-                    }
-                ],
-            },
+            {"node_id": self.no.codigo, "devices": []},
             format="json",
         )
 
-        self.assertEqual(resposta.status_code, status.HTTP_200_OK)
-        self.assertEqual(resposta.data["updated_ids"], [str(self.contexto["dispositivo"].id)])
-        self.contexto["dispositivo"].refresh_from_db()
-        self.assertEqual(self.contexto["dispositivo"].status, "working")
-        self.assertIsNotNone(self.contexto["dispositivo"].status_atualizado_em)
-
-    def test_status_dispositivo_rejeita_dispositivo_de_outro_no(self):
-        outro_no = NoBorda.objects.create(codigo="NO-CCET-02", nome="Raspberry CCET 02")
-        self.contexto["dispositivo"].no = outro_no
-        self.contexto["dispositivo"].save(update_fields=["no", "atualizado_em"])
-
-        resposta = self.client.post(
-            "/api/edge/devices/status/",
-            {
-                "node_id": self.no.codigo,
-                "devices": [
-                    {
-                        "device_id": str(self.contexto["dispositivo"].id),
-                        "status": "idle",
-                        "reported_at": "2026-04-20T10:00:00Z",
-                    }
-                ],
-            },
-            format="json",
-        )
-
-        self.assertEqual(resposta.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(resposta.status_code, status.HTTP_404_NOT_FOUND)

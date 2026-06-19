@@ -167,7 +167,6 @@ REST_FRAMEWORK = {
         "auth_refresh": "100/min",
         "biometria": "20/hour",
         "edge_attendance": "600/min",
-        "edge_device_status": "600/min",
     },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_FILTER_BACKENDS": (

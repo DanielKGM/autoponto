@@ -23,7 +23,7 @@ from api.models import (
 from api.services.aulas import listar_aulas_do_dia
 
 
-ENTIDADES_SYNC = ("locales", "devices", "lessons", "students", "enrollments", "face_embeddings")
+ENTIDADES_SYNC = ("salas", "dispositivos", "aulas", "alunos", "matriculas_aula", "embeddings_faciais")
 
 
 def parsear_cursor(valor: str | None):
@@ -140,57 +140,56 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
         aulas_por_turma.setdefault(aula.horario.turma_id, []).append(aula)
 
     dados = {
-        "locales": [
-            {"id": str(sala.id), "name": sala.nome}
+        "salas": [
+            {"id": str(sala.id), "nome": sala.nome}
             for sala in sorted(set(salas_ativas), key=lambda item: item.nome)
         ],
-        "devices": [
+        "dispositivos": [
             {
-                "id": str(dispositivo.id),
-                "locale_id": str(dispositivo.sala_id),
-                "active": dispositivo.ativo,
-                "status": dispositivo.status_efetivo,
+                "id": dispositivo.codigo,
+                "sala_id": str(dispositivo.sala_id),
+                "ativo": dispositivo.ativo,
+                "interscity_uuid": dispositivo.interscity_uuid,
             }
             for dispositivo in dispositivos_ativos
         ],
-        "lessons": [
+        "aulas": [
             {
                 "id": str(aula.id),
-                "name": f"{aula.horario.turma.disciplina.nome} - {aula.horario.turma.codigo}",
-                "locale_id": str(aula.horario.sala_id),
-                "starts_at": _iso(aula.inicio),
-                "ends_at": _iso(aula.fim),
+                "nome": f"{aula.horario.turma.disciplina.nome} - {aula.horario.turma.codigo}",
+                "sala_id": str(aula.horario.sala_id),
+                "inicio": _iso(aula.inicio),
+                "fim": _iso(aula.fim),
                 "status": aula.status,
             }
             for aula in aulas_disponiveis
         ],
-        "students": [
+        "alunos": [
             {
                 "id": str(aluno.id),
-                "registration": aluno.matricula,
-                "name": aluno.nome_completo or aluno.username,
-                "active": aluno.is_active,
+                "matricula": aluno.matricula,
+                "nome": aluno.nome_completo or aluno.username,
             }
             for aluno in alunos
         ],
-        "enrollments": [
-            {"lesson_id": str(aula.id), "student_id": str(matricula.aluno_id)}
+        "matriculas_aula": [
+            {"aula_id": str(aula.id), "aluno_id": str(matricula.aluno_id)}
             for matricula in matriculas
             for aula in aulas_por_turma.get(matricula.turma_id, [])
         ],
-        "face_embeddings": [
-            {"id": str(embedding.id), "student_id": str(embedding.perfil.aluno_id), "embedding": embedding.vetor}
+        "embeddings_faciais": [
+            {"id": str(embedding.id), "aluno_id": str(embedding.perfil.aluno_id), "vetor": embedding.vetor}
             for embedding in embeddings
         ],
     }
 
     dispositivos_inativos = _filtrar_alterados(
         DispositivoEsp32.objects.filter(no=no, ativo=False),
-        cursors.get("devices"),
+        cursors.get("dispositivos"),
     )
     salas_inativas = _filtrar_alterados(
         Sala.objects.filter(id__in=[sala.id for sala in salas_do_no if sala], ativo=False),
-        cursors.get("locales"),
+        cursors.get("salas"),
     )
     aulas_canceladas = _filtrar_alterados(
         Aula.objects.filter(
@@ -202,44 +201,44 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
             | Q(horario__ativo=False)
             | Q(horario__turma__ativo=False)
         ),
-        cursors.get("lessons"),
+        cursors.get("aulas"),
     )
     matriculas_inativas = _filtrar_alterados(
         MatriculaTurma.objects.filter(turma_id__in=turmas, ativo=False),
-        cursors.get("enrollments"),
+        cursors.get("matriculas_aula"),
     )
     alunos_inativos = _filtrar_alterados(
         Usuario.objects.filter(id__in=aluno_ids, is_active=False),
-        cursors.get("students"),
+        cursors.get("alunos"),
     )
     embeddings_inativos = _filtrar_alterados(
         EmbeddingFacial.objects.filter(perfil__aluno_id__in=aluno_ids).filter(Q(ativo=False) | ~Q(status="ATIVO")),
-        cursors.get("face_embeddings"),
+        cursors.get("embeddings_faciais"),
     )
 
     deletados = {
-        "locales": [str(sala.id) for sala in salas_inativas],
-        "devices": [str(dispositivo.id) for dispositivo in dispositivos_inativos],
-        "lessons": [str(aula.id) for aula in aulas_canceladas],
-        "students": [str(aluno.id) for aluno in alunos_inativos],
-        "enrollments": [
-            {"lesson_id": str(aula.id), "student_id": str(matricula.aluno_id)}
+        "salas": [str(sala.id) for sala in salas_inativas],
+        "dispositivos": [dispositivo.codigo for dispositivo in dispositivos_inativos],
+        "aulas": [str(aula.id) for aula in aulas_canceladas],
+        "alunos": [str(aluno.id) for aluno in alunos_inativos],
+        "matriculas_aula": [
+            {"aula_id": str(aula.id), "aluno_id": str(matricula.aluno_id)}
             for matricula in matriculas_inativas
             for aula in aulas_por_turma.get(matricula.turma_id, [])
         ],
-        "face_embeddings": [str(embedding.id) for embedding in embeddings_inativos],
+        "embeddings_faciais": [str(embedding.id) for embedding in embeddings_inativos],
     }
 
     return {
         "data": dados,
         "deleted": deletados,
         "cursors": {
-            "locales": _max_cursor([sala for sala in salas_do_no if sala]),
-            "devices": _max_cursor(dispositivos),
-            "lessons": _max_cursor(aulas),
-            "students": _max_cursor(alunos),
-            "enrollments": _max_cursor(matriculas),
-            "face_embeddings": _max_cursor(embeddings),
+            "salas": _max_cursor([sala for sala in salas_do_no if sala]),
+            "dispositivos": _max_cursor(dispositivos),
+            "aulas": _max_cursor(aulas),
+            "alunos": _max_cursor(alunos),
+            "matriculas_aula": _max_cursor(matriculas),
+            "embeddings_faciais": _max_cursor(embeddings),
         },
     }
 
@@ -254,52 +253,17 @@ def _parsear_data_hora(valor: str):
     return parseado
 
 
-def atualizar_status_dispositivos_borda(no: NoBorda, payload: dict) -> dict:
-    _validar_no(no, payload.get("node_id"))
-    dispositivos = payload.get("devices", [])
-    if not isinstance(dispositivos, list):
-        raise ValidationError({"devices": "Informe uma lista de status de dispositivos."})
-
-    atualizados = []
-    ignorados = []
-    for item in dispositivos:
-        dispositivo_id = item.get("device_id")
-        if not dispositivo_id:
-            raise ValidationError({"devices": "Todo status deve incluir device_id."})
-        try:
-            dispositivo = DispositivoEsp32.objects.select_related("no").get(id=dispositivo_id, no=no)
-        except DispositivoEsp32.DoesNotExist as exc:
-            raise ValidationError({"devices": "Dispositivo nao pertence ao no autenticado."}) from exc
-
-        try:
-            status_normalizado = DispositivoEsp32.normalizar_status(item.get("status"))
-        except DjangoValidationError as exc:
-            raise ValidationError(exc.message_dict) from exc
-
-        reportado_em = _parsear_data_hora(item.get("reported_at") or timezone.now().isoformat())
-        if dispositivo.status_atualizado_em and reportado_em < dispositivo.status_atualizado_em:
-            ignorados.append(str(dispositivo.id))
-            continue
-
-        dispositivo.status = status_normalizado
-        dispositivo.status_atualizado_em = reportado_em
-        dispositivo.ultimo_sync_em = timezone.now()
-        dispositivo.save(update_fields=["status", "status_atualizado_em", "ultimo_sync_em", "atualizado_em"])
-        atualizados.append(str(dispositivo.id))
-
-    no.ultimo_sync_em = timezone.now()
-    no.save(update_fields=["ultimo_sync_em", "atualizado_em"])
-    return {"updated_ids": atualizados, "ignored_ids": ignorados}
-
-
 def receber_presencas_borda(no: NoBorda, payload: dict) -> dict:
     _validar_no(no, payload.get("node_id"))
 
     ids_sincronizados = []
-    for evento in payload.get("events", []):
+    eventos = payload.get("eventos", [])
+    if not isinstance(eventos, list):
+        raise ValidationError({"eventos": "Informe uma lista de eventos de presenca."})
+    for evento in eventos:
         id_evento = evento.get("id")
         if not id_evento:
-            raise ValidationError({"events": "Todo evento deve incluir um id."})
+            raise ValidationError({"eventos": "Todo evento deve incluir um id."})
         ids_sincronizados.append(_receber_evento_borda(no, evento))
     return {"synced_ids": ids_sincronizados}
 
@@ -312,25 +276,27 @@ def _receber_evento_borda(no: NoBorda, evento: dict) -> str:
         return id_evento
 
     try:
-        dispositivo = DispositivoEsp32.objects.get(id=evento["device_id"], no=no, ativo=True)
-        aula = Aula.objects.select_related("horario", "horario__turma").get(id=evento["lesson_id"])
-        aluno = Usuario.objects.get(id=evento["student_id"], papel=PapelUsuario.ALUNO, is_active=True)
+        dispositivo = DispositivoEsp32.objects.get(codigo=evento["dispositivo_id"], no=no, ativo=True)
+        aula = Aula.objects.select_related("horario", "horario__turma").get(id=evento["aula_id"])
+        aluno = Usuario.objects.get(id=evento["aluno_id"], papel=PapelUsuario.ALUNO, is_active=True)
+    except KeyError as exc:
+        raise ValidationError({"eventos": "Evento deve incluir aluno_id, aula_id, dispositivo_id e reconhecido_em."}) from exc
     except (DispositivoEsp32.DoesNotExist, Aula.DoesNotExist, Usuario.DoesNotExist) as exc:
-        raise ValidationError({"events": "Evento referencia no, dispositivo, aula ou aluno desconhecido."}) from exc
+        raise ValidationError({"eventos": "Evento referencia no, dispositivo, aula ou aluno desconhecido."}) from exc
 
     if aula.horario.sala_id != dispositivo.sala_id:
-        raise ValidationError({"events": "A aula do evento nao pertence a sala do dispositivo."})
+        raise ValidationError({"eventos": "A aula do evento nao pertence a sala do dispositivo."})
 
     matriculado = MatriculaTurma.objects.filter(turma=aula.horario.turma, aluno=aluno, ativo=True).exists()
     if not matriculado:
-        raise ValidationError({"events": "Aluno nao esta matriculado na aula enviada."})
+        raise ValidationError({"eventos": "Aluno nao esta matriculado na aula enviada."})
 
-    reconhecido_em = _parsear_data_hora(evento["recognized_at"])
+    reconhecido_em = _parsear_data_hora(evento["reconhecido_em"])
 
     if aula.status in {Aula.STATUS_FECHADA, Aula.STATUS_CANCELADA}:
-        raise ValidationError({"events": "A chamada da aula esta fechada ou cancelada."})
+        raise ValidationError({"eventos": "A chamada da aula esta fechada ou cancelada."})
     if reconhecido_em < aula.inicio or reconhecido_em > aula.fim:
-        raise ValidationError({"events": "Evento fora da duracao da aula."})
+        raise ValidationError({"eventos": "Evento fora da duracao da aula."})
 
     try:
         RegistroPresenca.objects.update_or_create(

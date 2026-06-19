@@ -1,5 +1,7 @@
 ﻿from unittest.mock import patch
 
+from decimal import Decimal
+
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
@@ -8,6 +10,7 @@ from api.models import (
     HorarioAula,
     HorarioPadraoUFMA,
     MatriculaTurma,
+    NoBorda,
     PapelUsuario,
     RegistroPresenca,
     Usuario,
@@ -68,6 +71,26 @@ class ModeloDominioTests(TestCase):
                 sala=self.contexto["sala"],
                 ativo=True,
             )
+
+    def test_no_borda_nao_representa_recurso_interscity(self):
+        campos = {campo.name for campo in NoBorda._meta.get_fields()}
+
+        self.assertNotIn("interscity_uuid", campos)
+
+    def test_dispositivo_esp32_valida_coordenadas_geograficas(self):
+        dispositivo = self.contexto["dispositivo"]
+        dispositivo.latitude = Decimal("-2.558300")
+        dispositivo.longitude = Decimal("-44.307700")
+        dispositivo.full_clean()
+
+        dispositivo.latitude = Decimal("-91")
+        with self.assertRaises(ValidationError):
+            dispositivo.full_clean()
+
+        dispositivo.latitude = Decimal("-2.558300")
+        dispositivo.longitude = Decimal("-181")
+        with self.assertRaises(ValidationError):
+            dispositivo.full_clean()
 
     def test_presenca_deve_ser_unica_por_aluno_e_aula(self):
         aula, _ = obter_ou_criar_aula(self.contexto["horario"], self.contexto["data_aula"])

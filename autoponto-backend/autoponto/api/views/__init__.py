@@ -16,8 +16,6 @@ from .dispositivos import DispositivoEsp32ViewSet, NoBordaViewSet
 from .edge_contract import (
     EdgeAttendanceSlashAliasView,
     EdgeAttendanceView,
-    EdgeDeviceStatusSlashAliasView,
-    EdgeDeviceStatusView,
     EdgePullSlashAliasView,
     EdgePullView,
 )
@@ -34,6 +32,7 @@ from .frontend import (
 from .health import HealthCheckView, ReadinessCheckView
 from .identidade import UsuarioViewSet
 from .interscity import InterSCityDiagnosticoView
+from .mapa_publico import MapaDispositivoHistoricoView, MapaDispositivosPublicosView
 from .presencas import AulaViewSet, RegistroPresencaViewSet
 
 __all__ = [
@@ -44,8 +43,6 @@ __all__ = [
     "DispositivoEsp32ViewSet",
     "EdgeAttendanceSlashAliasView",
     "EdgeAttendanceView",
-    "EdgeDeviceStatusSlashAliasView",
-    "EdgeDeviceStatusView",
     "EdgePullSlashAliasView",
     "EdgePullView",
     "EmbeddingFacialViewSet",
@@ -55,6 +52,8 @@ __all__ = [
     "InterSCityDiagnosticoView",
     "LogoutCookieView",
     "MatriculaTurmaViewSet",
+    "MapaDispositivoHistoricoView",
+    "MapaDispositivosPublicosView",
     "MeView",
     "MinhaBiometriaView",
     "MinhasPresencasView",

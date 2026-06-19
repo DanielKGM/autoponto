@@ -1,193 +1,130 @@
-﻿# Ajustes Necessarios No referencia-edge
+# Ajustes Necessarios No referencia-edge
 
-Este arquivo lista mudancas esperadas no `referencia-edge`. O codigo de referencia continua somente como referencia local e nao deve ser editado neste repositorio.
+Este arquivo descreve o contrato que a API principal oferece ao `referencia-edge/autoponto-edgenode`. O codigo de referencia continua somente como referencia local e nao deve ser editado neste repositorio.
 
-## Contrato Geral Com A API Principal
+## Contrato Geral
 
-- Configure `MAIN_API_URL` apontando para a API principal com prefixo `/api`, por exemplo `http://backend:8000/api`.
-- Configure `MAIN_API_TOKEN` com token emitido por `POST /api/nos-borda/{id}/emitir-token/`.
-- O edge deve enviar `Authorization: NodeToken <token>`.
-- O `node_id` usado nos endpoints deve ser o `codigo` ou UUID de `NoBorda`.
-- ESP32 nao autentica diretamente no backend principal; ela continua subordinada ao Raspberry.
-
-## Coerencia De Modelos Edge/API
-
-A API principal usa nomes internos em portugues, mas o payload de sincronizacao mantem nomes compativeis com `referencia-edge/services/edge-app/app/models.py`:
-
-| Edge model | Payload da API | Origem no backend |
-| --- | --- | --- |
-| `Locale` | `locales[]` com `id`, `name` | `Sala` |
-| `Device` | `devices[]` com `id`, `locale_id`, `active`, `status` | `DispositivoEsp32` |
-| `Lesson` | `lessons[]` com `id`, `name`, `locale_id`, `starts_at`, `ends_at`, `status` | `Aula` |
-| `Student` | `students[]` com `id`, `registration`, `name`, `active` | `Usuario` aluno |
-| `Enrollment` | `enrollments[]` | `MatriculaTurma` expandida por aula |
-| `FaceEmbedding` | `face_embeddings[]` | `EmbeddingFacial` ativo |
-| `AttendanceEvent` | push em `/api/edge/attendance` | evento pendente do edge |
-
-Mudanca sugerida no edge: adicionar campos opcionais `status` em `Device` e `Lesson`, mantendo compatibilidade com payload antigo.
+- `MAIN_API_URL` deve apontar para a API principal com prefixo `/api`, por exemplo `http://backend:8000/api`.
+- `MAIN_API_TOKEN` deve ser o token emitido por `POST /api/nos-borda/{id}/emitir-token/`.
+- O edge envia `Authorization: NodeToken <token>` e `X-Node-Id: <node_id>`.
+- `node_id` deve ser `NoBorda.codigo` ou o UUID interno do no.
+- A ESP32 nao autentica no backend; ela continua subordinada ao Raspberry.
 
 ## Pull
 
-`GET /api/edge/pull` e `/api/edge/pull/` retornam salas, dispositivos, aulas, alunos, matriculas e embeddings:
+Endpoint ativo:
+
+```http
+GET /api/edge/pull?node_id=<node_id>&cursors=<msgpack-hex>
+```
+
+Com `cursors=80`, o edge envia um dicionario msgpack vazio e recebe o cache completo do no.
+
+Resposta:
 
 ```json
 {
   "data": {
-    "locales": [],
-    "devices": [],
-    "lessons": [],
-    "students": [],
-    "enrollments": [],
-    "face_embeddings": []
+    "salas": [],
+    "dispositivos": [],
+    "aulas": [],
+    "alunos": [],
+    "matriculas_aula": [],
+    "embeddings_faciais": []
   },
   "deleted": {
-    "locales": [],
-    "devices": [],
-    "lessons": [],
-    "students": [],
-    "enrollments": [],
-    "face_embeddings": []
+    "salas": [],
+    "dispositivos": [],
+    "aulas": [],
+    "alunos": [],
+    "matriculas_aula": [],
+    "embeddings_faciais": []
   },
   "cursors": {
-    "lessons": "2026-04-20T10:00:00Z"
+    "salas": "2026-06-19T12:00:00Z",
+    "dispositivos": "2026-06-19T12:00:00Z",
+    "aulas": "2026-06-19T12:00:00Z",
+    "alunos": "2026-06-19T12:00:00Z",
+    "matriculas_aula": "2026-06-19T12:00:00Z",
+    "embeddings_faciais": "2026-06-19T12:00:00Z"
   }
 }
 ```
 
-Exemplo de aula:
+Campos enviados:
 
-```json
-{
-  "id": "uuid-da-aula",
-  "name": "Desenvolvimento de Sistemas Web - A",
-  "locale_id": "uuid-da-sala",
-  "starts_at": "2026-04-20T08:00:00Z",
-  "ends_at": "2026-04-20T09:40:00Z",
-  "status": "PLANEJADA"
-}
-```
+| Modelo edge | Payload | Origem backend |
+| --- | --- | --- |
+| `Sala` | `salas[]` com `id`, `nome` | `Sala` |
+| `Dispositivo` | `dispositivos[]` com `id`, `sala_id`, `ativo`, `interscity_uuid` | `DispositivoEsp32` |
+| `Aula` | `aulas[]` com `id`, `nome`, `sala_id`, `inicio`, `fim`, `status` | `Aula` |
+| `Aluno` | `alunos[]` com `id`, `matricula`, `nome` | `Usuario` aluno |
+| `MatriculaAula` | `matriculas_aula[]` com `aula_id`, `aluno_id` | `MatriculaTurma` expandida por aula |
+| `EmbeddingFacial` | `embeddings_faciais[]` com `id`, `aluno_id`, `vetor` | `EmbeddingFacial` ativo |
 
-O intervalo valido da chamada e sempre `starts_at <= recognized_at <= ends_at`. Aulas `FECHADA` ou `CANCELADA` aparecem em `deleted.lessons` para o edge remover/desabilitar no cache local.
+Detalhes importantes:
+
+- `dispositivos[].id` e `deleted.dispositivos[]` usam `DispositivoEsp32.codigo`, o mesmo identificador usado pelo firmware.
+- `NoBorda` nao possui recurso IntersCity. Apenas `DispositivoEsp32.interscity_uuid` representa recurso IoT.
+- `alunos[]` nao envia `ativo`; aluno inativo simplesmente deixa de aparecer no cache.
+- A chamada valida sempre `Aula.inicio <= reconhecido_em <= Aula.fim`.
+- Aulas `FECHADA` ou `CANCELADA` aparecem em `deleted.aulas`.
 
 ## Attendance
 
-`POST /api/edge/attendance` e `/api/edge/attendance/` recebem eventos pendentes:
+Endpoint ativo:
+
+```http
+POST /api/edge/attendance
+```
+
+Payload:
 
 ```json
 {
   "node_id": "NO-CCET-01",
-  "events": [
+  "eventos": [
     {
       "id": "edge-event-1",
-      "student_id": "uuid-do-aluno",
-      "lesson_id": "uuid-da-aula",
-      "device_id": "uuid-da-esp32",
-      "recognized_at": "2026-04-20T08:05:00Z",
+      "aluno_id": "uuid-do-aluno",
+      "aula_id": "uuid-da-aula",
+      "dispositivo_id": "ESP32-LAB101",
+      "reconhecido_em": "2026-04-20T08:05:00-03:00",
       "score": 0.91
     }
   ]
 }
 ```
 
-A API valida posse do dispositivo, sala da aula, matricula do aluno, intervalo da aula e status da aula. Evento repetido com o mesmo `id` e idempotente.
-
-## Status Local Das ESP32 Na API Principal
-
-O firmware publica status simples no MQTT local:
-
-```text
-sts/{device_id}
-```
-
-Payload esperado:
-
-```text
-offline
-working
-idle
-```
-
-O edge ja assina `sts/+` em `app/mqtt.py` e salva esse snapshot. Mudanca sugerida no loop de sync: ler os status salvos no Redis e enviar para a API principal:
-
-```http
-POST /api/edge/devices/status/
-```
+Resposta:
 
 ```json
 {
-  "node_id": "NO-CCET-01",
-  "devices": [
-    {
-      "device_id": "uuid-da-esp32",
-      "status": "working",
-      "reported_at": "2026-06-15T10:30:00Z"
-    }
-  ]
+  "synced_ids": ["edge-event-1"]
 }
 ```
 
-Esse endpoint atualiza somente o snapshot local da API principal. Ele nao publica no IntersCity.
+A API valida posse do dispositivo pelo no autenticado, sala da aula, matricula do aluno, intervalo da aula e status da aula. Reenvio com o mesmo `id` e idempotente.
 
-## Publicacao De Stats No IntersCity Pelo Edge
+## Status E Logs Das ESP32
 
-O IntersCity, no escopo atual, deve ser alimentado diretamente pelo edge-node, nao pela API principal.
+`POST /api/edge/devices/status/` nao faz mais parte do contrato ativo e deve retornar 404.
 
-Mudancas sugeridas no `referencia-edge`:
+O edge-node novo deve publicar status/logs diretamente no IntersCity:
 
-1. Assinar tambem `log/+` no MQTT local, alem de `sts/+`.
-2. Publicar periodicamente em `cmd/{device_id}` um comando JSON para pedir stats ao firmware:
+1. A ESP32 recebe no MQTT local um comando JSON como `{ "stats": true }`.
+2. O firmware publica em `log/{device_id}` os dados de `publishSystemStats()`.
+3. O edge-node associa `device_id` ao `interscity_uuid` recebido no pull.
+4. O edge-node publica no Resource Adaptor.
 
-```json
-{ "stats": true }
-```
+Capacidades esperadas no IntersCity:
 
-3. Receber em `log/{device_id}` o payload gerado pelo firmware em `publishSystemStats()`:
+- `status`
+- `rssi`
+- `heap_min`
+- `lesson`
+- `remainingms`
+- `nextms`
+- `now_ms`
 
-```json
-{
-  "id": "uuid-da-esp32",
-  "state": "idle",
-  "cpu_freq": 240,
-  "rssi": -61,
-  "heap_free": 180000,
-  "heap_min": 120000,
-  "now_ms": 12345678,
-  "context": {
-    "lesson": "Desenvolvimento de Sistemas Web - A",
-    "remaining_ms": 500000,
-    "next_ms": 1200000
-  }
-}
-```
-
-4. Publicar esse dado no Resource Adaptor usando uma capability unica, por exemplo `autoponto_device_stats`.
-5. Manter o UUID/recurso IntersCity por configuracao do edge-node ou por cadastro manual na plataforma.
-
-Exemplo de payload ao Resource Adaptor:
-
-```json
-{
-  "data": {
-    "autoponto_device_stats": [
-      {
-        "device_id": "uuid-da-esp32",
-        "state": "idle",
-        "rssi": -61,
-        "now_ms": 12345678,
-        "context": {
-          "lesson": "Desenvolvimento de Sistemas Web - A",
-          "remaining_ms": 500000,
-          "next_ms": 1200000
-        },
-        "source": "edge_mqtt_log"
-      }
-    ]
-  }
-}
-```
-
-## Comandos
-
-Nao existem comandos vindos da API principal para o edge neste MVP.
-
-O topico MQTT local `cmd/{device_id}` continua permitido dentro do Raspberry para feedback imediato da ESP32 e para solicitar `stats=true`. Ele nao representa fila de comandos do backend e nao possui endpoints correspondentes na API principal.
+O topico local `cmd/{device_id}` continua permitido no Raspberry para feedback imediato e para pedir stats. Ele nao representa comando vindo da API principal.

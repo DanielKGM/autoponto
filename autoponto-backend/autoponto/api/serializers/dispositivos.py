@@ -11,7 +11,6 @@ class NoBordaSerializer(serializers.ModelSerializer):
 
 
 class DispositivoEsp32Serializer(serializers.ModelSerializer):
-    status_efetivo = serializers.CharField(read_only=True)
     sala_nome = serializers.CharField(source="sala.nome", read_only=True)
     no_codigo = serializers.CharField(source="no.codigo", read_only=True)
 
@@ -22,9 +21,6 @@ class DispositivoEsp32Serializer(serializers.ModelSerializer):
             "id",
             "criado_em",
             "atualizado_em",
-            "ultimo_sync_em",
-            "status_atualizado_em",
-            "status_efetivo",
             "sala_nome",
             "no_codigo",
         )

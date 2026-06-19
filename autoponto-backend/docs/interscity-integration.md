@@ -1,64 +1,123 @@
-﻿# Integracao AutoPonto E IntersCity
+# Integracao AutoPonto E IntersCity
 
 ## Papel Atual No MVP
 
-O AutoPonto principal nao publica nem sincroniza recursos de negocio no IntersCity neste momento. A API principal continua canonica para usuarios, turmas, aulas, biometria, presencas e relatorios.
+O AutoPonto continua canonico para usuarios, turmas, aulas, biometria, presencas e relatorios. O IntersCity fica restrito a observabilidade IoT das ESP32.
 
-No MVP atual, o IntersCity sera usado somente como camada de observabilidade IoT alimentada pelo `edge-node`. O Raspberry solicita estatisticas das ESP32 por MQTT, recebe o payload de log do firmware e publica periodicamente esses dados diretamente no Resource Adaptor.
+Nao existem recursos IntersCity para `NoBorda`. Cada recurso IntersCity representa uma ESP32 cadastrada em `DispositivoEsp32.interscity_uuid`.
 
-## Fluxo Definido
+## Fluxo Operacional
 
-1. O firmware da ESP32 recebe pelo MQTT local um comando JSON com `stats=true`.
-2. A ESP32 executa `publishSystemStats()` e publica em `log/{device_id}`.
-3. O edge-node assina `log/+`, valida o payload e associa o `device_id` ao recurso IntersCity configurado.
-4. O edge-node publica no Resource Adaptor.
-5. O Data Collector passa a armazenar o ultimo estado operacional.
-6. Futuramente, uma pagina publica do AutoPonto podera consultar Discovery/Collector sob demanda, com botao de atualizar mapa, sem websocket/webhook.
+1. A API principal envia ao edge, em `GET /api/edge/pull`, cada ESP32 com `codigo`, `sala_id` e `interscity_uuid`.
+2. O edge-node usa esse UUID para publicar diretamente no Resource Adaptor.
+3. O Data Collector armazena historico das capacidades tecnicas.
+4. A API principal oferece endpoints publicos de mapa para listar ESP32 cadastradas e consultar historico do Collector sob demanda.
 
-## Capability Unica Do MVP
+```mermaid
+sequenceDiagram
+    participant ESP as ESP32
+    participant Edge as Edge-node
+    participant API as API AutoPonto
+    participant IC as IntersCity
+    participant Front as Mapa publico
 
-Capability sugerida:
-
-```text
-autoponto_device_stats
+    Edge->>API: GET /api/edge/pull
+    API-->>Edge: dispositivos com interscity_uuid
+    ESP-->>Edge: log/{device_id}
+    Edge->>IC: POST /adaptor/resources/{uuid}/data
+    Front->>API: GET /api/public/mapa/dispositivos/
+    API-->>Front: ESP32 + latitude/longitude + uuid
+    Front->>API: GET /api/public/mapa/dispositivos/{id}/historico/?dias=7
+    API->>IC: POST /collector/resources/data
+    API-->>Front: historico filtrado + ultimo valor
 ```
 
-Payload publicado pelo edge-node no IntersCity:
+## Capacidades Do Mapa
+
+O proxy publico da API filtra apenas capacidades operacionais:
+
+- `status`
+- `rssi`
+- `heap_min`
+- `lesson`
+- `remainingms`
+- `nextms`
+- `now_ms`
+
+Dados biometricos, imagens, embeddings, nomes de alunos e presencas individuais nao entram no IntersCity.
+
+## Publicacao Pelo Edge
+
+Payload esperado ao Resource Adaptor:
 
 ```json
 {
   "data": {
-    "autoponto_device_stats": [
+    "status": [
       {
-        "device_id": "uuid-da-esp32",
-        "state": "idle",
-        "rssi": -61,
-        "now_ms": 12345678,
-        "cpu_freq": 240,
-        "heap_free": 180000,
-        "heap_min": 120000,
-        "context": {
-          "lesson": "Desenvolvimento de Sistemas Web - A",
-          "remaining_ms": 500000,
-          "next_ms": 1200000
-        },
-        "source": "edge_mqtt_log"
+        "value": "idle"
+      }
+    ],
+    "rssi": [
+      {
+        "value": -61
+      }
+    ],
+    "heap_min": [
+      {
+        "value": 120000
+      }
+    ],
+    "lesson": [
+      {
+        "value": "Desenvolvimento de Sistemas Web - A"
+      }
+    ],
+    "remainingms": [
+      {
+        "value": 500000
+      }
+    ],
+    "nextms": [
+      {
+        "value": 1200000
+      }
+    ],
+    "now_ms": [
+      {
+        "value": 12345678
       }
     ]
   }
 }
 ```
 
-Dados biometricos, imagens, embeddings, nomes de alunos e presencas individuais nao entram no IntersCity.
+O nome exato do envelope pode variar conforme o Resource Adaptor usado, mas o Data Collector deve expor essas capacidades em `/collector/resources/data`.
 
-## Uso Da API Principal
+## Endpoints Da API Principal
 
-A API principal mantem apenas:
+- `GET /api/interscity/diagnostico/`: diagnostico administrativo dos microsservicos.
+- `GET /api/public/mapa/dispositivos/`: lista ESP32 ativas com `interscity_uuid`, latitude e longitude.
+- `GET /api/public/mapa/dispositivos/{id}/historico/?dias=7`: consulta o Data Collector via proxy tolerante a falhas.
 
-- `GET /api/interscity/diagnostico/`: endpoint administrativo para verificar disponibilidade de Catalog, Discovery, Collector, Adaptor e Actuator.
-- Campos `interscity_uuid` em modelos de infraestrutura: ficam reservados para mapeamento futuro ou cadastro manual de recursos, mas o backend nao chama Catalog/Adaptor no fluxo atual.
+O endpoint de historico chama:
 
-Nao existe mais endpoint de sincronizacao de recursos IntersCity no backend.
+```http
+POST {INTERSCITY_BASE_URL}{INTERSCITY_COLLECTOR_PATH}/resources/data
+```
+
+Com corpo:
+
+```json
+{
+  "uuids": ["uuid-da-esp32"],
+  "capabilities": ["status", "rssi", "heap_min", "lesson", "remainingms", "nextms", "now_ms"],
+  "start_date": "2026-06-12T12:00:00Z",
+  "end_date": "2026-06-19T12:00:00Z"
+}
+```
+
+Se o Collector falhar ou `INTERSCITY_ENABLED=False`, a API retorna `collector_status` controlado e historico vazio.
 
 ## Variaveis
 
@@ -73,4 +132,4 @@ INTERSCITY_ACTUATOR_PATH=/actuator
 INTERSCITY_TIMEOUT_SECONDS=5
 ```
 
-Mesmo com `INTERSCITY_ENABLED=True`, falhas desses microsservicos nao bloqueiam login, CRUD, biometria, presencas, relatorios ou sync edge.
+Falhas externas nao bloqueiam login, CRUD, biometria, presencas, relatorios ou sync edge.

@@ -44,7 +44,7 @@ class SeedDadosUFMATests(TestCase):
 
         no = NoBorda.objects.get(codigo="88A29E606012")
         self.assertEqual(no.nome, "raspberry-tcc")
-        self.assertEqual(no.interscity_uuid, "91723758-5fe0-4a76-8f1a-6aaf97463d66")
+        self.assertFalse(hasattr(no, "interscity_uuid"))
         dispositivo = DispositivoEsp32.objects.get(codigo="9084CED6CDC0")
         self.assertEqual(dispositivo.nome, "esp32-tcc")
         self.assertEqual(dispositivo.no, no)

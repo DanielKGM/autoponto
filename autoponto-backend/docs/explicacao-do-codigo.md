@@ -122,7 +122,6 @@ Nao salva imagem, frame, embedding bruto de captura nem payload tecnico bruto.
 - `NoBorda.nome`: nome administrativo.
 - `NoBorda.ativo`: controla autenticacao.
 - `NoBorda.ultimo_sync_em`: ultima sincronizacao.
-- `NoBorda.interscity_uuid`: recurso equivalente no Interscity, se existir.
 - `TokenNoBorda.no`: dono do token.
 - `TokenNoBorda.prefixo_token`: trecho visivel do segredo.
 - `TokenNoBorda.hash_token`: hash do token real.
@@ -132,10 +131,8 @@ Nao salva imagem, frame, embedding bruto de captura nem payload tecnico bruto.
 - `DispositivoEsp32.codigo`: identificador da ESP32.
 - `DispositivoEsp32.nome`: nome administrativo.
 - `DispositivoEsp32.ativo`: controla envio ao edge.
-- `DispositivoEsp32.status`: `offline`, `working` ou `idle`.
-- `DispositivoEsp32.status_atualizado_em`: instante informado pelo edge.
-- `DispositivoEsp32.status_efetivo`: propriedade calculada; vira `offline` se o status estiver velho.
 - `DispositivoEsp32.interscity_uuid`: recurso IoT no Interscity.
+- `DispositivoEsp32.latitude` e `longitude`: coordenadas usadas pelo mapa publico.
 
 ### PerfilBiometrico E EmbeddingFacial
 
@@ -171,16 +168,16 @@ for data in _intervalo_datas(data_inicio, data_fim):
 
 O backend materializa aulas, busca matriculas e embeddings, e retorna:
 
-- `locales`: salas;
-- `devices`: ESP32 do no;
-- `lessons`: aulas com `starts_at` e `ends_at`;
-- `students`: alunos matriculados;
-- `enrollments`: aluno por aula;
-- `face_embeddings`: vetor ativo.
+- `salas`: salas do no;
+- `dispositivos`: ESP32 do no, usando `DispositivoEsp32.codigo` como `id`;
+- `aulas`: aulas com `inicio` e `fim`;
+- `alunos`: alunos matriculados;
+- `matriculas_aula`: relacao aluno/aula;
+- `embeddings_faciais`: vetor ativo.
 
 ### Attendance
 
-`POST /api/edge/attendance` chama `receber_presencas_borda`.
+`POST /api/edge/attendance` chama `receber_presencas_borda` e recebe `eventos` com campos em portugues: `aluno_id`, `aula_id`, `dispositivo_id` e `reconhecido_em`.
 
 Validacao central:
 
@@ -193,34 +190,7 @@ if reconhecido_em < aula.inicio or reconhecido_em > aula.fim:
 
 Se valido, o backend faz `update_or_create` de `RegistroPresenca` e cria `EventoReconhecimento`. Evento repetido retorna o mesmo id em `synced_ids`.
 
-### Status De Dispositivos
-
-`POST /api/edge/devices/status/` chama `atualizar_status_dispositivos_borda`.
-
-Payload:
-
-```json
-{
-  "node_id": "NO-CCET-01",
-  "devices": [
-    {
-      "device_id": "uuid-da-esp32",
-      "status": "working",
-      "reported_at": "2026-06-15T10:30:00Z"
-    }
-  ]
-}
-```
-
-Trecho essencial:
-
-```python
-dispositivo.status = status_normalizado
-dispositivo.status_atualizado_em = reportado_em
-atualizar_status_dispositivos_borda(no, payload)
-```
-
-O status vem do MQTT local `sts/{device_id}` no edge. O backend so aceita status de dispositivos pertencentes ao no autenticado.
+`POST /api/edge/devices/status/` nao existe mais. Status e logs das ESP32 sao publicados pelo edge diretamente no Interscity.
 
 ## Interscity
 
@@ -228,7 +198,11 @@ O status vem do MQTT local `sts/{device_id}` no edge. O backend so aceita status
 
 Uso atual:
 
-- diagnosticar Catalog, Discovery, Collector, Adaptor e Actuator. A publicacao de telemetria no IntersCity fica no edge-node, que envia `autoponto_device_stats` diretamente ao Resource Adaptor.
+- diagnosticar Catalog, Discovery, Collector, Adaptor e Actuator;
+- listar ESP32 publicas para o mapa com `GET /api/public/mapa/dispositivos/`;
+- consultar historico operacional no Collector com `GET /api/public/mapa/dispositivos/{id}/historico/?dias=7`.
+
+A publicacao de telemetria no IntersCity fica no edge-node, que envia dados da ESP32 diretamente ao Resource Adaptor. A API principal consulta somente o Data Collector quando o mapa publico solicita historico.
 
 Falha externa nao bloqueia o AutoPonto; o banco local e o fallback.
 
@@ -244,7 +218,8 @@ As imagens/base64 sao processadas e descartadas. Apenas embedding e metadados se
 ## Testes
 
 - `test_models.py`: regras de dominio, horario UFMA, unicidade e biometria ativa.
-- `test_edge_integracao.py`: pull, attendance, idempotencia, isolamento por no e status ESP32.
-- `test_frontend_api.py`: endpoints por papel, relatorios, fechamento e dashboard.
+- `test_edge_integracao.py`: pull, attendance, idempotencia, isolamento por no e remocao do status endpoint.
+- `test_mapa_publico.py`: mapa publico e historico IntersCity via Collector.
+- `test_frontend_api.py`: endpoints por papel, relatorios, fechamento e cadastros para dashboard.
 - `test_interscity.py`: diagnostico tolerante a falhas dos microsservicos IntersCity.
 - `test_seguranca.py`: isolamento por papel, NodeToken, biometria e cookie de refresh.
