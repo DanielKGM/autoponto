@@ -8,7 +8,6 @@ from api.models import (
     DispositivoEsp32,
     EmbeddingFacial,
     EventoReconhecimento,
-    HorarioAula,
     HorarioPadraoUFMA,
     MatriculaTurma,
     NoBorda,
@@ -92,17 +91,6 @@ class HorarioPadraoUFMAAdmin(admin.ModelAdmin):
     list_filter = ("dia_semana", "ativo")
 
 
-@admin.register(HorarioAula)
-class HorarioAulaAdmin(admin.ModelAdmin):
-    list_display = (
-        "turma",
-        "sala",
-        "horario_padrao",
-        "ativo",
-    )
-    list_filter = ("horario_padrao", "sala", "ativo")
-
-
 @admin.register(NoBorda)
 class NoBordaAdmin(admin.ModelAdmin):
     list_display = ("codigo", "nome", "ativo", "ultimo_sync_em")
@@ -126,8 +114,8 @@ class DispositivoEsp32Admin(admin.ModelAdmin):
 
 @admin.register(Aula)
 class AulaAdmin(admin.ModelAdmin):
-    list_display = ("horario", "data", "inicio", "fim", "status", "fechada_por")
-    list_filter = ("status", "data")
+    list_display = ("turma", "sala", "horario_padrao", "data", "inicio", "fim", "status", "fechada_por")
+    list_filter = ("status", "data", "turma", "sala", "horario_padrao")
 
 
 @admin.register(RegistroPresenca)

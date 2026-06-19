@@ -5,7 +5,6 @@ from api.views.academico import (
     CampusViewSet,
     CursoViewSet,
     DisciplinaViewSet,
-    HorarioAulaViewSet,
     HorarioPadraoUFMAViewSet,
     MatriculaTurmaViewSet,
     PeriodoLetivoViewSet,
@@ -53,7 +52,6 @@ router.register("matriculas-turma", MatriculaTurmaViewSet, basename="matricula-t
 router.register(
     "horarios-padrao-ufma", HorarioPadraoUFMAViewSet, basename="horario-padrao-ufma"
 )
-router.register("horarios-aula", HorarioAulaViewSet, basename="horario-aula")
 router.register("nos-borda", NoBordaViewSet, basename="no-borda")
 router.register(
     "dispositivos-esp32", DispositivoEsp32ViewSet, basename="dispositivo-esp32"

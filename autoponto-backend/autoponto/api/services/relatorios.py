@@ -1,9 +1,6 @@
-from datetime import timedelta
-
 from django.utils import timezone
 
 from api.models import Aula, MatriculaTurma, PapelUsuario, RegistroPresenca, Turma, Usuario
-from api.services.aulas import obter_ou_criar_aula
 
 
 def usuario_pode_acessar_turma(usuario: Usuario, turma: Turma) -> bool:
@@ -16,18 +13,13 @@ def usuario_pode_acessar_turma(usuario: Usuario, turma: Turma) -> bool:
     return False
 
 
-def listar_aulas_da_turma(turma: Turma, inicio, fim):
-    aulas = []
-    horarios = turma.horarios.select_related("sala", "horario_padrao").filter(ativo=True)
-    atual = inicio
-    while atual <= fim:
-        for horario in horarios:
-            if atual.weekday() == horario.horario_padrao.weekday_python:
-                aula, _ = obter_ou_criar_aula(horario, atual)
-                if aula.status != Aula.STATUS_CANCELADA:
-                    aulas.append(aula)
-        atual += timedelta(days=1)
-    return aulas
+def aulas_da_turma(turma: Turma, inicio, fim):
+    return list(
+        Aula.objects.select_related("turma", "turma__disciplina", "sala", "horario_padrao")
+        .filter(turma=turma, data__gte=inicio, data__lte=fim)
+        .exclude(status=Aula.STATUS_CANCELADA)
+        .order_by("data", "inicio")
+    )
 
 
 def payload_turma(turma: Turma) -> dict:
@@ -75,12 +67,10 @@ def presencas_do_aluno(aluno: Usuario):
     registros = (
         RegistroPresenca.objects.select_related(
             "aula",
-            "aula__horario",
-            "aula__horario__horario_padrao",
-            "aula__horario__turma",
-            "aula__horario__turma__disciplina",
-            "aula__horario__turma__periodo_letivo",
-            "aula__horario__sala",
+            "aula__turma",
+            "aula__turma__disciplina",
+            "aula__turma__periodo_letivo",
+            "aula__sala",
         )
         .filter(aluno=aluno)
         .order_by("-aula__data", "aula__inicio")
@@ -90,7 +80,7 @@ def presencas_do_aluno(aluno: Usuario):
 
 def payload_registro_presenca(registro: RegistroPresenca) -> dict:
     aula = registro.aula
-    turma = aula.horario.turma
+    turma = aula.turma
     return {
         "presenca_id": str(registro.id),
         "aula_id": str(aula.id),
@@ -101,7 +91,7 @@ def payload_registro_presenca(registro: RegistroPresenca) -> dict:
         "data": aula.data.isoformat(),
         "inicio": aula.inicio.isoformat(),
         "fim": aula.fim.isoformat(),
-        "sala": aula.horario.sala.nome,
+        "sala": aula.sala.nome,
         "status": registro.status,
         "registrado_em": registro.registrado_em.isoformat(),
         "origem": str(registro.registrado_por_dispositivo_id) if registro.registrado_por_dispositivo_id else None,
@@ -109,7 +99,7 @@ def payload_registro_presenca(registro: RegistroPresenca) -> dict:
 
 
 def relatorio_presencas_turma_data(turma: Turma, data):
-    aulas = listar_aulas_da_turma(turma, data, data)
+    aulas = aulas_da_turma(turma, data, data)
     aula_ids = [aula.id for aula in aulas]
     matriculas = MatriculaTurma.objects.select_related("aluno").filter(turma=turma, ativo=True).order_by(
         "aluno__nome_completo", "aluno__username"
@@ -142,7 +132,7 @@ def relatorio_presencas_turma_data(turma: Turma, data):
                 "status": aula.status,
                 "fechada_em": aula.fechada_em.isoformat() if aula.fechada_em else None,
                 "fechada_por": str(aula.fechada_por_id) if aula.fechada_por_id else None,
-                "sala": aula.horario.sala.nome,
+                "sala": aula.sala.nome,
             }
             for aula in aulas
         ],
@@ -158,7 +148,7 @@ def relatorio_presencas_turma_data(turma: Turma, data):
 def relatorio_resumo_turma(turma: Turma, inicio=None, fim=None):
     inicio = inicio or turma.periodo_letivo.data_inicio
     fim = fim or min(turma.periodo_letivo.data_fim, timezone.localdate())
-    aulas = listar_aulas_da_turma(turma, inicio, fim)
+    aulas = aulas_da_turma(turma, inicio, fim)
     aula_ids = [aula.id for aula in aulas]
     total_aulas = len(aulas)
     matriculas = MatriculaTurma.objects.select_related("aluno").filter(turma=turma, ativo=True).order_by(
@@ -197,19 +187,17 @@ def relatorio_resumo_turma(turma: Turma, inicio=None, fim=None):
 def historico_presencas_aluno(aluno: Usuario, turma_id=None, periodo_letivo_id=None, turma_ids_permitidas=None):
     registros = RegistroPresenca.objects.select_related(
         "aula",
-        "aula__horario",
-        "aula__horario__horario_padrao",
-        "aula__horario__turma",
-        "aula__horario__turma__disciplina",
-        "aula__horario__turma__periodo_letivo",
-        "aula__horario__sala",
+        "aula__turma",
+        "aula__turma__disciplina",
+        "aula__turma__periodo_letivo",
+        "aula__sala",
     ).filter(aluno=aluno)
     if turma_id:
-        registros = registros.filter(aula__horario__turma_id=turma_id)
+        registros = registros.filter(aula__turma_id=turma_id)
     elif turma_ids_permitidas is not None:
-        registros = registros.filter(aula__horario__turma_id__in=turma_ids_permitidas)
+        registros = registros.filter(aula__turma_id__in=turma_ids_permitidas)
     if periodo_letivo_id:
-        registros = registros.filter(aula__horario__turma__periodo_letivo_id=periodo_letivo_id)
+        registros = registros.filter(aula__turma__periodo_letivo_id=periodo_letivo_id)
 
     return {
         "aluno_id": str(aluno.id),

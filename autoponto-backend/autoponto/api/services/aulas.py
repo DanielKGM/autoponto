@@ -1,37 +1,102 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
+from django.db import transaction
 from django.utils import timezone
 
-from api.models import Aula, HorarioAula
+from api.models import Aula, HorarioPadraoUFMA, Sala, Turma
 from .errors import DomainValidationError
 
 
-def calcular_intervalo_aula(horario: HorarioAula, data_aula):
-    padrao = horario.horario_padrao
-    inicio = timezone.make_aware(datetime.combine(data_aula, padrao.horario_inicio))
-    fim = timezone.make_aware(datetime.combine(data_aula, padrao.horario_fim))
+def calcular_intervalo_aula(horario_padrao: HorarioPadraoUFMA, data_aula):
+    inicio = timezone.make_aware(datetime.combine(data_aula, horario_padrao.horario_inicio))
+    fim = timezone.make_aware(datetime.combine(data_aula, horario_padrao.horario_fim))
     return inicio, fim
 
 
-def obter_ou_criar_aula(horario: HorarioAula, data_aula):
-    if data_aula.weekday() != horario.horario_padrao.weekday_python:
-        raise DomainValidationError("A data da aula nao corresponde ao dia da semana do horario.")
+def _datas_do_horario(turma: Turma, horario_padrao: HorarioPadraoUFMA):
+    atual = turma.periodo_letivo.data_inicio
+    fim = turma.periodo_letivo.data_fim
+    while atual <= fim:
+        if atual.weekday() == horario_padrao.weekday_python:
+            yield atual
+        atual += timedelta(days=1)
 
-    periodo = horario.turma.periodo_letivo
-    if data_aula < periodo.data_inicio or data_aula > periodo.data_fim:
-        raise DomainValidationError("A data da aula deve estar dentro do periodo letivo da turma.")
 
-    inicio, fim = calcular_intervalo_aula(horario, data_aula)
-    aula, criada = Aula.objects.get_or_create(
-        horario=horario,
-        data=data_aula,
-        defaults={
-            "inicio": inicio,
-            "fim": fim,
-            "status": Aula.STATUS_PLANEJADA,
-        },
-    )
-    return aula, criada
+def _normalizar_horarios(horarios: list[dict]) -> set[tuple[object, object]]:
+    pares = set()
+    for item in horarios:
+        sala = item["sala"]
+        horario_padrao = item["horario_padrao"]
+        sala_id = getattr(sala, "id", sala)
+        horario_padrao_id = getattr(horario_padrao, "id", horario_padrao)
+        pares.add((sala_id, horario_padrao_id))
+    return pares
+
+
+def _validar_horarios_obrigatorios(turma: Turma, horarios: list[dict]) -> None:
+    if turma.ativo and not horarios:
+        raise DomainValidationError("Turma ativa deve possuir ao menos um horario.")
+
+
+def _validar_conflito_sala(turma: Turma, sala: Sala, horario_padrao: HorarioPadraoUFMA) -> None:
+    conflito = Aula.objects.filter(
+        turma__periodo_letivo=turma.periodo_letivo,
+        sala=sala,
+        horario_padrao__dia_semana=horario_padrao.dia_semana,
+        horario_padrao__horario_inicio__lt=horario_padrao.horario_fim,
+        horario_padrao__horario_fim__gt=horario_padrao.horario_inicio,
+    ).exclude(turma=turma).exclude(status=Aula.STATUS_CANCELADA)
+    if conflito.exists():
+        raise DomainValidationError("Ja existe aula nessa sala no periodo, dia e horario informados.")
+
+
+def _criar_ou_atualizar_aulas(turma: Turma, horarios: list[dict]) -> None:
+    for item in horarios:
+        sala = item["sala"]
+        horario_padrao = item["horario_padrao"]
+        _validar_conflito_sala(turma, sala, horario_padrao)
+        for data_aula in _datas_do_horario(turma, horario_padrao):
+            inicio, fim = calcular_intervalo_aula(horario_padrao, data_aula)
+            aula, criada = Aula.objects.get_or_create(
+                turma=turma,
+                horario_padrao=horario_padrao,
+                data=data_aula,
+                defaults={
+                    "sala": sala,
+                    "inicio": inicio,
+                    "fim": fim,
+                    "status": Aula.STATUS_PLANEJADA,
+                },
+            )
+            if not criada and not aula.presencas.exists() and aula.status != Aula.STATUS_FECHADA:
+                aula.sala = sala
+                aula.inicio = inicio
+                aula.fim = fim
+                if aula.status == Aula.STATUS_CANCELADA:
+                    aula.status = Aula.STATUS_PLANEJADA
+                aula.save(update_fields=["sala", "inicio", "fim", "status", "atualizado_em"])
+
+
+def _cancelar_aulas_futuras_removidas(turma: Turma, pares_desejados: set[tuple[object, object]]) -> None:
+    hoje = timezone.localdate()
+    aulas = Aula.objects.filter(turma=turma, data__gte=hoje).exclude(status=Aula.STATUS_CANCELADA)
+    for aula in aulas:
+        par = (aula.sala_id, aula.horario_padrao_id)
+        if par in pares_desejados:
+            continue
+        if aula.presencas.exists():
+            continue
+        aula.status = Aula.STATUS_CANCELADA
+        aula.save(update_fields=["status", "atualizado_em"])
+
+
+@transaction.atomic
+def sincronizar_aulas_da_turma(turma: Turma, horarios: list[dict]) -> None:
+    _validar_horarios_obrigatorios(turma, horarios)
+    pares_desejados = _normalizar_horarios(horarios) if turma.ativo else set()
+    if turma.ativo:
+        _criar_ou_atualizar_aulas(turma, horarios)
+    _cancelar_aulas_futuras_removidas(turma, pares_desejados)
 
 
 def fechar_chamada_aula(aula: Aula, usuario, agora=None) -> Aula:
@@ -45,31 +110,3 @@ def fechar_chamada_aula(aula: Aula, usuario, agora=None) -> Aula:
     aula.fechada_por = usuario
     aula.save(update_fields=["status", "fechada_em", "fechada_por", "atualizado_em"])
     return aula
-
-
-def listar_aulas_do_dia(data, sala=None):
-    horarios = HorarioAula.objects.select_related(
-        "turma",
-        "turma__disciplina",
-        "turma__periodo_letivo",
-        "sala",
-        "horario_padrao",
-    ).filter(
-        turma__periodo_letivo__data_inicio__lte=data,
-        turma__periodo_letivo__data_fim__gte=data,
-        turma__ativo=True,
-        turma__disciplina__ativo=True,
-        sala__ativo=True,
-        horario_padrao__ativo=True,
-        ativo=True,
-        horario_padrao__dia_semana=data.weekday() + 2,
-    )
-    if sala is not None:
-        horarios = horarios.filter(sala=sala)
-
-    aulas = []
-    for horario in horarios:
-        aula, _ = obter_ou_criar_aula(horario, data)
-        if aula.status != Aula.STATUS_CANCELADA:
-            aulas.append(aula)
-    return aulas

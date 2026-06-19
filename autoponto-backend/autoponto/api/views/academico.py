@@ -2,7 +2,6 @@ from api.models import (
     Campus,
     Curso,
     Disciplina,
-    HorarioAula,
     HorarioPadraoUFMA,
     MatriculaTurma,
     PapelUsuario,
@@ -15,7 +14,6 @@ from api.serializers.academico import (
     CampusSerializer,
     CursoSerializer,
     DisciplinaSerializer,
-    HorarioAulaSerializer,
     HorarioPadraoUFMASerializer,
     MatriculaTurmaSerializer,
     PeriodoLetivoSerializer,
@@ -23,6 +21,7 @@ from api.serializers.academico import (
     SalaSerializer,
     TurmaSerializer,
 )
+from api.services.aulas import sincronizar_aulas_da_turma
 from .mixins import AdminReadableModelViewSet
 
 
@@ -81,6 +80,11 @@ class TurmaViewSet(AdminReadableModelViewSet):
             return queryset.filter(matriculas__aluno=usuario, matriculas__ativo=True).distinct()
         return queryset.none()
 
+    def perform_destroy(self, instance):
+        instance.ativo = False
+        instance.save(update_fields=["ativo", "atualizado_em"])
+        sincronizar_aulas_da_turma(instance, [])
+
 
 class MatriculaTurmaViewSet(AdminReadableModelViewSet):
     queryset = MatriculaTurma.objects.select_related("turma", "aluno").all()
@@ -103,16 +107,3 @@ class HorarioPadraoUFMAViewSet(AdminReadableModelViewSet):
 
     def filtrar_queryset_por_usuario(self, queryset, usuario):
         return queryset.filter(ativo=True)
-
-
-class HorarioAulaViewSet(AdminReadableModelViewSet):
-    queryset = HorarioAula.objects.select_related("turma", "turma__disciplina", "sala", "horario_padrao").all()
-    serializer_class = HorarioAulaSerializer
-    filterset_fields = ("turma", "sala", "horario_padrao", "ativo")
-
-    def filtrar_queryset_por_usuario(self, queryset, usuario):
-        if getattr(usuario, "papel", None) == PapelUsuario.PROFESSOR:
-            return queryset.filter(turma__professores=usuario).distinct()
-        if getattr(usuario, "papel", None) == PapelUsuario.ALUNO:
-            return queryset.filter(turma__matriculas__aluno=usuario, turma__matriculas__ativo=True).distinct()
-        return queryset.none()

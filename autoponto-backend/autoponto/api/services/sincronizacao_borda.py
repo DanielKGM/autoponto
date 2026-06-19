@@ -19,7 +19,6 @@ from api.models import (
     Sala,
     Usuario,
 )
-from api.services.aulas import listar_aulas_do_dia
 
 
 ENTIDADES_SYNC = ("salas", "dispositivos", "aulas", "alunos", "matriculas_aula", "embeddings_faciais")
@@ -83,14 +82,16 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
     salas_do_no = [dispositivo.sala for dispositivo in dispositivos if dispositivo.sala_id]
     salas_ativas = [sala for sala in salas_do_no if isinstance(sala, Sala) and sala.ativo]
 
-    aulas = []
-    for sala in salas_ativas:
-        aulas.extend(listar_aulas_do_dia(data_sync, sala=sala))
+    aulas = list(
+        Aula.objects.select_related("turma", "turma__disciplina", "sala", "horario_padrao")
+        .filter(data=data_sync, sala_id__in=[sala.id for sala in salas_ativas], turma__ativo=True)
+        .order_by("inicio")
+    )
     aulas_disponiveis = [
         aula for aula in aulas if aula.status not in {Aula.STATUS_FECHADA, Aula.STATUS_CANCELADA}
     ]
 
-    turmas = {aula.horario.turma_id for aula in aulas_disponiveis}
+    turmas = {aula.turma_id for aula in aulas_disponiveis}
     matriculas = list(
         MatriculaTurma.objects.select_related("aluno").filter(
             turma_id__in=turmas,
@@ -111,7 +112,7 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
 
     aulas_por_turma = {}
     for aula in aulas_disponiveis:
-        aulas_por_turma.setdefault(aula.horario.turma_id, []).append(aula)
+        aulas_por_turma.setdefault(aula.turma_id, []).append(aula)
 
     dados = {
         "salas": [
@@ -130,8 +131,8 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
         "aulas": [
             {
                 "id": str(aula.id),
-                "nome": f"{aula.horario.turma.disciplina.nome} - {aula.horario.turma.codigo}",
-                "sala_id": str(aula.horario.sala_id),
+                "nome": f"{aula.turma.disciplina.nome} - {aula.turma.codigo}",
+                "sala_id": str(aula.sala_id),
                 "inicio": _iso(aula.inicio),
                 "fim": _iso(aula.fim),
                 "status": aula.status,
@@ -167,12 +168,11 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
     )
     aulas_canceladas = _filtrar_alterados(
         Aula.objects.filter(
-            horario__sala_id__in=[sala.id for sala in salas_do_no if sala],
+            sala_id__in=[sala.id for sala in salas_do_no if sala],
             data=data_sync,
         ).filter(
             Q(status__in=[Aula.STATUS_FECHADA, Aula.STATUS_CANCELADA])
-            | Q(horario__ativo=False)
-            | Q(horario__turma__ativo=False)
+            | Q(turma__ativo=False)
         ),
         cursors.get("aulas"),
     )
@@ -250,17 +250,17 @@ def _receber_evento_borda(no: NoBorda, evento: dict) -> str:
 
     try:
         dispositivo = DispositivoEsp32.objects.get(codigo=evento["dispositivo_id"], no=no, ativo=True)
-        aula = Aula.objects.select_related("horario", "horario__turma").get(id=evento["aula_id"])
+        aula = Aula.objects.select_related("turma", "sala").get(id=evento["aula_id"])
         aluno = Usuario.objects.get(id=evento["aluno_id"], papel=PapelUsuario.ALUNO, is_active=True)
     except KeyError as exc:
         raise ValidationError({"eventos": "Evento deve incluir aluno_id, aula_id, dispositivo_id e reconhecido_em."}) from exc
     except (DispositivoEsp32.DoesNotExist, Aula.DoesNotExist, Usuario.DoesNotExist) as exc:
         raise ValidationError({"eventos": "Evento referencia no, dispositivo, aula ou aluno desconhecido."}) from exc
 
-    if aula.horario.sala_id != dispositivo.sala_id:
+    if aula.sala_id != dispositivo.sala_id:
         raise ValidationError({"eventos": "A aula do evento nao pertence a sala do dispositivo."})
 
-    matriculado = MatriculaTurma.objects.filter(turma=aula.horario.turma, aluno=aluno, ativo=True).exists()
+    matriculado = MatriculaTurma.objects.filter(turma=aula.turma, aluno=aluno, ativo=True).exists()
     if not matriculado:
         raise ValidationError({"eventos": "Aluno nao esta matriculado na aula enviada."})
 

@@ -1,24 +1,29 @@
-# Ajustes Necessarios No referencia-edge
+# Contrato Edge-Node AutoPonto
 
-Este arquivo descreve o contrato que a API principal oferece ao `referencia-edge/autoponto-edgenode`. O codigo de referencia continua somente como referencia local e nao deve ser editado neste repositorio.
+Este documento substitui as anotações antigas do edge. Ele descreve apenas o contrato atual que o `referencia-edge/autoponto-edgenode` deve consumir. Os arquivos de referência continuam somente para consulta e não devem ser alterados neste repositório.
 
-## Contrato Geral
+## Autenticação
 
-- `MAIN_API_URL` deve apontar para a API principal com prefixo `/api`, por exemplo `http://backend:8000/api`.
-- `MAIN_API_TOKEN` deve ser o token emitido por `POST /api/nos-borda/{id}/emitir-token/`.
-- O edge envia `Authorization: NodeToken <token>` e `X-Node-Id: <node_id>`.
-- `node_id` deve ser `NoBorda.codigo` ou o UUID interno do no.
-- A ESP32 nao autentica no backend; ela continua subordinada ao Raspberry.
+O Raspberry/nó de borda autentica todas as chamadas com:
+
+```http
+Authorization: NodeToken <token>
+X-Node-Id: <codigo-ou-uuid-do-no>
+```
+
+- O token é emitido no backend em `POST /api/nos-borda/{id}/emitir-token/`.
+- `X-Node-Id` e `node_id` devem identificar o mesmo `NoBorda`.
+- A ESP32 não autentica diretamente na API principal. Ela continua subordinada ao nó de borda.
 
 ## Pull
 
-Endpoint ativo:
+Endpoint:
 
 ```http
 GET /api/edge/pull?node_id=<node_id>&cursors=<msgpack-hex>
 ```
 
-Com `cursors=80`, o edge envia um dicionario msgpack vazio e recebe o cache completo do no.
+Com `cursors=80`, o edge envia um dicionário msgpack vazio e recebe o cache completo do nó.
 
 Resposta:
 
@@ -51,29 +56,43 @@ Resposta:
 }
 ```
 
-Campos enviados:
+Campos principais:
 
-| Modelo edge | Payload | Origem backend |
+| Chave | Origem | Observação |
 | --- | --- | --- |
-| `Sala` | `salas[]` com `id`, `nome` | `Sala` |
-| `Dispositivo` | `dispositivos[]` com `id`, `sala_id`, `ativo`, `interscity_uuid` | `DispositivoEsp32` |
-| `Aula` | `aulas[]` com `id`, `nome`, `sala_id`, `inicio`, `fim`, `status` | `Aula` |
-| `Aluno` | `alunos[]` com `id`, `matricula`, `nome` | `Usuario` aluno |
-| `MatriculaAula` | `matriculas_aula[]` com `aula_id`, `aluno_id` | `MatriculaTurma` expandida por aula |
-| `EmbeddingFacial` | `embeddings_faciais[]` com `id`, `aluno_id`, `vetor` | `EmbeddingFacial` ativo |
+| `salas[]` | `Sala` | Salas vinculadas às ESP32 do nó. |
+| `dispositivos[]` | `DispositivoEsp32` | `id` é `DispositivoEsp32.codigo`, o mesmo identificador usado pelo firmware. |
+| `aulas[]` | `Aula` | Aulas já materializadas no backend para a data atual. |
+| `alunos[]` | `Usuario` aluno | Apenas alunos ativos matriculados nas aulas enviadas. |
+| `matriculas_aula[]` | `MatriculaTurma` expandida por aula | Relação direta `aula_id` + `aluno_id` para o cache local. |
+| `embeddings_faciais[]` | `EmbeddingFacial` ativo | Vetores necessários ao reconhecimento local do edge. |
 
-Detalhes importantes:
+Exemplo de aula:
 
-- O pull retorna apenas aulas da data local atual da API. Nao existe janela configuravel de dias anteriores/posteriores nem parametros de periodo.
-- `dispositivos[].id` e `deleted.dispositivos[]` usam `DispositivoEsp32.codigo`, o mesmo identificador usado pelo firmware.
-- `NoBorda` nao possui recurso IntersCity. Apenas `DispositivoEsp32.interscity_uuid` representa recurso IoT.
-- `alunos[]` nao envia `ativo`; aluno inativo simplesmente deixa de aparecer no cache.
-- A chamada valida sempre `Aula.inicio <= reconhecido_em <= Aula.fim`.
-- Aulas `FECHADA` ou `CANCELADA` aparecem em `deleted.aulas`.
+```json
+{
+  "id": "uuid-da-aula",
+  "nome": "SISTEMAS DISTRIBUIDOS - 20261EECP0021",
+  "sala_id": "uuid-da-sala",
+  "inicio": "2026-06-19T18:30:00-03:00",
+  "fim": "2026-06-19T20:10:00-03:00",
+  "status": "PLANEJADA"
+}
+```
+
+Regras importantes:
+
+- O edge recebe somente aulas já materializadas em `Aula`.
+- O contrato contém somente aulas reais já materializadas.
+- O pull não cria aula dinamicamente.
+- O pull retorna apenas aulas da data local atual da API.
+- A janela válida da presença é sempre `Aula.inicio` até `Aula.fim`.
+- Aulas `FECHADA` ou `CANCELADA` aparecem em `deleted.aulas` para limpeza/indisponibilização no cache local.
+- `NoBorda` não possui recurso IntersCity; apenas `DispositivoEsp32.interscity_uuid` representa recurso IoT.
 
 ## Attendance
 
-Endpoint ativo:
+Endpoint:
 
 ```http
 POST /api/edge/attendance
@@ -90,7 +109,7 @@ Payload:
       "aluno_id": "uuid-do-aluno",
       "aula_id": "uuid-da-aula",
       "dispositivo_id": "ESP32-LAB101",
-      "reconhecido_em": "2026-04-20T08:05:00-03:00",
+      "reconhecido_em": "2026-06-19T18:45:00-03:00",
       "score": 0.91
     }
   ]
@@ -105,20 +124,26 @@ Resposta:
 }
 ```
 
-A API valida posse do dispositivo pelo no autenticado, sala da aula, matricula do aluno, intervalo da aula e status da aula. Reenvio com o mesmo `id` e idempotente.
+Validações feitas pela API:
 
-## Status E Logs Das ESP32
+- O token pertence ao nó informado.
+- `dispositivo_id` existe como `DispositivoEsp32.codigo`, está ativo e pertence ao nó autenticado.
+- A aula existe e está na mesma sala da ESP32.
+- O aluno existe, está ativo e está matriculado na turma da aula.
+- `reconhecido_em` está entre `Aula.inicio` e `Aula.fim`.
+- A aula não está `FECHADA` nem `CANCELADA`.
+- Reenvio com o mesmo `id` é idempotente.
 
-`POST /api/edge/devices/status/` nao faz mais parte do contrato ativo e deve retornar 404.
+## IntersCity
 
-O edge-node novo deve publicar status/logs diretamente no IntersCity:
+O backend não recebe status/logs das ESP32 pelo contrato edge. O uso atual do IntersCity fica no edge-node:
 
-1. A ESP32 recebe no MQTT local um comando JSON como `{ "stats": true }`.
-2. O firmware publica em `log/{device_id}` os dados de `publishSystemStats()`.
+1. O edge-node pede estatísticas à ESP32 pelo MQTT local, usando `cmd/{device_id}` com `{ "stats": true }`.
+2. A ESP32 publica o resultado em `log/{device_id}`.
 3. O edge-node associa `device_id` ao `interscity_uuid` recebido no pull.
-4. O edge-node publica no Resource Adaptor.
+4. O edge-node publica a telemetria no Resource Adaptor do IntersCity.
 
-Capacidades esperadas no IntersCity:
+Capacidades esperadas:
 
 - `status`
 - `rssi`
@@ -128,4 +153,4 @@ Capacidades esperadas no IntersCity:
 - `nextms`
 - `now_ms`
 
-O topico local `cmd/{device_id}` continua permitido no Raspberry para feedback imediato e para pedir stats. Ele nao representa comando vindo da API principal.
+Não há endpoint ativo de comandos externos do backend para o edge. O tópico MQTT local `cmd/{device_id}` continua sendo responsabilidade do nó de borda.

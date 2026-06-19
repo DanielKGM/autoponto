@@ -194,8 +194,7 @@ Principais models do AutoPonto:
 | `PeriodoLetivo`, `Curso`, `Disciplina`, `Turma` | Estrutura minima de aulas. |
 | `MatriculaTurma` | Aluno vinculado a uma turma. |
 | `HorarioPadraoUFMA` | Horarios tabelados UFMA, como `2N34`. |
-| `HorarioAula` | Turma + sala + horario padrao. |
-| `Aula` | Aula em uma data especifica, com inicio/fim salvos. |
+| `Aula` | Aula real em uma data, com turma, sala, horario UFMA e inicio/fim salvos. |
 | `RegistroPresenca` | Presenca de um aluno em uma aula. |
 | `NoBorda`, `TokenNoBorda`, `DispositivoEsp32` | Raspberry, token e ESP32. |
 | `EmbeddingFacial` | Vetor biometrico do aluno. |
@@ -321,39 +320,31 @@ Services ficam em `api/services/`. Eles concentram regra de negocio.
 
 Por que usar services: se a regra ficar dentro da view, fica dificil testar/reutilizar. A view deve lidar com HTTP; o service deve lidar com negocio.
 
-### Exemplo: criar ou obter aula
+### Exemplo: sincronizar aulas da turma
 
 Arquivo: `api/services/aulas.py`
 
 ```python
-def obter_ou_criar_aula(horario: HorarioAula, data_aula):
-    if data_aula.weekday() != horario.horario_padrao.weekday_python:
-        raise DomainValidationError("A data da aula nao corresponde ao dia da semana do horario.")
-
-    inicio, fim = calcular_intervalo_aula(horario, data_aula)
-    aula, criada = Aula.objects.get_or_create(
-        horario=horario,
-        data=data_aula,
-        defaults={"inicio": inicio, "fim": fim, "status": Aula.STATUS_PLANEJADA},
-    )
-    return aula, criada
+def sincronizar_aulas_da_turma(turma: Turma, horarios: list[dict]) -> None:
+    pares_desejados = _normalizar_horarios(horarios) if turma.ativo else set()
+    if turma.ativo:
+        _criar_ou_atualizar_aulas(turma, horarios)
+    _cancelar_aulas_futuras_removidas(turma, pares_desejados)
 ```
 
 Conceitos Django:
 
 - `objects`: gerenciador padrao do model.
-- `get_or_create`: busca registro; se nao existir, cria.
-- `defaults`: valores usados apenas na criacao.
+- `get_or_create`: usado internamente para criar a aula se ainda nao existe.
+- `transaction.atomic`: garante que criacao/edicao da turma e geracao das aulas terminem juntas.
 
-### Exemplo: listar aulas do dia
+### Exemplo: consultar aulas materializadas
 
 ```python
-def listar_aulas_do_dia(data, sala=None):
-    horarios = HorarioAula.objects.select_related(...).filter(
-        turma__periodo_letivo__data_inicio__lte=data,
-        turma__periodo_letivo__data_fim__gte=data,
-        horario_padrao__dia_semana=data.weekday() + 2,
-    )
+aulas = Aula.objects.select_related("turma", "sala", "horario_padrao").filter(
+    data=timezone.localdate(),
+    turma__ativo=True,
+)
 ```
 
 Conceitos:
@@ -520,12 +511,15 @@ class EdgePullView(APIView):
         return Response(montar_payload_pull(request.user, request.query_params))
 ```
 
-O service usa apenas aulas do dia atual:
+O service usa apenas aulas ja materializadas do dia atual:
 
 ```python
 data_sync = timezone.localdate()
-for sala in salas_ativas:
-    aulas.extend(listar_aulas_do_dia(data_sync, sala=sala))
+aulas = Aula.objects.filter(
+    data=data_sync,
+    sala_id__in=[sala.id for sala in salas_ativas],
+    turma__ativo=True,
+)
 ```
 
 Exemplo de resposta simplificada:
@@ -610,7 +604,7 @@ Validacoes principais:
 
 ```python
 dispositivo = DispositivoEsp32.objects.get(codigo=evento["dispositivo_id"], no=no, ativo=True)
-aula = Aula.objects.select_related("horario", "horario__turma").get(id=evento["aula_id"])
+aula = Aula.objects.select_related("turma", "sala").get(id=evento["aula_id"])
 aluno = Usuario.objects.get(id=evento["aluno_id"], papel=PapelUsuario.ALUNO, is_active=True)
 ```
 

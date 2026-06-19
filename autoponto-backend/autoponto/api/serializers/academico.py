@@ -1,10 +1,10 @@
+from django.db import transaction
 from rest_framework import serializers
 
 from api.models import (
     Campus,
     Curso,
     Disciplina,
-    HorarioAula,
     HorarioPadraoUFMA,
     MatriculaTurma,
     PapelUsuario,
@@ -14,6 +14,8 @@ from api.models import (
     Turma,
     Usuario,
 )
+from api.services.aulas import sincronizar_aulas_da_turma
+from api.services.errors import DomainValidationError
 
 
 class CampusSerializer(serializers.ModelSerializer):
@@ -64,11 +66,68 @@ class TurmaSerializer(serializers.ModelSerializer):
         required=False,
         queryset=Usuario.objects.filter(papel=PapelUsuario.PROFESSOR),
     )
+    horarios = serializers.ListField(
+        child=serializers.DictField(),
+        write_only=True,
+        required=False,
+        allow_empty=False,
+    )
 
     class Meta:
         model = Turma
         fields = "__all__"
         read_only_fields = ("id", "criado_em", "atualizado_em")
+
+    def validate_horarios(self, value):
+        horarios = []
+        erros = []
+        for indice, item in enumerate(value, start=1):
+            sala_id = item.get("sala")
+            horario_padrao_id = item.get("horario_padrao")
+            if not sala_id or not horario_padrao_id:
+                erros.append(f"Horario {indice}: informe sala e horario_padrao.")
+                continue
+            try:
+                sala = Sala.objects.get(pk=sala_id)
+                horario_padrao = HorarioPadraoUFMA.objects.get(pk=horario_padrao_id, ativo=True)
+            except Sala.DoesNotExist:
+                erros.append(f"Horario {indice}: sala inexistente.")
+                continue
+            except HorarioPadraoUFMA.DoesNotExist:
+                erros.append(f"Horario {indice}: horario_padrao inexistente ou inativo.")
+                continue
+            horarios.append({"sala": sala, "horario_padrao": horario_padrao})
+        if erros:
+            raise serializers.ValidationError(erros)
+        return horarios
+
+    def validate(self, attrs):
+        horarios_informados = self.initial_data.get("horarios") is not None
+        ativo = attrs.get("ativo", self.instance.ativo if self.instance else True)
+        if not self.instance and ativo and not horarios_informados:
+            raise serializers.ValidationError({"horarios": "Informe ao menos um horario para criar uma turma ativa."})
+        return attrs
+
+    @transaction.atomic
+    def create(self, validated_data):
+        horarios = validated_data.pop("horarios", [])
+        turma = super().create(validated_data)
+        try:
+            sincronizar_aulas_da_turma(turma, horarios)
+        except DomainValidationError as erro:
+            raise serializers.ValidationError(erro.message) from erro
+        return turma
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        horarios = validated_data.pop("horarios", None)
+        turma = super().update(instance, validated_data)
+        if horarios is not None or not turma.ativo:
+            try:
+                sincronizar_aulas_da_turma(turma, horarios or [])
+            except DomainValidationError as erro:
+                raise serializers.ValidationError(erro.message) from erro
+        return turma
 
 
 class MatriculaTurmaSerializer(serializers.ModelSerializer):
@@ -81,12 +140,5 @@ class MatriculaTurmaSerializer(serializers.ModelSerializer):
 class HorarioPadraoUFMASerializer(serializers.ModelSerializer):
     class Meta:
         model = HorarioPadraoUFMA
-        fields = "__all__"
-        read_only_fields = ("id", "criado_em", "atualizado_em")
-
-
-class HorarioAulaSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = HorarioAula
         fields = "__all__"
         read_only_fields = ("id", "criado_em", "atualizado_em")

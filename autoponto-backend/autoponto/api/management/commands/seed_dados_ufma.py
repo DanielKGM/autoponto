@@ -7,7 +7,6 @@ from api.models import (
     Curso,
     Disciplina,
     DispositivoEsp32,
-    HorarioAula,
     HorarioPadraoUFMA,
     NoBorda,
     PeriodoLetivo,
@@ -15,6 +14,7 @@ from api.models import (
     Sala,
     Turma,
 )
+from api.services.aulas import sincronizar_aulas_da_turma
 
 
 
@@ -114,12 +114,13 @@ class Command(BaseCommand):
         self._criar_horario_padrao("4N34")
 
     def _criar_horarios_aula(self, turma, sala):
-        for codigo in ("2N34", "4N34"):
-            HorarioAula.objects.update_or_create(
-                turma=turma,
-                horario_padrao=HorarioPadraoUFMA.objects.get(codigo=codigo),
-                defaults={"sala": sala, "ativo": True},
-            )
+        sincronizar_aulas_da_turma(
+            turma,
+            [
+                {"sala": sala, "horario_padrao": HorarioPadraoUFMA.objects.get(codigo="2N34")},
+                {"sala": sala, "horario_padrao": HorarioPadraoUFMA.objects.get(codigo="4N34")},
+            ],
+        )
 
     def _criar_infraestrutura_iot(self, sala):
         no, _ = NoBorda.objects.update_or_create(

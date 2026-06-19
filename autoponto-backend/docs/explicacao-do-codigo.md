@@ -72,20 +72,13 @@ Tabela os horarios no formato usado pela UFMA/SIGAA.
 - `horario_fim`: fim real do bloco.
 - `ativo`: permite desativar blocos antigos.
 
-Codigo composto como `25M34` vira duas linhas: `2M34` e `5M34`. Assim uma turma pode ter mais de um `HorarioAula`, cada um apontando para um horario padrao.
-
-### HorarioAula
-
-- `turma`: turma daquele horario.
-- `sala`: sala onde a aula acontece.
-- `horario_padrao`: bloco UFMA tabelado.
-- `ativo`: desativa o vinculo sem apagar aulas ja criadas.
-
-Se o horario padrao mudar, novas aulas usam o novo horario. Aulas ja criadas preservam `inicio` e `fim`.
+Codigo composto como `25M34` vira duas linhas: `2M34` e `5M34`. Ao criar ou editar uma turma, o administrador informa uma lista de pares `sala` + `horario_padrao`; o backend materializa as aulas reais desse periodo letivo.
 
 ### Aula
 
-- `horario`: regra semanal que gerou a aula.
+- `turma`: turma daquela ocorrencia.
+- `sala`: sala onde a aula acontece.
+- `horario_padrao`: bloco UFMA usado como referencia na criacao.
 - `data`: data da aula.
 - `inicio` e `fim`: snapshot real da aula naquela data.
 - `status`: `PLANEJADA`, `ABERTA`, `FECHADA` ou `CANCELADA`.
@@ -93,6 +86,7 @@ Se o horario padrao mudar, novas aulas usam o novo horario. Aulas ja criadas pre
 - `fechada_por`: usuario que fechou.
 
 A chamada vale sempre entre `inicio` e `fim`. Fechar manualmente nao altera `fim`; apenas impede novas presencas.
+Aulas com presenca registrada preservam o historico mesmo se a turma for editada depois.
 
 ### RegistroPresenca
 
@@ -160,11 +154,14 @@ Trecho essencial:
 
 ```python
 data_sync = timezone.localdate()
-for sala in salas_ativas:
-    aulas.extend(listar_aulas_do_dia(data_sync, sala=sala))
+aulas = Aula.objects.filter(
+    data=data_sync,
+    sala_id__in=[sala.id for sala in salas_ativas],
+    turma__ativo=True,
+)
 ```
 
-O backend materializa somente as aulas do dia local atual da API, busca matriculas e embeddings dessas aulas, e retorna:
+O backend consulta as aulas do dia local atual da API, que ja foram materializadas quando a turma foi cadastrada/editada. Depois busca matriculas e embeddings dessas aulas e retorna:
 
 - `salas`: salas do no;
 - `dispositivos`: ESP32 do no, usando `DispositivoEsp32.codigo` como `id`;

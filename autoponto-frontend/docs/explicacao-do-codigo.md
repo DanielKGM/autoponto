@@ -89,7 +89,7 @@ Usa CRUDs do backend e endpoints de relatorio:
 - `POST /api/usuarios/`
 - `POST /api/matriculas-turma/`
 - `PATCH /api/turmas/{id}/`
-- `POST /api/perfis-biometricos/matricular/`
+- `POST /api/embeddings-faciais/matricular/`
 - `GET /api/interscity/diagnostico/`: mostra a saude dos microsservicos; a telemetria IntersCity do MVP e publicada diretamente pelo edge-node.
 
 O objetivo e demonstrar cadastro basico, vinculos academicos e monitoramento da integracao IoT.

@@ -16,7 +16,7 @@ class AulaViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Aula.objects.none()
     serializer_class = AulaSerializer
     permission_classes = (IsProfessorOuAdministrador,)
-    filterset_fields = ("status", "horario", "data")
+    filterset_fields = ("status", "turma", "sala", "horario_padrao", "data")
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -26,11 +26,11 @@ class AulaViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=["post"], url_path="fechar-chamada")
     def fechar_chamada(self, request, pk=None):
         aula = get_object_or_404(
-            Aula.objects.select_related("horario", "horario__turma", "horario__turma__disciplina"),
+            Aula.objects.select_related("turma", "turma__disciplina"),
             pk=pk,
         )
         if request.user.papel != PapelUsuario.ADMINISTRADOR:
-            if not aula.horario.turma.professores.filter(id=request.user.id).exists():
+            if not aula.turma.professores.filter(id=request.user.id).exists():
                 raise PermissionDenied("Você não pode fechar chamada desta turma.")
         try:
             aula = fechar_chamada_aula(aula, request.user)
@@ -49,7 +49,7 @@ class RegistroPresencaViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         if getattr(self.request.user, "papel", None) == PapelUsuario.ADMINISTRADOR:
             return queryset
-        return queryset.filter(aula__horario__turma__professores=self.request.user).distinct()
+        return queryset.filter(aula__turma__professores=self.request.user).distinct()
 
     def _exigir_admin_para_escrita(self):
         if self.request.user.papel != PapelUsuario.ADMINISTRADOR:
