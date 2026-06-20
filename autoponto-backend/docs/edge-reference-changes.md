@@ -14,7 +14,8 @@ Atualizar o edge-node para refletir a API principal como cache local:
 - `DispositivoEsp32.codigo` continua sendo o identificador usado pelo firmware/ESP32.
 - `DispositivoEsp32.id` e o UUID usado em chamadas para a API principal.
 - O edge deve manter um mapa local `codigo -> id` para converter o `device_id` do firmware em UUID.
-- Full sync e obrigatorio ao iniciar, na virada do dia, antes do inicio de cada aula e quando a API responder `full_required=true`.
+- Full sync e obrigatorio ao iniciar, na virada do dia e antes do inicio de cada aula.
+- O incremental usa cursores por entidade/data, salvos em `sync_state(entity, cursor)`.
 
 ## Autenticacao
 
@@ -32,7 +33,7 @@ Enviar tambem `node_id` na query/body quando o endpoint exigir.
 Requisicao:
 
 ```http
-GET /api/edge/pull?node_id=<node_id>&full=1
+GET /api/edge/pull?node_id=<node_id>&full=true
 ```
 
 Resposta:
@@ -41,7 +42,6 @@ Resposta:
 {
   "full": true,
   "full_required": false,
-  "cursor": 123,
   "data": {
     "salas": [],
     "dispositivos": [],
@@ -57,6 +57,14 @@ Resposta:
     "alunos": [],
     "matriculas_turma": [],
     "embeddings_faciais": []
+  },
+  "cursors": {
+    "salas": "2026-06-20T12:00:00Z",
+    "dispositivos": "2026-06-20T12:00:00Z",
+    "aulas": "2026-06-20T12:00:00Z",
+    "alunos": "2026-06-20T12:00:00Z",
+    "matriculas_turma": "2026-06-20T12:00:00Z",
+    "embeddings_faciais": "2026-06-20T12:00:00Z"
   }
 }
 ```
@@ -64,32 +72,44 @@ Resposta:
 Regra do edge:
 
 - Substituir o cache local pelas listas de `data`.
-- Guardar `cursor` como cursor global inteiro.
+- Guardar cada item de `cursors` em `sync_state(entity, cursor)`.
 - `deleted` normalmente vem vazio no full sync.
+- Usar exatamente `full=true`. Nao enviar `full=1`, `full=yes`, `full=sim` ou variantes.
 
 ## Pull Incremental
 
 Requisicao:
 
 ```http
-GET /api/edge/pull?node_id=<node_id>&cursor=<ultimo_cursor>
+GET /api/edge/pull?node_id=<node_id>&cursors=<msgpack-hex>
+```
+
+`cursors` e um msgpack em hexadecimal com um objeto por entidade:
+
+```json
+{
+  "salas": "2026-06-20T12:00:00Z",
+  "dispositivos": "2026-06-20T12:00:00Z",
+  "aulas": "2026-06-20T12:00:00Z",
+  "alunos": "2026-06-20T12:00:00Z",
+  "matriculas_turma": "2026-06-20T12:00:00Z",
+  "embeddings_faciais": "2026-06-20T12:00:00Z"
+}
 ```
 
 Regra do edge:
 
 - Aplicar `data.*` como upsert no cache local.
 - Aplicar `deleted.*` como remocao local por UUID.
-- Atualizar o cursor local com `cursor` da resposta.
-- Se receber `full_required=true`, descartar cursores locais e repetir com `full=1`.
+- Atualizar os cursores locais com `cursors` da resposta.
+- Se algum cursor local for perdido, enviar `full=true` para reconstruir o cache.
 
-Exemplo de cursor expirado:
+Exemplo de resposta incremental:
 
 ```json
 {
   "full": false,
-  "full_required": true,
-  "reason": "cursor_expired",
-  "cursor": 130,
+  "full_required": false,
   "data": {
     "salas": [],
     "dispositivos": [],
@@ -105,6 +125,14 @@ Exemplo de cursor expirado:
     "alunos": [],
     "matriculas_turma": [],
     "embeddings_faciais": []
+  },
+  "cursors": {
+    "salas": "2026-06-20T12:05:00Z",
+    "dispositivos": "2026-06-20T12:05:00Z",
+    "aulas": "2026-06-20T12:05:00Z",
+    "alunos": "2026-06-20T12:05:00Z",
+    "matriculas_turma": "2026-06-20T12:05:00Z",
+    "embeddings_faciais": "2026-06-20T12:05:00Z"
   }
 }
 ```
@@ -197,7 +225,6 @@ Politica recomendada:
 - full sync na virada do dia;
 - full sync antes do inicio da aula;
 - incremental opcional em intervalo maior com jitter;
-- se `full_required=true`, refazer full sync.
 
 ## IntersCity
 

@@ -1,6 +1,7 @@
 from datetime import date, datetime, time
 from unittest.mock import patch
 
+import msgpack
 from django.test import TestCase
 from django.utils import timezone
 
@@ -85,11 +86,13 @@ class SincronizacaoBordaContratoTests(TestCase):
             return montar_payload_pull(self.no, params)
 
     def test_pull_completo_usa_matriculas_turma_e_aula_aponta_para_turma(self):
-        resposta = self._pull({"node_id": self.no.codigo, "full": "1"})
+        resposta = self._pull({"node_id": self.no.codigo, "full": "true"})
 
         self.assertIn("matriculas_turma", resposta["data"])
         self.assertNotIn("matriculas_aula", resposta["data"])
         self.assertNotIn("matriculas_aula", resposta["deleted"])
+        self.assertNotIn("cursor", resposta)
+        self.assertEqual(set(resposta["cursors"]), set(resposta["data"]))
 
         aula = resposta["data"]["aulas"][0]
         matricula = resposta["data"]["matriculas_turma"][0]
@@ -101,7 +104,7 @@ class SincronizacaoBordaContratoTests(TestCase):
         self.assertEqual(matricula["aluno_id"], str(self.aluno.id))
 
     def test_incremental_de_matricula_turma_retorna_uuid_real_da_matricula(self):
-        cursor = self._pull({"node_id": self.no.codigo, "full": "1"})["cursor"]
+        cursors = self._pull({"node_id": self.no.codigo, "full": "true"})["cursors"]
         outro_aluno = Usuario.objects.create_user(
             username="outro-aluno",
             password="senha",
@@ -114,7 +117,9 @@ class SincronizacaoBordaContratoTests(TestCase):
             aluno=outro_aluno,
         )
 
-        resposta = self._pull({"node_id": self.no.codigo, "cursor": cursor})
+        resposta = self._pull(
+            {"node_id": self.no.codigo, "cursors": msgpack.packb(cursors).hex()}
+        )
 
         self.assertIn("matriculas_turma", resposta["data"])
         self.assertEqual(
@@ -124,12 +129,18 @@ class SincronizacaoBordaContratoTests(TestCase):
         self.assertEqual(resposta["deleted"]["matriculas_turma"], [])
 
     def test_delete_de_matricula_turma_remove_uuid_real_da_matricula(self):
-        cursor = self._pull({"node_id": self.no.codigo, "full": "1"})["cursor"]
+        cursors = self._pull({"node_id": self.no.codigo, "full": "true"})["cursors"]
         matricula_id = str(self.matricula.id)
 
         self.matricula.delete()
 
-        resposta = self._pull({"node_id": self.no.codigo, "cursor": cursor})
+        resposta = self._pull(
+            {"node_id": self.no.codigo, "cursors": msgpack.packb(cursors).hex()}
+        )
 
         self.assertEqual(resposta["data"]["matriculas_turma"], [])
         self.assertEqual(resposta["deleted"]["matriculas_turma"], [matricula_id])
+
+    def test_full_sync_aceita_somente_true_explicito(self):
+        with self.assertRaisesMessage(Exception, "Use full=true"):
+            self._pull({"node_id": self.no.codigo, "full": "1"})

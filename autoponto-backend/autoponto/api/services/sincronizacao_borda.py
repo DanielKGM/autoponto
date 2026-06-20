@@ -1,9 +1,9 @@
 from datetime import datetime
 from decimal import Decimal
 
+import msgpack
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
-from django.db.models import Q
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
@@ -46,35 +46,32 @@ def _validar_no(no: NoBorda, identificador: str | None):
         )
 
 
-def _cursor_atual() -> int:
-    return (
-        EventoSincronizacaoBorda.objects.order_by("-id").values_list("id", flat=True).first()
-        or 0
-    )
+def _cursors_no_marco(marco) -> dict:
+    return {entidade: _iso(marco) for entidade in ENTIDADES_SYNC}
 
 
-def _parsear_cursor_global(valor) -> int | None:
-    if valor in (None, ""):
-        return None
+def _decodificar_cursors(valor: str) -> dict:
     try:
-        cursor = int(valor)
+        cursores = msgpack.unpackb(bytes.fromhex(valor), raw=False)
+    except Exception as exc:
+        raise ValidationError({"cursors": "Informe cursores msgpack em hexadecimal."}) from exc
+    if not isinstance(cursores, dict):
+        raise ValidationError({"cursors": "Cursores devem formar um objeto por entidade."})
+    return {
+        str(entidade): str(cursor)
+        for entidade, cursor in cursores.items()
+        if entidade in ENTIDADES_SYNC and cursor
+    }
+
+
+def _parsear_cursor_data(entidade: str, valor: str):
+    try:
+        parseado = datetime.fromisoformat(str(valor).replace("Z", "+00:00"))
     except (TypeError, ValueError) as exc:
-        raise ValidationError({"cursor": "Informe um cursor inteiro valido."}) from exc
-    if cursor < 0:
-        raise ValidationError({"cursor": "Cursor nao pode ser negativo."})
-    return cursor
-
-
-def _full_sync_solicitado(query_params) -> bool:
-    valor = str(query_params.get("full", "")).lower()
-    return valor in {"1", "true", "sim", "yes"} or not query_params.get("cursor")
-
-
-def _cursor_expirado(cursor: int) -> bool:
-    primeiro_cursor = (
-        EventoSincronizacaoBorda.objects.order_by("id").values_list("id", flat=True).first()
-    )
-    return primeiro_cursor is not None and cursor < primeiro_cursor
+        raise ValidationError({entidade: "Cursor deve ser uma data ISO valida."}) from exc
+    if parseado.tzinfo is None:
+        return timezone.make_aware(parseado)
+    return parseado
 
 
 def _salas_do_no(no: NoBorda):
@@ -284,15 +281,22 @@ def _aplicar_upsert(no: NoBorda, dados: dict, deletados: dict, evento, data_sync
         return
 
     if entidade == EventoSincronizacaoBorda.Entidade.MATRICULAS_TURMA:
-        matricula = MatriculaTurma.objects.select_related("aluno").filter(
-            id=identificador,
-            ativo=True,
-            aluno__papel=PapelUsuario.ALUNO,
-            aluno__is_active=True,
-        ).first()
-        if matricula and _aulas_disponiveis_do_no(no, data_sync).filter(
-            turma=matricula.turma
-        ).exists():
+        matricula = (
+            MatriculaTurma.objects.select_related("aluno")
+            .filter(
+                id=identificador,
+                ativo=True,
+                aluno__papel=PapelUsuario.ALUNO,
+                aluno__is_active=True,
+            )
+            .first()
+        )
+        if (
+            matricula
+            and _aulas_disponiveis_do_no(no, data_sync)
+            .filter(turma=matricula.turma)
+            .exists()
+        ):
             _adicionar_matricula_turma(dados, matricula)
             _adicionar_aulas_da_turma_no(no, dados, matricula.turma_id, data_sync)
         else:
@@ -311,27 +315,46 @@ def _aplicar_upsert(no: NoBorda, dados: dict, deletados: dict, evento, data_sync
         return
 
     if entidade == EventoSincronizacaoBorda.Entidade.EMBEDDINGS_FACIAIS:
-        embedding = EmbeddingFacial.objects.select_related("aluno").filter(
-            id=identificador,
-            ativo=True,
-            status="ATIVO",
-            aluno__is_active=True,
-            aluno__matriculas_turma__turma__aulas__in=_aulas_disponiveis_do_no(
-                no, data_sync
-            ),
-        ).first()
+        embedding = (
+            EmbeddingFacial.objects.select_related("aluno")
+            .filter(
+                id=identificador,
+                ativo=True,
+                status="ATIVO",
+                aluno__is_active=True,
+                aluno__matriculas_turma__turma__aulas__in=_aulas_disponiveis_do_no(
+                    no, data_sync
+                ),
+            )
+            .first()
+        )
         if embedding:
             _adicionar_aluno_e_embedding(dados, embedding.aluno)
         else:
             _deletar(dados, deletados, "embeddings_faciais", identificador)
 
 
-def _payload_incremental(no: NoBorda, cursor: int, data_sync) -> tuple[dict, dict]:
+def _payload_incremental(
+    no: NoBorda,
+    cursores: dict,
+    data_sync,
+    marco_cursor,
+) -> tuple[dict, dict]:
     dados = {entidade: {} for entidade in ENTIDADES_SYNC}
     deletados = {entidade: set() for entidade in ENTIDADES_SYNC}
+    cursores_parseados = {
+        entidade: _parsear_cursor_data(entidade, cursores[entidade])
+        for entidade in ENTIDADES_SYNC
+    }
+    menor_cursor = min(cursores_parseados.values())
     eventos_finais = {}
 
-    for evento in EventoSincronizacaoBorda.objects.filter(id__gt=cursor).order_by("id"):
+    for evento in EventoSincronizacaoBorda.objects.filter(
+        criado_em__gt=menor_cursor,
+        criado_em__lte=marco_cursor,
+    ).order_by("id"):
+        if evento.criado_em <= cursores_parseados[evento.entidade]:
+            continue
         eventos_finais[(evento.entidade, evento.identificador)] = evento
 
     for evento in sorted(eventos_finais.values(), key=lambda item: item.id):
@@ -349,34 +372,42 @@ def _payload_incremental(no: NoBorda, cursor: int, data_sync) -> tuple[dict, dic
 def montar_payload_pull(no: NoBorda, query_params) -> dict:
     _validar_no(no, query_params.get("node_id"))
     data_sync = timezone.localdate()
+    marco_cursor = timezone.now()
 
-    if _full_sync_solicitado(query_params):
+    parametro_full = query_params.get("full")
+    if parametro_full not in (None, "") and str(parametro_full).lower() != "true":
+        raise ValidationError({"full": "Use full=true para solicitar sincronizacao completa."})
+
+    if str(parametro_full).lower() == "true":
         return {
             "full": True,
             "full_required": False,
-            "cursor": _cursor_atual(),
             "data": _payload_completo(no, data_sync),
             "deleted": _payload_vazio(),
+            "cursors": _cursors_no_marco(marco_cursor),
         }
 
-    cursor = _parsear_cursor_global(query_params.get("cursor"))
-    if _cursor_expirado(cursor):
+    valor_cursors = query_params.get("cursors")
+    if valor_cursors in (None, ""):
+        raise ValidationError({"cursors": "Informe cursors ou full=true."})
+
+    cursores = _decodificar_cursors(valor_cursors)
+    if set(cursores) != set(ENTIDADES_SYNC):
         return {
-            "full": False,
-            "full_required": True,
-            "reason": "cursor_expired",
-            "cursor": _cursor_atual(),
-            "data": _payload_vazio(),
+            "full": True,
+            "full_required": False,
+            "data": _payload_completo(no, data_sync),
             "deleted": _payload_vazio(),
+            "cursors": _cursors_no_marco(marco_cursor),
         }
 
-    dados, deletados = _payload_incremental(no, cursor, data_sync)
+    dados, deletados = _payload_incremental(no, cursores, data_sync, marco_cursor)
     return {
         "full": False,
         "full_required": False,
-        "cursor": _cursor_atual(),
         "data": dados,
         "deleted": deletados,
+        "cursors": _cursors_no_marco(marco_cursor),
     }
 
 

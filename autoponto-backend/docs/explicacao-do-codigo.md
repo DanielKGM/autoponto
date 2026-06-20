@@ -153,13 +153,14 @@ Authorization: NodeToken <token>
 Trecho essencial:
 
 ```python
-if full=1:
+if full == "true":
     retorna cache completo do dia
 else:
-    busca EventoSincronizacaoBorda depois do cursor global
+    decodifica cursors msgpack por entidade
+    busca EventoSincronizacaoBorda depois da data de cada entidade
 ```
 
-O backend consulta as aulas do dia local atual da API, que ja foram materializadas quando a turma foi cadastrada/editada. Para sincronizacao incremental, ele usa `EventoSincronizacaoBorda`, uma auditoria leve com entidade, acao, UUID e cursor inteiro global.
+O backend consulta as aulas do dia local atual da API, que ja foram materializadas quando a turma foi cadastrada/editada. Para sincronizacao incremental, ele usa `EventoSincronizacaoBorda`, uma auditoria leve com entidade, acao, UUID e data de criacao. O edge guarda um cursor por entidade em `sync_state(entity, cursor)`.
 
 - `salas`: salas do no;
 - `dispositivos`: ESP32 do no, usando `DispositivoEsp32.id` como `id` e `codigo` como identificador do firmware;

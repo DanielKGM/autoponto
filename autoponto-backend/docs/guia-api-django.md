@@ -496,7 +496,7 @@ O backend envia:
 Endpoint:
 
 ```http
-GET /api/edge/pull/?node_id=NO-CCET-01&full=1
+GET /api/edge/pull/?node_id=NO-CCET-01&full=true
 Authorization: NodeToken <token>
 ```
 
@@ -514,10 +514,11 @@ class EdgePullView(APIView):
 O service usa full sync ou auditoria incremental:
 
 ```python
-if query_params.get("full"):
+if query_params.get("full") == "true":
     data = _payload_completo(no, timezone.localdate())
 else:
-    eventos = EventoSincronizacaoBorda.objects.filter(id__gt=cursor)
+    cursors = decodificar_msgpack_hex(query_params["cursors"])
+    eventos = EventoSincronizacaoBorda.objects.filter(criado_em__gt=menor_cursor)
 ```
 
 Exemplo de resposta simplificada:
@@ -526,7 +527,6 @@ Exemplo de resposta simplificada:
 {
   "full": true,
   "full_required": false,
-  "cursor": 123,
   "data": {
     "salas": [
       {"id": "uuid-sala", "nome": "105 Norte"}
@@ -568,6 +568,14 @@ Exemplo de resposta simplificada:
     "alunos": [],
     "matriculas_turma": [],
     "embeddings_faciais": []
+  },
+  "cursors": {
+    "salas": "2026-06-19T12:00:00Z",
+    "dispositivos": "2026-06-19T12:00:00Z",
+    "aulas": "2026-06-19T12:00:00Z",
+    "alunos": "2026-06-19T12:00:00Z",
+    "matriculas_turma": "2026-06-19T12:00:00Z",
+    "embeddings_faciais": "2026-06-19T12:00:00Z"
   }
 }
 ```
