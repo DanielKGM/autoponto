@@ -1,6 +1,5 @@
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Q
 
 from .base import BaseModel
 from .identidade import PapelUsuario, Usuario
@@ -28,8 +27,7 @@ class EmbeddingFacial(BaseModel):
         constraints = [
             models.UniqueConstraint(
                 fields=("aluno",),
-                condition=Q(ativo=True),
-                name="uq_embedding_ativo_aluno",
+                name="uq_embedding_aluno",
             ),
         ]
 

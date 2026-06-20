@@ -8,6 +8,7 @@ from api.models import (
     DispositivoEsp32,
     EmbeddingFacial,
     EventoReconhecimento,
+    EventoSincronizacaoBorda,
     HorarioPadraoUFMA,
     MatriculaTurma,
     NoBorda,
@@ -136,3 +137,11 @@ class EmbeddingFacialAdmin(admin.ModelAdmin):
     list_display = ("aluno", "versao_modelo", "status", "ativo")
     search_fields = ("aluno__username", "aluno__matricula", "aluno__nome_completo")
     list_filter = ("status", "ativo", "versao_modelo")
+
+
+@admin.register(EventoSincronizacaoBorda)
+class EventoSincronizacaoBordaAdmin(admin.ModelAdmin):
+    list_display = ("id", "entidade", "acao", "identificador", "criado_em")
+    list_filter = ("entidade", "acao")
+    search_fields = ("identificador",)
+    readonly_fields = ("id", "entidade", "acao", "identificador", "criado_em")

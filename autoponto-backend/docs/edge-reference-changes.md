@@ -1,40 +1,53 @@
-# Contrato Edge-Node AutoPonto
+# Prompt De Ajuste Do Edge-Node AutoPonto
 
-Este documento substitui as anotações antigas do edge. Ele descreve apenas o contrato atual que o `referencia-edge/autoponto-edgenode` deve consumir. Os arquivos de referência continuam somente para consulta e não devem ser alterados neste repositório.
+Use este documento como prompt direto para adaptar `referencia-edge/autoponto-edgenode`.
+Nao edite os arquivos de referencia neste repositorio.
 
-## Autenticação
+## Objetivo
 
-O Raspberry/nó de borda autentica todas as chamadas com:
+Atualizar o edge-node para refletir a API principal como cache local:
+
+- Todos os campos `id` vindos da API principal sao UUID.
+- Nao existe entidade `MatriculaAula` na API principal.
+- A API envia `aulas` com `turma_id` e `matriculas_turma` com `turma_id` + `aluno_id`.
+- O edge deve derivar localmente quais alunos pertencem a uma aula cruzando `aula.turma_id` com `matriculas_turma.turma_id`.
+- `DispositivoEsp32.codigo` continua sendo o identificador usado pelo firmware/ESP32.
+- `DispositivoEsp32.id` e o UUID usado em chamadas para a API principal.
+- O edge deve manter um mapa local `codigo -> id` para converter o `device_id` do firmware em UUID.
+- Full sync e obrigatorio ao iniciar, na virada do dia, antes do inicio de cada aula e quando a API responder `full_required=true`.
+
+## Autenticacao
+
+Manter:
 
 ```http
 Authorization: NodeToken <token>
 X-Node-Id: <codigo-ou-uuid-do-no>
 ```
 
-- O token é emitido no backend em `POST /api/nos-borda/{id}/emitir-token/`.
-- `X-Node-Id` e `node_id` devem identificar o mesmo `NoBorda`.
-- A ESP32 não autentica diretamente na API principal. Ela continua subordinada ao nó de borda.
+Enviar tambem `node_id` na query/body quando o endpoint exigir.
 
-## Pull
+## Pull Completo
 
-Endpoint:
+Requisicao:
 
 ```http
-GET /api/edge/pull?node_id=<node_id>&cursors=<msgpack-hex>
+GET /api/edge/pull?node_id=<node_id>&full=1
 ```
-
-Com `cursors=80`, o edge envia um dicionário msgpack vazio e recebe o cache completo do nó.
 
 Resposta:
 
 ```json
 {
+  "full": true,
+  "full_required": false,
+  "cursor": 123,
   "data": {
     "salas": [],
     "dispositivos": [],
     "aulas": [],
     "alunos": [],
-    "matriculas_aula": [],
+    "matriculas_turma": [],
     "embeddings_faciais": []
   },
   "deleted": {
@@ -42,53 +55,103 @@ Resposta:
     "dispositivos": [],
     "aulas": [],
     "alunos": [],
-    "matriculas_aula": [],
+    "matriculas_turma": [],
     "embeddings_faciais": []
-  },
-  "cursors": {
-    "salas": "2026-06-19T12:00:00Z",
-    "dispositivos": "2026-06-19T12:00:00Z",
-    "aulas": "2026-06-19T12:00:00Z",
-    "alunos": "2026-06-19T12:00:00Z",
-    "matriculas_aula": "2026-06-19T12:00:00Z",
-    "embeddings_faciais": "2026-06-19T12:00:00Z"
   }
 }
 ```
 
-Campos principais:
+Regra do edge:
 
-| Chave | Origem | Observação |
-| --- | --- | --- |
-| `salas[]` | `Sala` | Salas vinculadas às ESP32 do nó. |
-| `dispositivos[]` | `DispositivoEsp32` | `id` é `DispositivoEsp32.codigo`, o mesmo identificador usado pelo firmware. |
-| `aulas[]` | `Aula` | Aulas já materializadas no backend para a data atual. |
-| `alunos[]` | `Usuario` aluno | Apenas alunos ativos matriculados nas aulas enviadas. |
-| `matriculas_aula[]` | `MatriculaTurma` expandida por aula | Relação direta `aula_id` + `aluno_id` para o cache local. |
-| `embeddings_faciais[]` | `EmbeddingFacial` ativo | Vetores necessários ao reconhecimento local do edge. |
+- Substituir o cache local pelas listas de `data`.
+- Guardar `cursor` como cursor global inteiro.
+- `deleted` normalmente vem vazio no full sync.
 
-Exemplo de aula:
+## Pull Incremental
+
+Requisicao:
+
+```http
+GET /api/edge/pull?node_id=<node_id>&cursor=<ultimo_cursor>
+```
+
+Regra do edge:
+
+- Aplicar `data.*` como upsert no cache local.
+- Aplicar `deleted.*` como remocao local por UUID.
+- Atualizar o cursor local com `cursor` da resposta.
+- Se receber `full_required=true`, descartar cursores locais e repetir com `full=1`.
+
+Exemplo de cursor expirado:
+
+```json
+{
+  "full": false,
+  "full_required": true,
+  "reason": "cursor_expired",
+  "cursor": 130,
+  "data": {
+    "salas": [],
+    "dispositivos": [],
+    "aulas": [],
+    "alunos": [],
+    "matriculas_turma": [],
+    "embeddings_faciais": []
+  },
+  "deleted": {
+    "salas": [],
+    "dispositivos": [],
+    "aulas": [],
+    "alunos": [],
+    "matriculas_turma": [],
+    "embeddings_faciais": []
+  }
+}
+```
+
+## Payloads Principais
+
+Dispositivo:
+
+```json
+{
+  "id": "uuid-da-esp32-na-api",
+  "codigo": "ESP32-LAB101",
+  "sala_id": "uuid-da-sala",
+  "ativo": true,
+  "interscity_uuid": "uuid-interscity"
+}
+```
+
+Aula:
 
 ```json
 {
   "id": "uuid-da-aula",
-  "nome": "SISTEMAS DISTRIBUIDOS - 20261EECP0021",
+  "nome": "Sistemas Embarcados - 01",
+  "turma_id": "uuid-da-turma",
   "sala_id": "uuid-da-sala",
-  "inicio": "2026-06-19T18:30:00-03:00",
-  "fim": "2026-06-19T20:10:00-03:00",
+  "inicio": "2026-06-20T11:00:00Z",
+  "fim": "2026-06-20T12:40:00Z",
   "status": "PLANEJADA"
 }
 ```
 
-Regras importantes:
+Matricula em turma:
 
-- O edge recebe somente aulas já materializadas em `Aula`.
-- O contrato contém somente aulas reais já materializadas.
-- O pull não cria aula dinamicamente.
-- O pull retorna apenas aulas da data local atual da API.
-- A janela válida da presença é sempre `Aula.inicio` até `Aula.fim`.
-- Aulas `FECHADA` ou `CANCELADA` aparecem em `deleted.aulas` para limpeza/indisponibilização no cache local.
-- `NoBorda` não possui recurso IntersCity; apenas `DispositivoEsp32.interscity_uuid` representa recurso IoT.
+```json
+{
+  "id": "uuid-da-matricula-turma",
+  "turma_id": "uuid-da-turma",
+  "aluno_id": "uuid-do-aluno"
+}
+```
+
+Regra obrigatoria:
+
+- Nao criar `MatriculaAula` como entidade do contrato.
+- Para saber os alunos de uma aula: selecionar `matriculas_turma` em que `turma_id == aula.turma_id`.
+- Remover matriculas por UUID quando aparecerem em `deleted.matriculas_turma`.
 
 ## Attendance
 
@@ -108,49 +171,36 @@ Payload:
       "id": "edge-event-1",
       "aluno_id": "uuid-do-aluno",
       "aula_id": "uuid-da-aula",
-      "dispositivo_id": "ESP32-LAB101",
-      "reconhecido_em": "2026-06-19T18:45:00-03:00",
+      "dispositivo_id": "uuid-da-esp32-na-api",
+      "reconhecido_em": "2026-06-20T08:45:00-03:00",
       "score": 0.91
     }
   ]
 }
 ```
 
-Resposta:
+Regras:
 
-```json
-{
-  "synced_ids": ["edge-event-1"]
-}
-```
+- `dispositivo_id` deve ser o UUID `dispositivos[].id`, nao o `codigo` do firmware.
+- O backend aceita presenca somente se `reconhecido_em` estiver entre `aula.inicio` e `aula.fim`.
+- A aula nao pode estar `FECHADA` nem `CANCELADA`.
+- O aluno deve estar matriculado na turma da aula.
+- O dispositivo deve pertencer ao no autenticado e estar na sala da aula.
 
-Validações feitas pela API:
+## Politica De Sincronizacao Recomendada
 
-- O token pertence ao nó informado.
-- `dispositivo_id` existe como `DispositivoEsp32.codigo`, está ativo e pertence ao nó autenticado.
-- A aula existe e está na mesma sala da ESP32.
-- O aluno existe, está ativo e está matriculado na turma da aula.
-- `reconhecido_em` está entre `Aula.inicio` e `Aula.fim`.
-- A aula não está `FECHADA` nem `CANCELADA`.
-- Reenvio com o mesmo `id` é idempotente.
+Nao depender de polling fixo de 60 segundos.
+
+Politica recomendada:
+
+- full sync ao iniciar;
+- full sync na virada do dia;
+- full sync antes do inicio da aula;
+- incremental opcional em intervalo maior com jitter;
+- se `full_required=true`, refazer full sync.
 
 ## IntersCity
 
-O backend não recebe status/logs das ESP32 pelo contrato edge. O uso atual do IntersCity fica no edge-node:
-
-1. O edge-node pede estatísticas à ESP32 pelo MQTT local, usando `cmd/{device_id}` com `{ "stats": true }`.
-2. A ESP32 publica o resultado em `log/{device_id}`.
-3. O edge-node associa `device_id` ao `interscity_uuid` recebido no pull.
-4. O edge-node publica a telemetria no Resource Adaptor do IntersCity.
-
-Capacidades esperadas:
-
-- `status`
-- `rssi`
-- `heap_min`
-- `lesson`
-- `remainingms`
-- `nextms`
-- `now_ms`
-
-Não há endpoint ativo de comandos externos do backend para o edge. O tópico MQTT local `cmd/{device_id}` continua sendo responsabilidade do nó de borda.
+- A API principal envia `dispositivos[].interscity_uuid` no pull.
+- O edge continua publicando telemetria das ESP32 no IntersCity por conta propria.
+- Nao existem recursos IntersCity para `NoBorda`, apenas para ESP32.

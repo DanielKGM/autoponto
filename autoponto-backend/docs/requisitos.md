@@ -37,6 +37,6 @@ Este documento traduz o comportamento atual da API em requisitos funcionais e na
 | RNF-BE-05 | Tokens do no de borda devem expirar e so autenticar endpoints `/api/edge/*`. | `TokenNoBorda`, `EdgeNodeTokenAuthentication` |
 | RNF-BE-06 | Falhas do IntersCity nao podem bloquear login, CRUD, presenca, biometria, relatorios ou sync edge. | Cliente IntersCity isolado para diagnostico |
 | RNF-BE-07 | A documentacao externa da API deve expor contrato, nao dados; endpoints continuam protegidos por autenticacao/permissao. | `PUBLIC_API_DOCS` controla schema/docs |
-| RNF-BE-08 | O contrato com o edge deve manter nomes compativeis com `referencia-edge/autoponto-edgenode/services/edge-app/app/models.py`. | Payloads `salas`, `dispositivos`, `aulas`, `alunos`, `matriculas_aula`, `embeddings_faciais` |
+| RNF-BE-08 | O contrato com o edge deve manter nomes compativeis com `referencia-edge/autoponto-edgenode/services/edge-app/app/models.py`. | Payloads `salas`, `dispositivos`, `aulas`, `alunos`, `matriculas_turma`, `embeddings_faciais` |
 | RNF-BE-09 | O deploy deve funcionar atras do prefixo `/interscity_lh/catalog/autoponto/`. | Compose/Nginx/proxy docs |
 | RNF-BE-10 | O MVP deve ser explicavel: modelos enxutos, horarios UFMA tabelados e aulas materializadas em uma unica tabela. | `HorarioPadraoUFMA`, `Aula`, `services/aulas.py`, `services/relatorios.py` |

@@ -174,8 +174,8 @@ sequenceDiagram
     API->>Visao: gerar_embedding(capturas)
     Visao-->>API: vetor SFace
     API->>DB: Compara com embeddings ativos
-    API->>DB: Inativa embedding anterior
-    API->>DB: Salva novo EmbeddingFacial ativo
+    API->>DB: Atualiza embedding unico do aluno
+    API->>DB: Salva EmbeddingFacial ativo atualizado
     API-->>Usuario: embedding ativo
 ```
 

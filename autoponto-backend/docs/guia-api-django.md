@@ -496,7 +496,7 @@ O backend envia:
 Endpoint:
 
 ```http
-GET /api/edge/pull/?node_id=88A29E606012&cursors=80
+GET /api/edge/pull/?node_id=NO-CCET-01&full=1
 Authorization: NodeToken <token>
 ```
 
@@ -511,28 +511,30 @@ class EdgePullView(APIView):
         return Response(montar_payload_pull(request.user, request.query_params))
 ```
 
-O service usa apenas aulas ja materializadas do dia atual:
+O service usa full sync ou auditoria incremental:
 
 ```python
-data_sync = timezone.localdate()
-aulas = Aula.objects.filter(
-    data=data_sync,
-    sala_id__in=[sala.id for sala in salas_ativas],
-    turma__ativo=True,
-)
+if query_params.get("full"):
+    data = _payload_completo(no, timezone.localdate())
+else:
+    eventos = EventoSincronizacaoBorda.objects.filter(id__gt=cursor)
 ```
 
 Exemplo de resposta simplificada:
 
 ```json
 {
+  "full": true,
+  "full_required": false,
+  "cursor": 123,
   "data": {
     "salas": [
       {"id": "uuid-sala", "nome": "105 Norte"}
     ],
     "dispositivos": [
       {
-        "id": "9084CED6CDC0",
+        "id": "uuid-dispositivo",
+        "codigo": "9084CED6CDC0",
         "sala_id": "uuid-sala",
         "ativo": true,
         "interscity_uuid": "8cf4ce45-3aff-4aa2-81e0-27a2fc361f09"
@@ -542,6 +544,7 @@ Exemplo de resposta simplificada:
       {
         "id": "uuid-aula",
         "nome": "SISTEMAS DISTRIBUIDOS - 20261EECP0021",
+        "turma_id": "uuid-turma",
         "sala_id": "uuid-sala",
         "inicio": "2026-06-19T18:30:00-03:00",
         "fim": "2026-06-19T20:10:00-03:00",
@@ -551,8 +554,8 @@ Exemplo de resposta simplificada:
     "alunos": [
       {"id": "uuid-aluno", "matricula": "20250013659", "nome": "DANIEL CAMPOS"}
     ],
-    "matriculas_aula": [
-      {"aula_id": "uuid-aula", "aluno_id": "uuid-aluno"}
+    "matriculas_turma": [
+      {"id": "uuid-matricula-turma", "turma_id": "uuid-turma", "aluno_id": "uuid-aluno"}
     ],
     "embeddings_faciais": [
       {"id": "uuid-embedding", "aluno_id": "uuid-aluno", "vetor": [0.01, 0.02]}
@@ -563,15 +566,13 @@ Exemplo de resposta simplificada:
     "dispositivos": [],
     "aulas": [],
     "alunos": [],
-    "matriculas_aula": [],
+    "matriculas_turma": [],
     "embeddings_faciais": []
-  },
-  "cursors": {
-    "salas": "2026-06-19T12:00:00Z",
-    "dispositivos": "2026-06-19T12:00:00Z"
   }
 }
 ```
+
+O edge nao recebe uma entidade `MatriculaAula`. Para descobrir os alunos de uma aula, ele cruza `aula.turma_id` com `matriculas_turma.turma_id`.
 
 ### Attendance
 
@@ -592,7 +593,7 @@ Request:
       "id": "evento-001",
       "aluno_id": "uuid-aluno",
       "aula_id": "uuid-aula",
-      "dispositivo_id": "9084CED6CDC0",
+      "dispositivo_id": "uuid-dispositivo",
       "reconhecido_em": "2026-06-19T18:45:00-03:00",
       "score": 0.91
     }
@@ -603,7 +604,7 @@ Request:
 Validacoes principais:
 
 ```python
-dispositivo = DispositivoEsp32.objects.get(codigo=evento["dispositivo_id"], no=no, ativo=True)
+dispositivo = DispositivoEsp32.objects.get(id=evento["dispositivo_id"], no=no, ativo=True)
 aula = Aula.objects.select_related("turma", "sala").get(id=evento["aula_id"])
 aluno = Usuario.objects.get(id=evento["aluno_id"], papel=PapelUsuario.ALUNO, is_active=True)
 ```
@@ -647,7 +648,7 @@ Fluxo:
 2. Serializer valida quantidade/tamanho/formato.
 3. Service gera embedding com OpenCV YuNet/SFace.
 4. Backend compara com embeddings ativos de outros alunos.
-5. Se nao for duplicado, inativa embedding anterior do aluno e salva um novo `EmbeddingFacial`.
+5. Se nao for duplicado, atualiza o unico `EmbeddingFacial` do aluno.
 6. Imagens nao sao persistidas.
 
 Endpoint do aluno:

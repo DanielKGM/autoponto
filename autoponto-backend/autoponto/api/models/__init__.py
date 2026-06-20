@@ -14,6 +14,7 @@ from .biometria import EmbeddingFacial
 from .dispositivos import DispositivoEsp32, NoBorda, TokenNoBorda
 from .identidade import PapelUsuario, Usuario
 from .presencas import Aula, EventoReconhecimento, RegistroPresenca
+from .sincronizacao import EventoSincronizacaoBorda
 
 __all__ = [
     "Aula",
@@ -24,6 +25,7 @@ __all__ = [
     "DispositivoEsp32",
     "EmbeddingFacial",
     "EventoReconhecimento",
+    "EventoSincronizacaoBorda",
     "HorarioPadraoUFMA",
     "MatriculaTurma",
     "NoBorda",

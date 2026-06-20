@@ -160,12 +160,13 @@ def matricular_biometria_aluno(
     vetor, _ = _gerar_vetor_embedding(capturas)
     validar_rosto_unico(aluno=aluno, vetor=vetor)
 
-    EmbeddingFacial.objects.filter(aluno=aluno, ativo=True).update(ativo=False, status="INATIVO")
-    embedding = EmbeddingFacial.objects.create(
+    embedding, _ = EmbeddingFacial.objects.update_or_create(
         aluno=aluno,
-        versao_modelo=versao_modelo,
-        vetor=vetor,
-        status="ATIVO",
-        ativo=True,
+        defaults={
+            "versao_modelo": versao_modelo,
+            "vetor": vetor,
+            "status": "ATIVO",
+            "ativo": True,
+        },
     )
     return embedding

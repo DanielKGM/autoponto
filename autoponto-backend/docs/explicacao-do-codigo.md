@@ -134,9 +134,9 @@ Nao salva imagem, frame, embedding bruto de captura nem payload tecnico bruto.
 - `EmbeddingFacial.versao_modelo`: modelo usado, como `sface`.
 - `EmbeddingFacial.vetor`: embedding facial enviado ao edge.
 - `EmbeddingFacial.status`: `ATIVO`, `INATIVO` ou `REVOGADO`.
-- `EmbeddingFacial.ativo`: garante apenas um embedding ativo por aluno.
+- `EmbeddingFacial.ativo`: indica se o unico embedding do aluno esta disponivel para sincronizacao.
 
-O backend compara o novo vetor com embeddings ativos de outros alunos e bloqueia duplicidade por `FACE_DUPLICATE_THRESHOLD`.
+Existe apenas um `EmbeddingFacial` por aluno. Ao cadastrar um novo rosto, o backend atualiza esse registro e o vetor anterior e perdido. Antes da atualizacao, o backend compara o novo vetor com embeddings ativos de outros alunos e bloqueia duplicidade por `FACE_DUPLICATE_THRESHOLD`.
 
 ## Sincronizacao Edge
 
@@ -153,26 +153,24 @@ Authorization: NodeToken <token>
 Trecho essencial:
 
 ```python
-data_sync = timezone.localdate()
-aulas = Aula.objects.filter(
-    data=data_sync,
-    sala_id__in=[sala.id for sala in salas_ativas],
-    turma__ativo=True,
-)
+if full=1:
+    retorna cache completo do dia
+else:
+    busca EventoSincronizacaoBorda depois do cursor global
 ```
 
-O backend consulta as aulas do dia local atual da API, que ja foram materializadas quando a turma foi cadastrada/editada. Depois busca matriculas e embeddings dessas aulas e retorna:
+O backend consulta as aulas do dia local atual da API, que ja foram materializadas quando a turma foi cadastrada/editada. Para sincronizacao incremental, ele usa `EventoSincronizacaoBorda`, uma auditoria leve com entidade, acao, UUID e cursor inteiro global.
 
 - `salas`: salas do no;
-- `dispositivos`: ESP32 do no, usando `DispositivoEsp32.codigo` como `id`;
+- `dispositivos`: ESP32 do no, usando `DispositivoEsp32.id` como `id` e `codigo` como identificador do firmware;
 - `aulas`: aulas com `inicio` e `fim`;
 - `alunos`: alunos matriculados;
-- `matriculas_aula`: relacao aluno/aula;
+- `matriculas_turma`: relacao aluno/turma; o edge cruza `aula.turma_id` com `matriculas_turma.turma_id`;
 - `embeddings_faciais`: vetor ativo.
 
 ### Attendance
 
-`POST /api/edge/attendance` chama `receber_presencas_borda` e recebe `eventos` com campos em portugues: `aluno_id`, `aula_id`, `dispositivo_id` e `reconhecido_em`.
+`POST /api/edge/attendance` chama `receber_presencas_borda` e recebe `eventos` com campos em portugues: `aluno_id`, `aula_id`, `dispositivo_id` e `reconhecido_em`. O campo `dispositivo_id` e o UUID de `DispositivoEsp32.id`, nao o `codigo` do firmware.
 
 Validacao central:
 
