@@ -40,8 +40,6 @@ Resposta:
 
 ```json
 {
-  "full": true,
-  "full_required": false,
   "data": {
     "salas": [],
     "dispositivos": [],
@@ -103,13 +101,12 @@ Regra do edge:
 - Aplicar `deleted.*` como remocao local por UUID.
 - Atualizar os cursores locais com `cursors` da resposta.
 - Se algum cursor local for perdido, enviar `full=true` para reconstruir o cache.
+- O incremental e minimo: ele envia somente entidades que tiveram evento de auditoria. Ele nao tenta reenviar contexto relacionado.
 
 Exemplo de resposta incremental:
 
 ```json
 {
-  "full": false,
-  "full_required": false,
   "data": {
     "salas": [],
     "dispositivos": [],

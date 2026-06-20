@@ -525,8 +525,6 @@ Exemplo de resposta simplificada:
 
 ```json
 {
-  "full": true,
-  "full_required": false,
   "data": {
     "salas": [
       {"id": "uuid-sala", "nome": "105 Norte"}
@@ -581,6 +579,7 @@ Exemplo de resposta simplificada:
 ```
 
 O edge nao recebe uma entidade `MatriculaAula`. Para descobrir os alunos de uma aula, ele cruza `aula.turma_id` com `matriculas_turma.turma_id`.
+No incremental, a API envia apenas a entidade que teve evento de auditoria. Ela nao reenvia automaticamente aula, aluno, matricula e embedding juntos; o full sync e a fonte autoritativa para reconstruir o contexto completo.
 
 ### Attendance
 

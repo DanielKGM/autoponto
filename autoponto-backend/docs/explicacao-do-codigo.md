@@ -162,6 +162,8 @@ else:
 
 O backend consulta as aulas do dia local atual da API, que ja foram materializadas quando a turma foi cadastrada/editada. Para sincronizacao incremental, ele usa `EventoSincronizacaoBorda`, uma auditoria leve com entidade, acao, UUID e data de criacao. O edge guarda um cursor por entidade em `sync_state(entity, cursor)`.
 
+O incremental e propositalmente pequeno: um evento de `matriculas_turma` envia apenas aquela matricula; um evento de `aulas` envia apenas aquela aula. O backend nao tenta remontar contexto relacionado no incremental. O full sync e o mecanismo autoritativo para reconstruir todo o cache do dia.
+
 - `salas`: salas do no;
 - `dispositivos`: ESP32 do no, usando `DispositivoEsp32.id` como `id` e `codigo` como identificador do firmware;
 - `aulas`: aulas com `inicio` e `fim`;

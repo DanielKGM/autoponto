@@ -21,6 +21,7 @@ from api.models import (
     Turma,
     Usuario,
 )
+from api.serializers.edge import EdgeAulaSerializer
 from api.services.sincronizacao_borda import montar_payload_pull
 
 
@@ -91,6 +92,7 @@ class SincronizacaoBordaContratoTests(TestCase):
         self.assertIn("matriculas_turma", resposta["data"])
         self.assertNotIn("matriculas_aula", resposta["data"])
         self.assertNotIn("matriculas_aula", resposta["deleted"])
+        self.assertEqual(set(resposta), {"data", "deleted", "cursors"})
         self.assertNotIn("cursor", resposta)
         self.assertEqual(set(resposta["cursors"]), set(resposta["data"]))
 
@@ -102,6 +104,12 @@ class SincronizacaoBordaContratoTests(TestCase):
         self.assertEqual(matricula["id"], str(self.matricula.id))
         self.assertEqual(matricula["turma_id"], str(self.turma.id))
         self.assertEqual(matricula["aluno_id"], str(self.aluno.id))
+
+    def test_serializer_edge_de_aula_expõe_apenas_campos_do_contrato(self):
+        self.assertEqual(
+            set(EdgeAulaSerializer(self.aula).data),
+            {"id", "nome", "turma_id", "sala_id", "inicio", "fim", "status"},
+        )
 
     def test_incremental_de_matricula_turma_retorna_uuid_real_da_matricula(self):
         cursors = self._pull({"node_id": self.no.codigo, "full": "true"})["cursors"]
@@ -127,6 +135,23 @@ class SincronizacaoBordaContratoTests(TestCase):
             [str(nova_matricula.id)],
         )
         self.assertEqual(resposta["deleted"]["matriculas_turma"], [])
+
+    def test_incremental_de_matricula_nao_reenvia_contexto_relacionado(self):
+        cursors = self._pull({"node_id": self.no.codigo, "full": "true"})["cursors"]
+
+        self.matricula.save()
+
+        resposta = self._pull(
+            {"node_id": self.no.codigo, "cursors": msgpack.packb(cursors).hex()}
+        )
+
+        self.assertEqual(resposta["data"]["aulas"], [])
+        self.assertEqual(resposta["data"]["alunos"], [])
+        self.assertEqual(resposta["data"]["embeddings_faciais"], [])
+        self.assertEqual(
+            [item["id"] for item in resposta["data"]["matriculas_turma"]],
+            [str(self.matricula.id)],
+        )
 
     def test_delete_de_matricula_turma_remove_uuid_real_da_matricula(self):
         cursors = self._pull({"node_id": self.no.codigo, "full": "true"})["cursors"]

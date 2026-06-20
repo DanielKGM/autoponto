@@ -20,15 +20,9 @@ from api.models import (
     Sala,
     Usuario,
 )
+from api.serializers.edge import EDGE_ENTIDADES, EDGE_SERIALIZERS
 
-ENTIDADES_SYNC = (
-    "salas",
-    "dispositivos",
-    "aulas",
-    "alunos",
-    "matriculas_turma",
-    "embeddings_faciais",
-)
+ENTIDADES_SYNC = EDGE_ENTIDADES
 
 
 def _iso(valor):
@@ -54,9 +48,13 @@ def _decodificar_cursors(valor: str) -> dict:
     try:
         cursores = msgpack.unpackb(bytes.fromhex(valor), raw=False)
     except Exception as exc:
-        raise ValidationError({"cursors": "Informe cursores msgpack em hexadecimal."}) from exc
+        raise ValidationError(
+            {"cursors": "Informe cursores msgpack em hexadecimal."}
+        ) from exc
     if not isinstance(cursores, dict):
-        raise ValidationError({"cursors": "Cursores devem formar um objeto por entidade."})
+        raise ValidationError(
+            {"cursors": "Cursores devem formar um objeto por entidade."}
+        )
     return {
         str(entidade): str(cursor)
         for entidade, cursor in cursores.items()
@@ -68,7 +66,9 @@ def _parsear_cursor_data(entidade: str, valor: str):
     try:
         parseado = datetime.fromisoformat(str(valor).replace("Z", "+00:00"))
     except (TypeError, ValueError) as exc:
-        raise ValidationError({entidade: "Cursor deve ser uma data ISO valida."}) from exc
+        raise ValidationError(
+            {entidade: "Cursor deve ser uma data ISO valida."}
+        ) from exc
     if parseado.tzinfo is None:
         return timezone.make_aware(parseado)
     return parseado
@@ -101,54 +101,8 @@ def _matriculas_ativas_das_aulas(aulas):
     )
 
 
-def _serializar_sala(sala: Sala) -> dict:
-    return {"id": str(sala.id), "nome": sala.nome}
-
-
-def _serializar_dispositivo(dispositivo: DispositivoEsp32) -> dict:
-    return {
-        "id": str(dispositivo.id),
-        "codigo": dispositivo.codigo,
-        "sala_id": str(dispositivo.sala_id),
-        "ativo": dispositivo.ativo,
-        "interscity_uuid": dispositivo.interscity_uuid,
-    }
-
-
-def _serializar_aula(aula: Aula) -> dict:
-    return {
-        "id": str(aula.id),
-        "nome": f"{aula.turma.disciplina.nome} - {aula.turma.codigo}",
-        "turma_id": str(aula.turma_id),
-        "sala_id": str(aula.sala_id),
-        "inicio": _iso(aula.inicio),
-        "fim": _iso(aula.fim),
-        "status": aula.status,
-    }
-
-
-def _serializar_aluno(aluno: Usuario) -> dict:
-    return {
-        "id": str(aluno.id),
-        "matricula": aluno.matricula,
-        "nome": aluno.nome_completo or aluno.username,
-    }
-
-
-def _serializar_embedding(embedding: EmbeddingFacial) -> dict:
-    return {
-        "id": str(embedding.id),
-        "aluno_id": str(embedding.aluno_id),
-        "vetor": embedding.vetor,
-    }
-
-
-def _serializar_matricula_turma(matricula: MatriculaTurma) -> dict:
-    return {
-        "id": str(matricula.id),
-        "turma_id": str(matricula.turma_id),
-        "aluno_id": str(matricula.aluno_id),
-    }
+def _serializar(entidade: str, valor, many: bool = False):
+    return EDGE_SERIALIZERS[entidade](valor, many=many).data
 
 
 def _payload_completo(no: NoBorda, data_sync) -> dict:
@@ -170,89 +124,27 @@ def _payload_completo(no: NoBorda, data_sync) -> dict:
     ).order_by("aluno_id", "id")
 
     return {
-        "salas": [_serializar_sala(sala) for sala in salas.distinct()],
-        "dispositivos": [
-            _serializar_dispositivo(dispositivo) for dispositivo in dispositivos
-        ],
-        "aulas": [_serializar_aula(aula) for aula in aulas],
-        "alunos": [_serializar_aluno(aluno) for aluno in alunos.distinct()],
-        "matriculas_turma": [
-            _serializar_matricula_turma(matricula)
-            for matricula in matriculas.order_by("aluno__username", "id").distinct()
-        ],
-        "embeddings_faciais": [
-            _serializar_embedding(embedding) for embedding in embeddings.distinct()
-        ],
+        "salas": _serializar("salas", salas.distinct(), many=True),
+        "dispositivos": _serializar("dispositivos", dispositivos, many=True),
+        "aulas": _serializar("aulas", aulas, many=True),
+        "alunos": _serializar("alunos", alunos.distinct(), many=True),
+        "matriculas_turma": _serializar(
+            "matriculas_turma",
+            matriculas.order_by("aluno__username", "id").distinct(),
+            many=True,
+        ),
+        "embeddings_faciais": _serializar(
+            "embeddings_faciais",
+            embeddings.distinct(),
+            many=True,
+        ),
     }
 
 
-def _adicionar(dados: dict, entidade: str, identificador, payload: dict):
-    dados[entidade][str(identificador)] = payload
-
-
-def _deletar(dados: dict, deletados: dict, entidade: str, identificador):
-    identificador = str(identificador)
-    dados[entidade].pop(identificador, None)
-    deletados[entidade].add(identificador)
-
-
-def _adicionar_sala(no: NoBorda, dados: dict, sala_id):
-    sala = _salas_do_no(no).filter(id=sala_id, ativo=True).first()
-    if sala:
-        _adicionar(dados, "salas", sala.id, _serializar_sala(sala))
-
-
-def _adicionar_aluno_e_embedding(dados: dict, aluno: Usuario):
-    _adicionar(dados, "alunos", aluno.id, _serializar_aluno(aluno))
-    for embedding in EmbeddingFacial.objects.filter(
-        aluno=aluno,
-        ativo=True,
-        status="ATIVO",
-    ).order_by("id"):
-        _adicionar(
-            dados,
-            "embeddings_faciais",
-            embedding.id,
-            _serializar_embedding(embedding),
-        )
-
-
-def _adicionar_matricula_turma(dados: dict, matricula: MatriculaTurma):
-    _adicionar(
-        dados,
-        "matriculas_turma",
-        matricula.id,
-        _serializar_matricula_turma(matricula),
-    )
-    _adicionar_aluno_e_embedding(dados, matricula.aluno)
-
-
-def _adicionar_matriculas_da_turma(dados: dict, turma_id):
-    matriculas = MatriculaTurma.objects.select_related("aluno").filter(
-        turma_id=turma_id,
-        ativo=True,
-        aluno__papel=PapelUsuario.ALUNO,
-        aluno__is_active=True,
-    )
-    for matricula in matriculas:
-        _adicionar_matricula_turma(dados, matricula)
-
-
-def _adicionar_aulas_da_turma_no(no: NoBorda, dados: dict, turma_id, data_sync):
-    for aula in _aulas_disponiveis_do_no(no, data_sync).filter(turma_id=turma_id):
-        _adicionar(dados, "aulas", aula.id, _serializar_aula(aula))
-        _adicionar_sala(no, dados, aula.sala_id)
-
-
-def _aplicar_upsert(no: NoBorda, dados: dict, deletados: dict, evento, data_sync):
-    entidade = evento.entidade
-    identificador = evento.identificador
-
+def _serializar_entidade_visivel(no: NoBorda, data_sync, entidade: str, identificador):
     if entidade == EventoSincronizacaoBorda.Entidade.SALAS:
         sala = _salas_do_no(no).filter(id=identificador, ativo=True).first()
-        if sala:
-            _adicionar(dados, "salas", sala.id, _serializar_sala(sala))
-        return
+        return _serializar(entidade, sala) if sala else None
 
     if entidade == EventoSincronizacaoBorda.Entidade.DISPOSITIVOS:
         dispositivo = (
@@ -260,25 +152,13 @@ def _aplicar_upsert(no: NoBorda, dados: dict, deletados: dict, evento, data_sync
             .filter(id=identificador, no=no, ativo=True, sala__isnull=False)
             .first()
         )
-        if dispositivo:
-            _adicionar(
-                dados,
-                "dispositivos",
-                dispositivo.id,
-                _serializar_dispositivo(dispositivo),
-            )
-            _adicionar_sala(no, dados, dispositivo.sala_id)
-        return
+        return _serializar(entidade, dispositivo) if dispositivo else None
+
+    aulas_do_no = _aulas_disponiveis_do_no(no, data_sync)
 
     if entidade == EventoSincronizacaoBorda.Entidade.AULAS:
-        aula = _aulas_disponiveis_do_no(no, data_sync).filter(id=identificador).first()
-        if aula:
-            _adicionar(dados, "aulas", aula.id, _serializar_aula(aula))
-            _adicionar_sala(no, dados, aula.sala_id)
-            _adicionar_matriculas_da_turma(dados, aula.turma_id)
-        else:
-            _deletar(dados, deletados, "aulas", identificador)
-        return
+        aula = aulas_do_no.filter(id=identificador).first()
+        return _serializar(entidade, aula) if aula else None
 
     if entidade == EventoSincronizacaoBorda.Entidade.MATRICULAS_TURMA:
         matricula = (
@@ -288,31 +168,24 @@ def _aplicar_upsert(no: NoBorda, dados: dict, deletados: dict, evento, data_sync
                 ativo=True,
                 aluno__papel=PapelUsuario.ALUNO,
                 aluno__is_active=True,
+                turma__aulas__in=aulas_do_no,
             )
             .first()
         )
-        if (
-            matricula
-            and _aulas_disponiveis_do_no(no, data_sync)
-            .filter(turma=matricula.turma)
-            .exists()
-        ):
-            _adicionar_matricula_turma(dados, matricula)
-            _adicionar_aulas_da_turma_no(no, dados, matricula.turma_id, data_sync)
-        else:
-            _deletar(dados, deletados, "matriculas_turma", identificador)
-        return
+        return _serializar(entidade, matricula) if matricula else None
 
     if entidade == EventoSincronizacaoBorda.Entidade.ALUNOS:
-        aluno = Usuario.objects.filter(
-            id=identificador,
-            papel=PapelUsuario.ALUNO,
-            is_active=True,
-            matriculas_turma__turma__aulas__in=_aulas_disponiveis_do_no(no, data_sync),
-        ).first()
-        if aluno:
-            _adicionar_aluno_e_embedding(dados, aluno)
-        return
+        aluno = (
+            Usuario.objects.filter(
+                id=identificador,
+                papel=PapelUsuario.ALUNO,
+                is_active=True,
+                matriculas_turma__turma__aulas__in=aulas_do_no,
+            )
+            .distinct()
+            .first()
+        )
+        return _serializar(entidade, aluno) if aluno else None
 
     if entidade == EventoSincronizacaoBorda.Entidade.EMBEDDINGS_FACIAIS:
         embedding = (
@@ -322,16 +195,14 @@ def _aplicar_upsert(no: NoBorda, dados: dict, deletados: dict, evento, data_sync
                 ativo=True,
                 status="ATIVO",
                 aluno__is_active=True,
-                aluno__matriculas_turma__turma__aulas__in=_aulas_disponiveis_do_no(
-                    no, data_sync
-                ),
+                aluno__matriculas_turma__turma__aulas__in=aulas_do_no,
             )
+            .distinct()
             .first()
         )
-        if embedding:
-            _adicionar_aluno_e_embedding(dados, embedding.aluno)
-        else:
-            _deletar(dados, deletados, "embeddings_faciais", identificador)
+        return _serializar(entidade, embedding) if embedding else None
+
+    return None
 
 
 def _payload_incremental(
@@ -358,10 +229,23 @@ def _payload_incremental(
         eventos_finais[(evento.entidade, evento.identificador)] = evento
 
     for evento in sorted(eventos_finais.values(), key=lambda item: item.id):
+        identificador = str(evento.identificador)
         if evento.acao == EventoSincronizacaoBorda.Acao.DELETE:
-            _deletar(dados, deletados, evento.entidade, evento.identificador)
+            dados[evento.entidade].pop(identificador, None)
+            deletados[evento.entidade].add(identificador)
+            continue
+
+        payload = _serializar_entidade_visivel(
+            no,
+            data_sync,
+            evento.entidade,
+            evento.identificador,
+        )
+        if payload:
+            dados[evento.entidade][identificador] = payload
         else:
-            _aplicar_upsert(no, dados, deletados, evento, data_sync)
+            dados[evento.entidade].pop(identificador, None)
+            deletados[evento.entidade].add(identificador)
 
     return (
         {entidade: list(valores.values()) for entidade, valores in dados.items()},
@@ -376,12 +260,12 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
 
     parametro_full = query_params.get("full")
     if parametro_full not in (None, "") and str(parametro_full).lower() != "true":
-        raise ValidationError({"full": "Use full=true para solicitar sincronizacao completa."})
+        raise ValidationError(
+            {"full": "Use full=true para solicitar sincronizacao completa."}
+        )
 
     if str(parametro_full).lower() == "true":
         return {
-            "full": True,
-            "full_required": False,
             "data": _payload_completo(no, data_sync),
             "deleted": _payload_vazio(),
             "cursors": _cursors_no_marco(marco_cursor),
@@ -394,8 +278,6 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
     cursores = _decodificar_cursors(valor_cursors)
     if set(cursores) != set(ENTIDADES_SYNC):
         return {
-            "full": True,
-            "full_required": False,
             "data": _payload_completo(no, data_sync),
             "deleted": _payload_vazio(),
             "cursors": _cursors_no_marco(marco_cursor),
@@ -403,8 +285,6 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
 
     dados, deletados = _payload_incremental(no, cursores, data_sync, marco_cursor)
     return {
-        "full": False,
-        "full_required": False,
         "data": dados,
         "deleted": deletados,
         "cursors": _cursors_no_marco(marco_cursor),
