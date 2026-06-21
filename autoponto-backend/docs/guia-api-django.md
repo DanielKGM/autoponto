@@ -489,7 +489,7 @@ O backend envia:
 - aulas do dia;
 - alunos matriculados nessas aulas;
 - embeddings faciais ativos;
-- um snapshot autoritativo para substituir o cache local replicado.
+- um snapshot autoritativo pronto para o Redis local do edge.
 
 ### Pull
 
@@ -515,8 +515,9 @@ O service sempre monta um snapshot do dia para o no autenticado:
 
 ```python
 return {
-    "data": _payload_snapshot(no, timezone.localdate()),
+    "snapshot_data": timezone.localdate().isoformat(),
     "synced_at": timezone.now(),
+    "cache_redis": cache_pronto_para_o_edge,
 }
 ```
 
@@ -524,46 +525,45 @@ Exemplo de resposta simplificada:
 
 ```json
 {
-  "data": {
-    "salas": [
-      {"id": "uuid-sala", "nome": "105 Norte"}
-    ],
-    "dispositivos": [
-      {
-        "id": "uuid-dispositivo",
-        "codigo": "9084CED6CDC0",
+  "snapshot_data": "2026-06-19",
+  "synced_at": "2026-06-19T12:00:00Z",
+  "cache_redis": {
+    "dispositivos_por_codigo": {
+      "9084CED6CDC0": {
+        "dispositivo_id": "uuid-dispositivo",
+        "dispositivo_codigo": "9084CED6CDC0",
         "sala_id": "uuid-sala",
         "ativo": true,
         "interscity_uuid": "8cf4ce45-3aff-4aa2-81e0-27a2fc361f09"
       }
-    ],
-    "aulas": [
-      {
-        "id": "uuid-aula",
-        "nome": "SISTEMAS DISTRIBUIDOS - 20261EECP0021",
-        "turma_id": "uuid-turma",
-        "sala_id": "uuid-sala",
-        "inicio": "2026-06-19T18:30:00-03:00",
-        "fim": "2026-06-19T20:10:00-03:00",
-        "status": "PLANEJADA"
+    },
+    "aulas_por_sala": {
+      "uuid-sala": [
+        {
+          "id": "uuid-aula",
+          "nome": "SISTEMAS DISTRIBUIDOS - 20261EECP0021",
+          "turma_id": "uuid-turma",
+          "sala_id": "uuid-sala",
+          "inicio": "2026-06-19T18:30:00-03:00",
+          "fim": "2026-06-19T20:10:00-03:00",
+          "status": "PLANEJADA"
+        }
+      ]
+    },
+    "alunos_por_aula": {"uuid-aula": ["uuid-aluno"]},
+    "alunos_por_id": {"uuid-aluno": {"nome": "DANIEL CAMPOS"}},
+    "embeddings_faciais": {
+      "uuid-embedding": {
+        "alunoId": "uuid-aluno",
+        "embedding": {"dtype": "float32", "shape": [1, 2], "data": [0.01, 0.02]}
       }
-    ],
-    "alunos": [
-      {"id": "uuid-aluno", "matricula": "20250013659", "nome": "DANIEL CAMPOS"}
-    ],
-    "matriculas_turma": [
-      {"id": "uuid-matricula-turma", "turma_id": "uuid-turma", "aluno_id": "uuid-aluno"}
-    ],
-    "embeddings_faciais": [
-      {"id": "uuid-embedding", "aluno_id": "uuid-aluno", "vetor": [0.01, 0.02]}
-    ]
+    }
   },
-  "synced_at": "2026-06-19T12:00:00Z"
 }
 ```
 
-O edge nao recebe uma entidade `MatriculaAula`. Para descobrir os alunos de uma aula, ele cruza `aula.turma_id` com `matriculas_turma.turma_id`.
-Nao ha incremental, cursores nem `deleted`: quando algo deixa de ser valido para o no, o item simplesmente nao aparece no snapshot seguinte e o edge remove isso ao substituir o cache local replicado.
+O edge nao recebe uma entidade `MatriculaAula` nem entidades completas de sincronizacao. Para descobrir os alunos de uma aula, ele usa o conjunto Redis derivado de `cache_redis.alunos_por_aula`.
+Nao ha incremental, cursores nem `deleted`: quando algo deixa de ser valido para o no, o item simplesmente nao aparece no snapshot seguinte e o edge remove isso ao substituir as chaves Redis.
 
 ### Attendance
 

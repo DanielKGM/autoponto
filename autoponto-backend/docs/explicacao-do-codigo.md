@@ -154,19 +154,19 @@ Trecho essencial:
 
 ```python
 return {
-    "data": snapshot_do_dia_para_o_no,
+    "snapshot_data": data_do_snapshot,
     "synced_at": instante_da_sincronizacao,
+    "cache_redis": mapas_prontos_para_o_edge,
 }
 ```
 
-O backend consulta as aulas do dia local atual da API, que ja foram materializadas quando a turma foi cadastrada/editada. O pull e sempre um snapshot autoritativo: o edge substitui o cache local replicado pelas listas recebidas em `data`, entao nao existem cursores, payload incremental nem lista `deleted`.
+O backend consulta as aulas do dia local atual da API, que ja foram materializadas quando a turma foi cadastrada/editada. O pull e sempre um snapshot autoritativo pronto para Redis: o edge grava `cache_redis` diretamente com `substituir_snapshot_redis`, entao nao existem entidades completas no payload, cursores, payload incremental nem lista `deleted`.
 
-- `salas`: salas do no;
-- `dispositivos`: ESP32 do no, usando `DispositivoEsp32.id` como `id` e `codigo` como identificador do firmware;
-- `aulas`: aulas com `inicio` e `fim`;
-- `alunos`: alunos matriculados;
-- `matriculas_turma`: relacao aluno/turma; o edge cruza `aula.turma_id` com `matriculas_turma.turma_id`;
-- `embeddings_faciais`: vetor ativo.
+- `dispositivos_por_codigo`: ESP32 do no indexadas por `codigo`, com UUID da API e sala;
+- `aulas_por_sala`: aulas validas do dia agrupadas por sala e ordenadas por inicio;
+- `alunos_por_aula`: ids dos alunos por aula;
+- `alunos_por_id`: metadados minimos dos alunos, incluindo `nome`;
+- `embeddings_faciais`: vetor ativo no envelope `dtype`/`shape`/`data` esperado pelo face-worker.
 
 ### Attendance
 

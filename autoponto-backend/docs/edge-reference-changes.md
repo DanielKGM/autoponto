@@ -6,15 +6,13 @@ Use este documento como prompt direto para adaptar `referencia-edge/autoponto-ed
 
 Atualizar o edge-node para refletir a API principal como snapshot autoritativo do cache local:
 
-- Todos os campos `id` vindos da API principal sao UUID.
 - Nao existe entidade `MatriculaAula` na API principal.
-- A API envia `aulas` com `turma_id` e `matriculas_turma` com `turma_id` + `aluno_id`.
-- O edge deve derivar localmente quais alunos pertencem a uma aula cruzando `aula.turma_id` com `matriculas_turma.turma_id`.
+- A API nao envia entidades completas no pull; ela envia `cache_redis` pronto para gravacao no Redis.
 - `DispositivoEsp32.codigo` continua sendo o identificador usado pelo firmware/ESP32.
 - `DispositivoEsp32.id` e o UUID usado em chamadas para a API principal.
-- O edge deve manter um mapa local `codigo -> id` para converter o `device_id` do firmware em UUID.
+- `dispositivos_por_codigo` e o mapa local `codigo -> id` usado para converter o `device_id` do firmware em UUID.
 - O pull nao usa incremental, cursores, `deleted` nem msgpack.
-- O edge deve substituir o cache local replicado a cada pull.
+- O edge deve substituir o snapshot Redis a cada pull.
 - A sincronizacao e obrigatoria ao iniciar, na virada do dia e antes do inicio de cada aula salva no cache.
 
 ## Autenticacao
@@ -40,71 +38,84 @@ Resposta:
 
 ```json
 {
-  "data": {
-    "salas": [],
-    "dispositivos": [],
-    "aulas": [],
-    "alunos": [],
-    "matriculas_turma": [],
-    "embeddings_faciais": []
-  },
-  "synced_at": "2026-06-20T12:00:00Z"
+  "snapshot_data": "2026-06-20",
+  "synced_at": "2026-06-20T12:00:00Z",
+  "cache_redis": {
+    "dispositivos_por_codigo": {},
+    "aulas_por_sala": {},
+    "alunos_por_aula": {},
+    "alunos_por_id": {},
+    "embeddings_faciais": {}
+  }
 }
 ```
 
 Regra do edge:
 
-- Limpar as tabelas locais replicadas antes de aplicar o payload.
-- Inserir as listas recebidas em `data`.
-- Reconstruir o cache Redis de reconhecimento depois de aplicar o snapshot.
+- Validar `snapshot_data`, `synced_at` e `cache_redis`.
+- Chamar `substituir_snapshot_redis(cache_redis, snapshot_data, synced_at)`.
 - Nao enviar `full=true`.
 - Nao enviar `cursors`.
-- Nao manter tabela `sync_state`.
 - Nao processar `deleted`.
 
-## Payloads Principais
+## Estrutura Do `cache_redis`
 
-Dispositivo:
+`dispositivos_por_codigo`:
 
 ```json
 {
-  "id": "uuid-da-esp32-na-api",
-  "codigo": "ESP32-LAB101",
-  "sala_id": "uuid-da-sala",
-  "ativo": true,
-  "interscity_uuid": "uuid-interscity"
+  "ESP32-LAB101": {
+    "dispositivo_id": "uuid-da-esp32-na-api",
+    "dispositivo_codigo": "ESP32-LAB101",
+    "sala_id": "uuid-da-sala",
+    "ativo": true,
+    "interscity_uuid": "uuid-interscity"
+  }
 }
 ```
 
-Aula:
+`aulas_por_sala`:
 
 ```json
 {
-  "id": "uuid-da-aula",
-  "nome": "Sistemas Embarcados - 01",
-  "turma_id": "uuid-da-turma",
-  "sala_id": "uuid-da-sala",
-  "inicio": "2026-06-20T11:00:00Z",
-  "fim": "2026-06-20T12:40:00Z",
-  "status": "PLANEJADA"
+  "uuid-da-sala": [
+    {
+      "id": "uuid-da-aula",
+      "nome": "Sistemas Embarcados - 01",
+      "turma_id": "uuid-da-turma",
+      "sala_id": "uuid-da-sala",
+      "inicio": "2026-06-20T11:00:00Z",
+      "fim": "2026-06-20T12:40:00Z",
+      "status": "PLANEJADA"
+    }
+  ]
 }
 ```
 
-Matricula em turma:
+`alunos_por_aula`, `alunos_por_id` e `embeddings_faciais`:
 
 ```json
 {
-  "id": "uuid-da-matricula-turma",
-  "turma_id": "uuid-da-turma",
-  "aluno_id": "uuid-do-aluno"
+  "alunos_por_aula": {
+    "uuid-da-aula": ["uuid-do-aluno"]
+  },
+  "alunos_por_id": {
+    "uuid-do-aluno": {"nome": "Aluno Um"}
+  },
+  "embeddings_faciais": {
+    "uuid-do-embedding": {
+      "alunoId": "uuid-do-aluno",
+      "embedding": {"dtype": "float32", "shape": [1, 3], "data": [0.1, 0.2, 0.3]}
+    }
+  }
 }
 ```
 
 Regra obrigatoria:
 
 - Nao criar `MatriculaAula` como entidade do contrato.
-- Para saber os alunos de uma aula: selecionar `matriculas_turma` em que `turma_id == aula.turma_id`.
-- Remocoes, cancelamentos e fechamentos desaparecem do cache quando o snapshot seguinte substitui as tabelas locais.
+- Para saber os alunos de uma aula no edge, consultar `aula:{aula_id}:alunos`, derivado de `alunos_por_aula`.
+- Remocoes, cancelamentos e fechamentos desaparecem do Redis quando o snapshot seguinte substitui as chaves.
 
 ## Attendance
 
@@ -153,6 +164,6 @@ Politica recomendada:
 
 ## IntersCity
 
-- A API principal envia `dispositivos[].interscity_uuid` no pull.
+- A API principal envia `dispositivos_por_codigo.*.interscity_uuid` no pull.
 - O edge continua publicando telemetria das ESP32 no IntersCity por conta propria.
 - Nao existem recursos IntersCity para `NoBorda`, apenas para ESP32.

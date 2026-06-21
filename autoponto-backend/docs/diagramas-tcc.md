@@ -94,8 +94,8 @@ sequenceDiagram
     API->>DB: Busca ESP32 e salas do no
     API->>DB: Materializa Aula pelo periodo de sync
     API->>DB: Busca alunos, matriculas e embeddings ativos
-    API-->>Edge: snapshot data + synced_at
-    Edge->>Edge: Substitui cache local replicado
+    API-->>Edge: snapshot_data + synced_at + cache_redis
+    Edge->>Edge: Substitui chaves Redis do snapshot
 ```
 
 ## 5. Fluxo De Presenca
@@ -158,8 +158,8 @@ sequenceDiagram
     API->>DB: Marca Aula como FECHADA
     API->>DB: Salva fechada_em e fechada_por
     Edge->>API: GET /api/edge/pull
-    API-->>Edge: snapshot sem aula fechada/cancelada
-    Edge->>Edge: Substitui cache local replicado
+    API-->>Edge: cache_redis sem aula fechada/cancelada
+    Edge->>Edge: Substitui chaves Redis do snapshot
 ```
 
 ## 8. Biometria

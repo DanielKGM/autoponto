@@ -18,9 +18,6 @@ from api.models import (
     Sala,
     Usuario,
 )
-from api.serializers.edge import EDGE_ENTIDADES, EDGE_SERIALIZERS
-
-ENTIDADES_SYNC = EDGE_ENTIDADES
 
 
 def _iso(valor):
@@ -61,43 +58,94 @@ def _matriculas_ativas_das_aulas(aulas):
     )
 
 
-def _serializar(entidade: str, valor, many: bool = False):
-    return EDGE_SERIALIZERS[entidade](valor, many=many).data
+def _nome_aluno(aluno: Usuario) -> str:
+    return aluno.nome_completo or aluno.username
 
 
-def _payload_snapshot(no: NoBorda, data_sync) -> dict:
+def _embedding_face_worker(vetor) -> dict:
+    dados = list(vetor or [])
+    return {
+        "dtype": "float32",
+        "shape": [1, len(dados)],
+        "data": dados,
+    }
+
+
+def _cache_redis_snapshot(no: NoBorda, data_sync) -> dict:
+    # dispositivos que têm salas e pertencem ao nó
     dispositivos = (
         DispositivoEsp32.objects.select_related("sala")
         .filter(no=no, ativo=True, sala__isnull=False)
         .order_by("codigo")
     )
-    salas = _salas_do_no(no).filter(ativo=True).order_by("nome", "id")
+
+    # aulas de interesse para esse nó (nas salas do nó, salas e turmas ativas, planejadas)
     aulas = _aulas_disponiveis_do_no(no, data_sync)
+
+    # recuperar matrículas das aulas
+    # matrículas e alunos ativos
     matriculas = _matriculas_ativas_das_aulas(aulas)
+
+    # alunos das matrículas anteriormente filtradas
     alunos = Usuario.objects.filter(id__in=matriculas.values("aluno_id")).order_by(
         "username", "id"
     )
+
+    # embeddings ativos dos alunos
     embeddings = EmbeddingFacial.objects.filter(
         aluno_id__in=matriculas.values("aluno_id"),
         ativo=True,
         status="ATIVO",
     ).order_by("aluno_id", "id")
 
+    # {aula1.id: [dict, dict, ...], aula2.id: [dict, dict, ...], (...)}
+    alunos_por_aula = {str(aula.id): [] for aula in aulas}
+
+    aulas_por_sala: dict[str, list[dict]] = {}
+    alunos_por_turma: dict[str, list[str]] = {}
+
+    for matricula in matriculas.order_by("aluno__username", "id").distinct():
+        alunos_por_turma.setdefault(str(matricula.turma_id), []).append(
+            str(matricula.aluno_id)
+        )
+
+    for aula in aulas:
+        aula_payload = {
+            "id": str(aula.id),
+            "nome": str(aula.turma.disciplina.nome),
+            "turma_id": str(aula.turma_id),
+            "sala_id": str(aula.sala_id),
+            "inicio": _iso(aula.inicio),
+            "fim": _iso(aula.fim),
+            "status": aula.status,
+        }
+        aulas_por_sala.setdefault(str(aula.sala_id), []).append(aula_payload)
+        alunos_por_aula[str(aula.id)] = alunos_por_turma.get(str(aula.turma_id), [])
+
+    # cachê em NOSQL para maior performance em REDIS, utilizados no EdgeNode
     return {
-        "salas": _serializar("salas", salas.distinct(), many=True),
-        "dispositivos": _serializar("dispositivos", dispositivos, many=True),
-        "aulas": _serializar("aulas", aulas, many=True),
-        "alunos": _serializar("alunos", alunos.distinct(), many=True),
-        "matriculas_turma": _serializar(
-            "matriculas_turma",
-            matriculas.order_by("aluno__username", "id").distinct(),
-            many=True,
-        ),
-        "embeddings_faciais": _serializar(
-            "embeddings_faciais",
-            embeddings.distinct(),
-            many=True,
-        ),
+        "dispositivos_por_codigo": {
+            dispositivo.codigo: {
+                "dispositivo_id": str(dispositivo.id),
+                "dispositivo_codigo": dispositivo.codigo,
+                "sala_id": str(dispositivo.sala_id),
+                "ativo": dispositivo.ativo,
+                "interscity_uuid": dispositivo.interscity_uuid,
+            }
+            for dispositivo in dispositivos
+        },
+        "aulas_por_sala": aulas_por_sala,
+        "alunos_por_aula": alunos_por_aula,
+        "alunos_por_id": {
+            str(aluno.id): {"nome": _nome_aluno(aluno)} for aluno in alunos.distinct()
+        },
+        "embeddings_faciais": {
+            str(embedding.id): {
+                "alunoId": str(embedding.aluno_id),
+                "embedding": _embedding_face_worker(embedding.vetor),
+            }
+            for embedding in embeddings.distinct()
+        },
     }
 
 
@@ -106,8 +154,9 @@ def montar_payload_pull(no: NoBorda, query_params) -> dict:
     data_sync = timezone.localdate()
     synced_at = timezone.now()
     return {
-        "data": _payload_snapshot(no, data_sync),
+        "snapshot_data": data_sync.isoformat(),
         "synced_at": _iso(synced_at),
+        "cache_redis": _cache_redis_snapshot(no, data_sync),
     }
 
 
