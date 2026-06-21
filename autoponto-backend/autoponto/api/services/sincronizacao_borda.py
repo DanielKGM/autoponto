@@ -1,7 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
 
-import msgpack
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.utils import timezone
@@ -12,7 +11,6 @@ from api.models import (
     DispositivoEsp32,
     EmbeddingFacial,
     EventoReconhecimento,
-    EventoSincronizacaoBorda,
     MatriculaTurma,
     NoBorda,
     PapelUsuario,
@@ -29,49 +27,11 @@ def _iso(valor):
     return valor.isoformat().replace("+00:00", "Z")
 
 
-def _payload_vazio() -> dict:
-    return {entidade: [] for entidade in ENTIDADES_SYNC}
-
-
 def _validar_no(no: NoBorda, identificador: str | None):
     if identificador and identificador not in {str(no.id), no.codigo}:
         raise ValidationError(
             {"node_id": "Token do no nao corresponde ao node_id solicitado."}
         )
-
-
-def _cursors_no_marco(marco) -> dict:
-    return {entidade: _iso(marco) for entidade in ENTIDADES_SYNC}
-
-
-def _decodificar_cursors(valor: str) -> dict:
-    try:
-        cursores = msgpack.unpackb(bytes.fromhex(valor), raw=False)
-    except Exception as exc:
-        raise ValidationError(
-            {"cursors": "Informe cursores msgpack em hexadecimal."}
-        ) from exc
-    if not isinstance(cursores, dict):
-        raise ValidationError(
-            {"cursors": "Cursores devem formar um objeto por entidade."}
-        )
-    return {
-        str(entidade): str(cursor)
-        for entidade, cursor in cursores.items()
-        if entidade in ENTIDADES_SYNC and cursor
-    }
-
-
-def _parsear_cursor_data(entidade: str, valor: str):
-    try:
-        parseado = datetime.fromisoformat(str(valor).replace("Z", "+00:00"))
-    except (TypeError, ValueError) as exc:
-        raise ValidationError(
-            {entidade: "Cursor deve ser uma data ISO valida."}
-        ) from exc
-    if parseado.tzinfo is None:
-        return timezone.make_aware(parseado)
-    return parseado
 
 
 def _salas_do_no(no: NoBorda):
@@ -105,7 +65,7 @@ def _serializar(entidade: str, valor, many: bool = False):
     return EDGE_SERIALIZERS[entidade](valor, many=many).data
 
 
-def _payload_completo(no: NoBorda, data_sync) -> dict:
+def _payload_snapshot(no: NoBorda, data_sync) -> dict:
     dispositivos = (
         DispositivoEsp32.objects.select_related("sala")
         .filter(no=no, ativo=True, sala__isnull=False)
@@ -141,153 +101,13 @@ def _payload_completo(no: NoBorda, data_sync) -> dict:
     }
 
 
-def _serializar_entidade_visivel(no: NoBorda, data_sync, entidade: str, identificador):
-    if entidade == EventoSincronizacaoBorda.Entidade.SALAS:
-        sala = _salas_do_no(no).filter(id=identificador, ativo=True).first()
-        return _serializar(entidade, sala) if sala else None
-
-    if entidade == EventoSincronizacaoBorda.Entidade.DISPOSITIVOS:
-        dispositivo = (
-            DispositivoEsp32.objects.select_related("sala")
-            .filter(id=identificador, no=no, ativo=True, sala__isnull=False)
-            .first()
-        )
-        return _serializar(entidade, dispositivo) if dispositivo else None
-
-    aulas_do_no = _aulas_disponiveis_do_no(no, data_sync)
-
-    if entidade == EventoSincronizacaoBorda.Entidade.AULAS:
-        aula = aulas_do_no.filter(id=identificador).first()
-        return _serializar(entidade, aula) if aula else None
-
-    if entidade == EventoSincronizacaoBorda.Entidade.MATRICULAS_TURMA:
-        matricula = (
-            MatriculaTurma.objects.select_related("aluno")
-            .filter(
-                id=identificador,
-                ativo=True,
-                aluno__papel=PapelUsuario.ALUNO,
-                aluno__is_active=True,
-                turma__aulas__in=aulas_do_no,
-            )
-            .first()
-        )
-        return _serializar(entidade, matricula) if matricula else None
-
-    if entidade == EventoSincronizacaoBorda.Entidade.ALUNOS:
-        aluno = (
-            Usuario.objects.filter(
-                id=identificador,
-                papel=PapelUsuario.ALUNO,
-                is_active=True,
-                matriculas_turma__turma__aulas__in=aulas_do_no,
-            )
-            .distinct()
-            .first()
-        )
-        return _serializar(entidade, aluno) if aluno else None
-
-    if entidade == EventoSincronizacaoBorda.Entidade.EMBEDDINGS_FACIAIS:
-        embedding = (
-            EmbeddingFacial.objects.select_related("aluno")
-            .filter(
-                id=identificador,
-                ativo=True,
-                status="ATIVO",
-                aluno__is_active=True,
-                aluno__matriculas_turma__turma__aulas__in=aulas_do_no,
-            )
-            .distinct()
-            .first()
-        )
-        return _serializar(entidade, embedding) if embedding else None
-
-    return None
-
-
-def _payload_incremental(
-    no: NoBorda,
-    cursores: dict,
-    data_sync,
-    marco_cursor,
-) -> tuple[dict, dict]:
-    dados = {entidade: {} for entidade in ENTIDADES_SYNC}
-    deletados = {entidade: set() for entidade in ENTIDADES_SYNC}
-    cursores_parseados = {
-        entidade: _parsear_cursor_data(entidade, cursores[entidade])
-        for entidade in ENTIDADES_SYNC
-    }
-    menor_cursor = min(cursores_parseados.values())
-    eventos_finais = {}
-
-    for evento in EventoSincronizacaoBorda.objects.filter(
-        criado_em__gt=menor_cursor,
-        criado_em__lte=marco_cursor,
-    ).order_by("id"):
-        if evento.criado_em <= cursores_parseados[evento.entidade]:
-            continue
-        eventos_finais[(evento.entidade, evento.identificador)] = evento
-
-    for evento in sorted(eventos_finais.values(), key=lambda item: item.id):
-        identificador = str(evento.identificador)
-        if evento.acao == EventoSincronizacaoBorda.Acao.DELETE:
-            dados[evento.entidade].pop(identificador, None)
-            deletados[evento.entidade].add(identificador)
-            continue
-
-        payload = _serializar_entidade_visivel(
-            no,
-            data_sync,
-            evento.entidade,
-            evento.identificador,
-        )
-        if payload:
-            dados[evento.entidade][identificador] = payload
-        else:
-            dados[evento.entidade].pop(identificador, None)
-            deletados[evento.entidade].add(identificador)
-
-    return (
-        {entidade: list(valores.values()) for entidade, valores in dados.items()},
-        {entidade: sorted(valores) for entidade, valores in deletados.items()},
-    )
-
-
 def montar_payload_pull(no: NoBorda, query_params) -> dict:
     _validar_no(no, query_params.get("node_id"))
     data_sync = timezone.localdate()
-    marco_cursor = timezone.now()
-
-    parametro_full = query_params.get("full")
-    if parametro_full not in (None, "") and str(parametro_full).lower() != "true":
-        raise ValidationError(
-            {"full": "Use full=true para solicitar sincronizacao completa."}
-        )
-
-    if str(parametro_full).lower() == "true":
-        return {
-            "data": _payload_completo(no, data_sync),
-            "deleted": _payload_vazio(),
-            "cursors": _cursors_no_marco(marco_cursor),
-        }
-
-    valor_cursors = query_params.get("cursors")
-    if valor_cursors in (None, ""):
-        raise ValidationError({"cursors": "Informe cursors ou full=true."})
-
-    cursores = _decodificar_cursors(valor_cursors)
-    if set(cursores) != set(ENTIDADES_SYNC):
-        return {
-            "data": _payload_completo(no, data_sync),
-            "deleted": _payload_vazio(),
-            "cursors": _cursors_no_marco(marco_cursor),
-        }
-
-    dados, deletados = _payload_incremental(no, cursores, data_sync, marco_cursor)
+    synced_at = timezone.now()
     return {
-        "data": dados,
-        "deleted": deletados,
-        "cursors": _cursors_no_marco(marco_cursor),
+        "data": _payload_snapshot(no, data_sync),
+        "synced_at": _iso(synced_at),
     }
 
 

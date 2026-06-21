@@ -489,14 +489,14 @@ O backend envia:
 - aulas do dia;
 - alunos matriculados nessas aulas;
 - embeddings faciais ativos;
-- registros inativos/removidos para limpar cache local.
+- um snapshot autoritativo para substituir o cache local replicado.
 
 ### Pull
 
 Endpoint:
 
 ```http
-GET /api/edge/pull/?node_id=NO-CCET-01&full=true
+GET /api/edge/pull/?node_id=NO-CCET-01
 Authorization: NodeToken <token>
 ```
 
@@ -511,14 +511,13 @@ class EdgePullView(APIView):
         return Response(montar_payload_pull(request.user, request.query_params))
 ```
 
-O service usa full sync ou auditoria incremental:
+O service sempre monta um snapshot do dia para o no autenticado:
 
 ```python
-if query_params.get("full") == "true":
-    data = _payload_completo(no, timezone.localdate())
-else:
-    cursors = decodificar_msgpack_hex(query_params["cursors"])
-    eventos = EventoSincronizacaoBorda.objects.filter(criado_em__gt=menor_cursor)
+return {
+    "data": _payload_snapshot(no, timezone.localdate()),
+    "synced_at": timezone.now(),
+}
 ```
 
 Exemplo de resposta simplificada:
@@ -559,27 +558,12 @@ Exemplo de resposta simplificada:
       {"id": "uuid-embedding", "aluno_id": "uuid-aluno", "vetor": [0.01, 0.02]}
     ]
   },
-  "deleted": {
-    "salas": [],
-    "dispositivos": [],
-    "aulas": [],
-    "alunos": [],
-    "matriculas_turma": [],
-    "embeddings_faciais": []
-  },
-  "cursors": {
-    "salas": "2026-06-19T12:00:00Z",
-    "dispositivos": "2026-06-19T12:00:00Z",
-    "aulas": "2026-06-19T12:00:00Z",
-    "alunos": "2026-06-19T12:00:00Z",
-    "matriculas_turma": "2026-06-19T12:00:00Z",
-    "embeddings_faciais": "2026-06-19T12:00:00Z"
-  }
+  "synced_at": "2026-06-19T12:00:00Z"
 }
 ```
 
 O edge nao recebe uma entidade `MatriculaAula`. Para descobrir os alunos de uma aula, ele cruza `aula.turma_id` com `matriculas_turma.turma_id`.
-No incremental, a API envia apenas a entidade que teve evento de auditoria. Ela nao reenvia automaticamente aula, aluno, matricula e embedding juntos; o full sync e a fonte autoritativa para reconstruir o contexto completo.
+Nao ha incremental, cursores nem `deleted`: quando algo deixa de ser valido para o no, o item simplesmente nao aparece no snapshot seguinte e o edge remove isso ao substituir o cache local replicado.
 
 ### Attendance
 

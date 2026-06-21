@@ -97,58 +97,6 @@ class Migration(migrations.Migration):
             },
         ),
         migrations.CreateModel(
-            name="EventoSincronizacaoBorda",
-            fields=[
-                (
-                    "id",
-                    models.BigAutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name="ID",
-                    ),
-                ),
-                (
-                    "entidade",
-                    models.CharField(
-                        choices=[
-                            ("salas", "Salas"),
-                            ("dispositivos", "Dispositivos"),
-                            ("aulas", "Aulas"),
-                            ("alunos", "Alunos"),
-                            ("matriculas_turma", "Matriculas em turma"),
-                            ("embeddings_faciais", "Embeddings faciais"),
-                        ],
-                        db_index=True,
-                        max_length=40,
-                    ),
-                ),
-                (
-                    "acao",
-                    models.CharField(
-                        choices=[
-                            ("UPSERT", "Criar ou atualizar"),
-                            ("DELETE", "Remover"),
-                        ],
-                        max_length=10,
-                    ),
-                ),
-                ("identificador", models.UUIDField(db_index=True)),
-                ("criado_em", models.DateTimeField(auto_now_add=True)),
-            ],
-            options={
-                "verbose_name": "Evento de sincronizacao de borda",
-                "verbose_name_plural": "Eventos de sincronizacao de borda",
-                "ordering": ("id",),
-                "indexes": [
-                    models.Index(
-                        fields=["entidade", "identificador", "id"],
-                        name="api_eventos_entidad_caf925_idx",
-                    ),
-                ],
-            },
-        ),
-        migrations.CreateModel(
             name="HorarioPadraoUFMA",
             fields=[
                 (

@@ -6,7 +6,6 @@ djangorestframework
 djangorestframework-simplejwt
 drf-spectacular
 gunicorn
-msgpack
 numpy
 opencv-python-headless
 psycopg[binary]

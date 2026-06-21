@@ -1,11 +1,10 @@
 # Prompt De Ajuste Do Edge-Node AutoPonto
 
-Use este documento como prompt direto para adaptar `referencia-edge/autoponto-edgenode`.
-Nao edite os arquivos de referencia neste repositorio.
+Use este documento como prompt direto para adaptar `referencia-edge/autoponto-edgenode`. Nao edite os arquivos de referencia neste repositorio.
 
 ## Objetivo
 
-Atualizar o edge-node para refletir a API principal como cache local:
+Atualizar o edge-node para refletir a API principal como snapshot autoritativo do cache local:
 
 - Todos os campos `id` vindos da API principal sao UUID.
 - Nao existe entidade `MatriculaAula` na API principal.
@@ -14,8 +13,9 @@ Atualizar o edge-node para refletir a API principal como cache local:
 - `DispositivoEsp32.codigo` continua sendo o identificador usado pelo firmware/ESP32.
 - `DispositivoEsp32.id` e o UUID usado em chamadas para a API principal.
 - O edge deve manter um mapa local `codigo -> id` para converter o `device_id` do firmware em UUID.
-- Full sync e obrigatorio ao iniciar, na virada do dia e antes do inicio de cada aula.
-- O incremental usa cursores por entidade/data, salvos em `sync_state(entity, cursor)`.
+- O pull nao usa incremental, cursores, `deleted` nem msgpack.
+- O edge deve substituir o cache local replicado a cada pull.
+- A sincronizacao e obrigatoria ao iniciar, na virada do dia e antes do inicio de cada aula salva no cache.
 
 ## Autenticacao
 
@@ -28,12 +28,12 @@ X-Node-Id: <codigo-ou-uuid-do-no>
 
 Enviar tambem `node_id` na query/body quando o endpoint exigir.
 
-## Pull Completo
+## Pull Snapshot
 
 Requisicao:
 
 ```http
-GET /api/edge/pull?node_id=<node_id>&full=true
+GET /api/edge/pull?node_id=<node_id>
 ```
 
 Resposta:
@@ -48,91 +48,19 @@ Resposta:
     "matriculas_turma": [],
     "embeddings_faciais": []
   },
-  "deleted": {
-    "salas": [],
-    "dispositivos": [],
-    "aulas": [],
-    "alunos": [],
-    "matriculas_turma": [],
-    "embeddings_faciais": []
-  },
-  "cursors": {
-    "salas": "2026-06-20T12:00:00Z",
-    "dispositivos": "2026-06-20T12:00:00Z",
-    "aulas": "2026-06-20T12:00:00Z",
-    "alunos": "2026-06-20T12:00:00Z",
-    "matriculas_turma": "2026-06-20T12:00:00Z",
-    "embeddings_faciais": "2026-06-20T12:00:00Z"
-  }
+  "synced_at": "2026-06-20T12:00:00Z"
 }
 ```
 
 Regra do edge:
 
-- Substituir o cache local pelas listas de `data`.
-- Guardar cada item de `cursors` em `sync_state(entity, cursor)`.
-- `deleted` normalmente vem vazio no full sync.
-- Usar exatamente `full=true`. Nao enviar `full=1`, `full=yes`, `full=sim` ou variantes.
-
-## Pull Incremental
-
-Requisicao:
-
-```http
-GET /api/edge/pull?node_id=<node_id>&cursors=<msgpack-hex>
-```
-
-`cursors` e um msgpack em hexadecimal com um objeto por entidade:
-
-```json
-{
-  "salas": "2026-06-20T12:00:00Z",
-  "dispositivos": "2026-06-20T12:00:00Z",
-  "aulas": "2026-06-20T12:00:00Z",
-  "alunos": "2026-06-20T12:00:00Z",
-  "matriculas_turma": "2026-06-20T12:00:00Z",
-  "embeddings_faciais": "2026-06-20T12:00:00Z"
-}
-```
-
-Regra do edge:
-
-- Aplicar `data.*` como upsert no cache local.
-- Aplicar `deleted.*` como remocao local por UUID.
-- Atualizar os cursores locais com `cursors` da resposta.
-- Se algum cursor local for perdido, enviar `full=true` para reconstruir o cache.
-- O incremental e minimo: ele envia somente entidades que tiveram evento de auditoria. Ele nao tenta reenviar contexto relacionado.
-
-Exemplo de resposta incremental:
-
-```json
-{
-  "data": {
-    "salas": [],
-    "dispositivos": [],
-    "aulas": [],
-    "alunos": [],
-    "matriculas_turma": [],
-    "embeddings_faciais": []
-  },
-  "deleted": {
-    "salas": [],
-    "dispositivos": [],
-    "aulas": [],
-    "alunos": [],
-    "matriculas_turma": [],
-    "embeddings_faciais": []
-  },
-  "cursors": {
-    "salas": "2026-06-20T12:05:00Z",
-    "dispositivos": "2026-06-20T12:05:00Z",
-    "aulas": "2026-06-20T12:05:00Z",
-    "alunos": "2026-06-20T12:05:00Z",
-    "matriculas_turma": "2026-06-20T12:05:00Z",
-    "embeddings_faciais": "2026-06-20T12:05:00Z"
-  }
-}
-```
+- Limpar as tabelas locais replicadas antes de aplicar o payload.
+- Inserir as listas recebidas em `data`.
+- Reconstruir o cache Redis de reconhecimento depois de aplicar o snapshot.
+- Nao enviar `full=true`.
+- Nao enviar `cursors`.
+- Nao manter tabela `sync_state`.
+- Nao processar `deleted`.
 
 ## Payloads Principais
 
@@ -176,7 +104,7 @@ Regra obrigatoria:
 
 - Nao criar `MatriculaAula` como entidade do contrato.
 - Para saber os alunos de uma aula: selecionar `matriculas_turma` em que `turma_id == aula.turma_id`.
-- Remover matriculas por UUID quando aparecerem em `deleted.matriculas_turma`.
+- Remocoes, cancelamentos e fechamentos desaparecem do cache quando o snapshot seguinte substitui as tabelas locais.
 
 ## Attendance
 
@@ -212,16 +140,16 @@ Regras:
 - O aluno deve estar matriculado na turma da aula.
 - O dispositivo deve pertencer ao no autenticado e estar na sala da aula.
 
-## Politica De Sincronizacao Recomendada
+## Politica De Sincronizacao
 
 Nao depender de polling fixo de 60 segundos.
 
 Politica recomendada:
 
-- full sync ao iniciar;
-- full sync na virada do dia;
-- full sync antes do inicio da aula;
-- incremental opcional em intervalo maior com jitter;
+- snapshot ao iniciar;
+- snapshot na virada do dia;
+- snapshot antes do inicio de cada aula salva no cache;
+- envio de presencas pendentes depois do pull ou quando houver conectividade.
 
 ## IntersCity
 

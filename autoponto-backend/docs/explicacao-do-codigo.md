@@ -153,16 +153,13 @@ Authorization: NodeToken <token>
 Trecho essencial:
 
 ```python
-if full == "true":
-    retorna cache completo do dia
-else:
-    decodifica cursors msgpack por entidade
-    busca EventoSincronizacaoBorda depois da data de cada entidade
+return {
+    "data": snapshot_do_dia_para_o_no,
+    "synced_at": instante_da_sincronizacao,
+}
 ```
 
-O backend consulta as aulas do dia local atual da API, que ja foram materializadas quando a turma foi cadastrada/editada. Para sincronizacao incremental, ele usa `EventoSincronizacaoBorda`, uma auditoria leve com entidade, acao, UUID e data de criacao. O edge guarda um cursor por entidade em `sync_state(entity, cursor)`.
-
-O incremental e propositalmente pequeno: um evento de `matriculas_turma` envia apenas aquela matricula; um evento de `aulas` envia apenas aquela aula. O backend nao tenta remontar contexto relacionado no incremental. O full sync e o mecanismo autoritativo para reconstruir todo o cache do dia.
+O backend consulta as aulas do dia local atual da API, que ja foram materializadas quando a turma foi cadastrada/editada. O pull e sempre um snapshot autoritativo: o edge substitui o cache local replicado pelas listas recebidas em `data`, entao nao existem cursores, payload incremental nem lista `deleted`.
 
 - `salas`: salas do no;
 - `dispositivos`: ESP32 do no, usando `DispositivoEsp32.id` como `id` e `codigo` como identificador do firmware;
