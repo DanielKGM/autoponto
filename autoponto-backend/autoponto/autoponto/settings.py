@@ -151,6 +151,7 @@ CSRF_TRUSTED_ORIGINS = env_lista("CSRF_TRUSTED_ORIGINS")
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
 PUBLIC_API_DOCS = env_bool("PUBLIC_API_DOCS")
+API_DOCS_SERVER_URL = env_obrigatoria("API_DOCS_SERVER_URL")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "api.Usuario"
@@ -189,7 +190,10 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "API de automacao de frequencia academica para o TCC AutoPonto.",
     "VERSION": "1.0.0",
     "SERVERS": [
-        {"url": "/interscity_lh/catalog/autoponto", "description": "Public reverse proxy"},
+        {
+            "url": API_DOCS_SERVER_URL,
+            "description": "Configured API docs server",
+        },
     ],
     "SERVE_INCLUDE_SCHEMA": False,
 }
