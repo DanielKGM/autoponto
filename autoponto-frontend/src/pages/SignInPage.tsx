@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { detalheErro, login } from "../api";
+import { BrandLogo } from "../components/common/BrandLogo";
 import { PageMeta } from "../components/common/PageMeta";
 import { Button } from "../components/ui/Button";
 import { AuthLayout } from "../layout/AuthLayout";
@@ -34,8 +35,7 @@ export function SignInPage() {
       <AuthLayout>
         <section className="w-full max-w-md">
           <div className="mb-8">
-            <img src="/images/logo/logo-claro.svg" alt="AutoPonto" className="mb-8 h-auto w-[190px] dark:hidden" />
-            <img src="/images/logo/logo-escuro.svg" alt="AutoPonto" className="mb-8 hidden h-auto w-[190px] dark:block" />
+            <BrandLogo size="lg" className="mb-8" />
             <h1 className="mb-2 text-title-sm font-semibold text-gray-800 dark:text-white/90 sm:text-title-md">Entrar</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">Use seu usuario e senha para acessar o painel.</p>
           </div>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router";
+import { BrandLogo } from "../components/common/BrandLogo";
 import { ThemeToggleButton } from "../components/common/ThemeToggleButton";
 import { UserDropdown } from "../components/header/UserDropdown";
 import { useSidebar } from "../context/SidebarContext";
@@ -47,8 +48,7 @@ export function AppHeader() {
             )}
           </button>
           <Link to="/" className="lg:hidden">
-            <img src="/images/logo/logo-claro.svg" alt="AutoPonto" className="h-auto w-[132px] dark:hidden" />
-            <img src="/images/logo/logo-escuro.svg" alt="AutoPonto" className="hidden h-auto w-[132px] dark:block" />
+            <BrandLogo size="sm" />
           </Link>
 
           <button

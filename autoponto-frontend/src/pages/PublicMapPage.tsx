@@ -7,6 +7,7 @@ import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import { apiFetch, detalheErro } from "../api";
+import { BrandLogo } from "../components/common/BrandLogo";
 import { PageMeta } from "../components/common/PageMeta";
 import { ThemeToggleButton } from "../components/common/ThemeToggleButton";
 import { Button } from "../components/ui/Button";
@@ -135,8 +136,7 @@ export function PublicMapPage() {
         <header className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
           <div className="mx-auto flex max-w-[1536px] items-center justify-between gap-4 px-4 py-4 md:px-6">
             <Link to="/">
-              <img src="/images/logo/logo-claro.svg" alt="AutoPonto" className="h-auto w-[150px] dark:hidden" />
-              <img src="/images/logo/logo-escuro.svg" alt="AutoPonto" className="hidden h-auto w-[150px] dark:block" />
+              <BrandLogo size="sm" />
             </Link>
             <div className="flex items-center gap-3">
               <ThemeToggleButton />

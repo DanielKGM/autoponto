@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router";
 import type { ReactNode } from "react";
+import { BrandLogo } from "../components/common/BrandLogo";
 import { AdminIcon, GraduationIcon, MapIcon, TeacherIcon, UserIcon } from "../components/icons";
 import { useSession } from "../app/session";
 import { itensNavegacao, type AreaApp } from "../app/navigation";
@@ -34,14 +35,10 @@ export function AppSidebar() {
       <div className={`flex py-8 ${!isExpanded && !isHovered ? "lg:justify-center" : "justify-start"}`}>
         <Link to="/" onClick={closeMobileSidebar} className="block overflow-hidden">
           {expanded ? (
-            <>
-              <img src="/images/logo/logo-claro.svg" alt="AutoPonto" className="h-auto w-[150px] dark:hidden" />
-              <img src="/images/logo/logo-escuro.svg" alt="AutoPonto" className="hidden h-auto w-[150px] dark:block" />
-            </>
+            <BrandLogo size="md" />
           ) : (
-            <span className="flex h-10 w-10 items-center overflow-hidden rounded-xl bg-white shadow-theme-xs ring-1 ring-gray-200 dark:bg-gray-900 dark:ring-gray-800">
-              <img src="/images/logo/logo-claro.svg" alt="AutoPonto" className="h-8 w-[150px] max-w-none shrink-0 object-left dark:hidden" />
-              <img src="/images/logo/logo-escuro.svg" alt="AutoPonto" className="hidden h-8 w-[150px] max-w-none shrink-0 object-left dark:block" />
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-white shadow-theme-xs ring-1 ring-gray-200 dark:bg-gray-900 dark:ring-gray-800">
+              <BrandLogo size="md" iconOnly />
             </span>
           )}
         </Link>

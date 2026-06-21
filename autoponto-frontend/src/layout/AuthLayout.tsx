@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
+import { BrandLogo } from "../components/common/BrandLogo";
 import { ThemeToggleButton } from "../components/common/ThemeToggleButton";
 
 export function AuthLayout({ children }: { children: ReactNode }) {
@@ -13,7 +14,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
           <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(255,255,255,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.12)_1px,transparent_1px)] [background-size:46px_46px]" />
           <div className="relative mx-auto grid max-w-sm gap-6 px-10 text-center">
             <Link to="/" className="mx-auto block">
-              <img src="/images/logo/logo-escuro.svg" alt="AutoPonto" className="h-auto w-[230px]" />
+              <BrandLogo size="xl" tone="onDark" />
             </Link>
             <p className="text-base leading-7 text-white/65">
               Plataforma academica para presenca, biometria e operacao IoT de borda.
