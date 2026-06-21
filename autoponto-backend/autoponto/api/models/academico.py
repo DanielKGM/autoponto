@@ -168,6 +168,7 @@ class HorarioPadraoUFMA(BaseModel):
         QUINTA = 5, "Quinta-feira"
         SEXTA = 6, "Sexta-feira"
         SABADO = 7, "Sabado"
+        DOMINGO = 8, "Domingo"
 
     codigo = models.CharField(max_length=20, unique=True)
     dia_semana = models.PositiveSmallIntegerField(choices=DiaSemana.choices)
@@ -186,7 +187,7 @@ class HorarioPadraoUFMA(BaseModel):
 
     def clean(self):
         self.codigo = (self.codigo or "").strip().upper()
-        if not re.fullmatch(r"[2-7][MTN][1-6]+", self.codigo):
+        if not re.fullmatch(r"[2-8][MTN][1-6]+", self.codigo):
             raise ValidationError(
                 {
                     "codigo": (

@@ -86,6 +86,12 @@ Carregar dados de exemplo da UFMA:
 python autoponto/manage.py seed_dados_ufma
 ```
 
+Na primeira execucao, o seed imprime `MAIN_API_TOKEN=<token-bruto>` para configurar o edge-node. Para desenvolvimento com aula valida 24h por dia, de segunda a domingo:
+
+```bash
+python autoponto/manage.py seed_dados_ufma --dev-24h
+```
+
 Subir servidor local:
 
 ```bash

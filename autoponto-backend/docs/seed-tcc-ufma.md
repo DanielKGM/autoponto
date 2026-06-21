@@ -18,9 +18,18 @@ O comando `seed_dados_ufma` cria ou atualiza, de forma idempotente:
 - Horarios padrao UFMA: slots de manha, tarde e noite por dia, alem dos horarios compostos 2N34 e 4N34 para a turma do TCC.
 - Horarios de aula: turma 20261EECP0021 na sala 105N nos horarios 2N34 e 4N34.
 - No de borda: `raspberry-tcc`, codigo `88A29E606012`, com UUID IntersCity cadastrado.
+- Token do no de borda: um token ativo chamado `seed-edge`, impresso no console apenas quando criado.
 - ESP32: `esp32-tcc`, codigo `9084CED6CDC0`, vinculada ao no e a sala 105N, com UUID IntersCity cadastrado.
 
 O seed nao matricula os alunos automaticamente na turma. Essa etapa fica para o painel administrativo do frontend, para demonstrar o fluxo de cadastro e vinculo durante o TCC.
+
+Quando o token `seed-edge` ainda nao existe, o comando imprime:
+
+```text
+MAIN_API_TOKEN=<token-bruto>
+```
+
+Copie esse valor para o `MAIN_API_TOKEN` do edge-node. A API guarda apenas o hash do token; em execucoes seguintes o seed preserva o token ativo e nao consegue exibir o valor bruto novamente.
 
 ## Senhas
 
@@ -46,6 +55,14 @@ Com senha inicial para demonstracao:
 docker compose exec backend python /app/autoponto/manage.py seed_dados_ufma --senha-padrao "troque-esta-senha"
 ```
 
+Para desenvolvimento local com uma aula valida durante o dia inteiro, todos os dias da semana, use:
+
+```bash
+docker compose exec backend python /app/autoponto/manage.py seed_dados_ufma --dev-24h
+```
+
+Esse modo cria horarios especializados `2M123456` a `8M123456`, de 00:00 a 23:59, e faz a turma do seed usar esses horarios. Ele e voltado para desenvolvimento; sem a flag, o seed volta ao horario demonstrativo normal `2N34` e `4N34`.
+
 ## Rodar Em Producao Na VM
 
 Use o compose de producao com o `.env.prod` real da VM:
@@ -68,25 +85,6 @@ O seed nao cria administrador. Crie manualmente:
 docker compose --env-file .env.prod -f docker-compose.prod.yml exec backend python /app/autoponto/manage.py createsuperuser
 ```
 
-## Emitir Token Do No De Borda
+## Rotacionar Token Do No De Borda
 
-Depois de autenticar como administrador, emita um token para o no cadastrado.
-
-Pela API, use o ID do no `88A29E606012` consultando primeiro:
-
-```bash
-curl -H "Authorization: Bearer <ACCESS_TOKEN>" \
-  https://cidadesinteligentes.lsdi.ufma.br/interscity_lh/catalog/autoponto/api/nos-borda/?search=88A29E606012
-```
-
-Em seguida:
-
-```bash
-curl -X POST \
-  -H "Authorization: Bearer <ACCESS_TOKEN>" \
-  -H "Content-Type: application/json" \
-  -d '{"nome":"edge-vm-tcc"}' \
-  https://cidadesinteligentes.lsdi.ufma.br/interscity_lh/catalog/autoponto/api/nos-borda/<ID_DO_NO>/emitir-token/
-```
-
-A resposta contem `token`. Copie esse valor para o `MAIN_API_TOKEN` do edge-node. A API guarda apenas hash do token; o valor bruto aparece somente nessa resposta.
+O seed cria automaticamente o token inicial do no. Para rotacionar o segredo depois, autentique como administrador e emita um novo token pela API de `nos-borda`; o valor bruto tambem aparece apenas na resposta de emissao.
