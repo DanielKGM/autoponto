@@ -26,7 +26,7 @@ export function AppHeader() {
   return (
     <header className="topbar">
       <div className="topbar-left">
-        <button type="button" onClick={toggleMenu} aria-label="Alternar menu" className="sidebar-toggle">
+        <button type="button" onClick={toggleMenu} aria-label="Alternar menu" className="sidebar-toggle" data-tooltip="Alternar menu">
           <MenuIcon />
         </button>
         <div className="breadcrumb" aria-label="Caminho atual">

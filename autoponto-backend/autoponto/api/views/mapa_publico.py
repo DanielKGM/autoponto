@@ -1,25 +1,24 @@
 from datetime import datetime, timedelta
 
+from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from api.models import DispositivoEsp32
+from api.models import DispositivoEsp32, NoBorda
 from api.services.interscity import ClienteInterSCity
 
 CAPACIDADES_MAPA = [
-    "now_ms",
-    "next_ms",
-    "remaining_ms",
     "heap_free",
-    "psram_free",
-    "lesson",
     "heap_min",
+    "heap_max",
+    "psram_free",
+    "psram_min",
+    "psram_max",
     "rssi",
-    "status",
-    "presenca",
+    "post_max_ms",
 ]
 
 
@@ -50,20 +49,48 @@ def _payload_dispositivo(dispositivo: DispositivoEsp32) -> dict:
         "nome": dispositivo.nome,
         "sala": sala.nome if sala else None,
         "predio": predio.nome if predio else None,
-        "latitude": _coordenada(dispositivo.latitude),
-        "longitude": _coordenada(dispositivo.longitude),
         "interscity_uuid": dispositivo.interscity_uuid,
     }
 
 
-def _queryset_mapa():
-    return (
+def _payload_no(no: NoBorda) -> dict:
+    return {
+        "id": str(no.id),
+        "codigo": no.codigo,
+        "nome": no.nome,
+        "latitude": _coordenada(no.latitude),
+        "longitude": _coordenada(no.longitude),
+        "ultimo_sync_em": _iso(no.ultimo_sync_em) if no.ultimo_sync_em else None,
+        "dispositivos": [
+            _payload_dispositivo(dispositivo)
+            for dispositivo in no.dispositivos.all()
+        ],
+    }
+
+
+def _queryset_nos_mapa():
+    dispositivos_ativos = (
         DispositivoEsp32.objects.select_related("sala", "sala__predio")
+        .filter(ativo=True)
+        .order_by("codigo")
+    )
+    return (
+        NoBorda.objects.filter(
+            ativo=True,
+            latitude__isnull=False,
+            longitude__isnull=False,
+        )
+        .prefetch_related(Prefetch("dispositivos", queryset=dispositivos_ativos))
+        .order_by("codigo")
+    )
+
+
+def _queryset_dispositivos_historico():
+    return (
+        DispositivoEsp32.objects.select_related("sala", "sala__predio", "no")
         .filter(
             ativo=True,
             interscity_uuid__gt="",
-            latitude__isnull=False,
-            longitude__isnull=False,
         )
         .order_by("codigo")
     )
@@ -84,14 +111,18 @@ def _filtrar_capacidades(resources: list[dict], interscity_uuid: str) -> dict:
     return {}
 
 
-class MapaDispositivosPublicosView(APIView):
+class MapaNosPublicosView(APIView):
     authentication_classes = ()
     permission_classes = (AllowAny,)
 
     def get(self, request):
         return Response(
-            [_payload_dispositivo(dispositivo) for dispositivo in _queryset_mapa()]
+            [_payload_no(no) for no in _queryset_nos_mapa()]
         )
+
+
+class MapaDispositivosPublicosView(MapaNosPublicosView):
+    pass
 
 
 class MapaDispositivoHistoricoView(APIView):
@@ -99,7 +130,7 @@ class MapaDispositivoHistoricoView(APIView):
     permission_classes = (AllowAny,)
 
     def get(self, request, dispositivo_id):
-        dispositivo = get_object_or_404(_queryset_mapa(), id=dispositivo_id)
+        dispositivo = get_object_or_404(_queryset_dispositivos_historico(), id=dispositivo_id)
         try:
             dias = int(request.query_params.get("dias", 7))
         except ValueError:

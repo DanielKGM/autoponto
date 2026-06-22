@@ -107,8 +107,6 @@ export type DispositivoEsp32Crud = {
   sala_nome?: string | null;
   no_codigo?: string | null;
   interscity_uuid: string;
-  latitude: string | null;
-  longitude: string | null;
 };
 
 export type DispositivoStatus = {
@@ -117,9 +115,24 @@ export type DispositivoStatus = {
   nome: string;
   sala: string | null;
   predio: string | null;
+  interscity_uuid: string;
+};
+
+export type NoBordaMapa = {
+  id: string;
+  codigo: string;
+  nome: string;
   latitude: string | null;
   longitude: string | null;
-  interscity_uuid: string;
+  ultimo_sync_em: string | null;
+  dispositivos: DispositivoStatus[];
+};
+
+export type DispositivoHistorico = {
+  dispositivo: DispositivoStatus;
+  collector_status: string;
+  historico: Record<string, Array<Record<string, unknown>>>;
+  ultimo: Record<string, Record<string, unknown>>;
 };
 
 export type DiagnosticoInterSCity = Record<string, { ok: boolean; status: string; codigo_http?: number; detalhe?: string }>;

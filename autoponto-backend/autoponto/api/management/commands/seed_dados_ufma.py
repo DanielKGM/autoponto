@@ -162,6 +162,8 @@ class Command(BaseCommand):
             defaults={
                 "nome": "raspberry-tcc",
                 "ativo": True,
+                "latitude": "-2.558300",
+                "longitude": "-44.307700",
             },
         )
         DispositivoEsp32.objects.update_or_create(

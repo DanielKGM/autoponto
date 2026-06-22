@@ -63,32 +63,6 @@ class Migration(migrations.Migration):
                     "interscity_uuid",
                     models.CharField(blank=True, db_index=True, max_length=64),
                 ),
-                (
-                    "latitude",
-                    models.DecimalField(
-                        blank=True,
-                        decimal_places=6,
-                        max_digits=9,
-                        null=True,
-                        validators=[
-                            django.core.validators.MinValueValidator(-90),
-                            django.core.validators.MaxValueValidator(90),
-                        ],
-                    ),
-                ),
-                (
-                    "longitude",
-                    models.DecimalField(
-                        blank=True,
-                        decimal_places=6,
-                        max_digits=9,
-                        null=True,
-                        validators=[
-                            django.core.validators.MinValueValidator(-180),
-                            django.core.validators.MaxValueValidator(180),
-                        ],
-                    ),
-                ),
             ],
             options={
                 "verbose_name": "Dispositivo ESP32",
@@ -153,6 +127,32 @@ class Migration(migrations.Migration):
                 ("nome", models.CharField(max_length=255)),
                 ("ativo", models.BooleanField(default=True)),
                 ("ultimo_sync_em", models.DateTimeField(blank=True, null=True)),
+                (
+                    "latitude",
+                    models.DecimalField(
+                        blank=True,
+                        decimal_places=6,
+                        max_digits=9,
+                        null=True,
+                        validators=[
+                            django.core.validators.MinValueValidator(-90),
+                            django.core.validators.MaxValueValidator(90),
+                        ],
+                    ),
+                ),
+                (
+                    "longitude",
+                    models.DecimalField(
+                        blank=True,
+                        decimal_places=6,
+                        max_digits=9,
+                        null=True,
+                        validators=[
+                            django.core.validators.MinValueValidator(-180),
+                            django.core.validators.MaxValueValidator(180),
+                        ],
+                    ),
+                ),
             ],
             options={
                 "verbose_name": "No de borda",

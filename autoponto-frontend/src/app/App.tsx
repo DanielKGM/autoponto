@@ -7,6 +7,7 @@ import { NotFoundPage } from "../pages/NotFoundPage";
 import { ProfilePage } from "../pages/ProfilePage";
 import { PublicMapPage } from "../pages/PublicMapPage";
 import { SignInPage } from "../pages/SignInPage";
+import { StudentBiometricsPage } from "../pages/StudentBiometricsPage";
 import { ProtectedLayout } from "./ProtectedLayout";
 import { RequireArea } from "./RequireArea";
 import { RootRedirect } from "./RootRedirect";
@@ -26,10 +27,11 @@ export default function App() {
                 path="/app/aluno"
                 element={
                   <RequireArea area="aluno">
-                    <EmptyAreaPage title="Aluno" description="Area do aluno preparada para as proximas telas." />
+                    <StudentBiometricsPage />
                   </RequireArea>
                 }
               />
+              <Route path="/app/mapa-iot" element={<PublicMapPage embedded />} />
               <Route
                 path="/app/professor"
                 element={

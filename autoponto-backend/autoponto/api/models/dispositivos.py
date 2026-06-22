@@ -17,6 +17,20 @@ class NoBorda(BaseModel):
     nome = models.CharField(max_length=255)
     ativo = models.BooleanField(default=True)
     ultimo_sync_em = models.DateTimeField(null=True, blank=True)
+    latitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(-90), MaxValueValidator(90)],
+    )
+    longitude = models.DecimalField(
+        max_digits=9,
+        decimal_places=6,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(-180), MaxValueValidator(180)],
+    )
 
     @property
     def is_authenticated(self):
@@ -98,20 +112,6 @@ class DispositivoEsp32(BaseModel):
     nome = models.CharField(max_length=255)
     ativo = models.BooleanField(default=True)
     interscity_uuid = models.CharField(max_length=64, blank=True, db_index=True)
-    latitude = models.DecimalField(
-        max_digits=9,
-        decimal_places=6,
-        null=True,
-        blank=True,
-        validators=[MinValueValidator(-90), MaxValueValidator(90)],
-    )
-    longitude = models.DecimalField(
-        max_digits=9,
-        decimal_places=6,
-        null=True,
-        blank=True,
-        validators=[MinValueValidator(-180), MaxValueValidator(180)],
-    )
 
     class Meta:
         ordering = ("codigo",)

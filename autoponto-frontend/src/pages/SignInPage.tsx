@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from "react";
-import { useNavigate, useSearchParams } from "react-router";
-import { detalheErro, login } from "../api";
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router";
+import { carregarSessaoAutenticada, detalheErro, login } from "../api";
 import { BrandLogo } from "../components/common/BrandLogo";
 import { PageMeta } from "../components/common/PageMeta";
 import { Button } from "../components/ui/Button";
@@ -13,8 +13,30 @@ export function SignInPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const next = params.get("next");
+
+  useEffect(() => {
+    let active = true;
+
+    async function redirectAuthenticated() {
+      try {
+        const me = await carregarSessaoAutenticada();
+        if (active && me) {
+          navigate(destinoAposLogin(me, next), { replace: true });
+        }
+      } finally {
+        if (active) setCheckingSession(false);
+      }
+    }
+
+    void redirectAuthenticated();
+    return () => {
+      active = false;
+    };
+  }, [navigate, next]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -22,7 +44,7 @@ export function SignInPage() {
     setError("");
     try {
       const me = await login(username, password);
-      navigate(destinoAposLogin(me, params.get("next")), { replace: true });
+      navigate(destinoAposLogin(me, next), { replace: true });
     } catch (err) {
       setError(detalheErro(err));
     } finally {
@@ -30,15 +52,30 @@ export function SignInPage() {
     }
   }
 
+  const accessMailto = `mailto:daniel.cgm@discente.ufma.br,danielgaldez10@hotmail.com?subject=${encodeURIComponent(
+    "Solicitacao de acesso ao AutoPonto",
+  )}&body=${encodeURIComponent(
+    "Olá,\n\nSolicito acesso ao AutoPonto.\n\nNickname:\nNome completo:\nMatricula:\nDisciplinas:\n\nObrigado.",
+  )}`;
+
+  if (checkingSession) {
+    return <main className="loading-page">Verificando sessao...</main>;
+  }
+
   return (
     <>
-      <PageMeta title="Entrar | AutoPonto" description="Acesso ao painel AutoPonto." />
+      <PageMeta
+        title="Entrar | AutoPonto"
+        description="Acesso ao painel AutoPonto."
+      />
       <AuthLayout>
         <div className="auth-brand">
           <BrandLogo size="lg" />
         </div>
         <h1 className="auth-title">Entrar</h1>
-        <p className="auth-subtitle">Use seu usuario e senha para acessar o painel.</p>
+        <p className="auth-subtitle">
+          Use seu usuario e senha para acessar o painel.
+        </p>
 
         <form onSubmit={submit}>
           <div className="form-group">
@@ -81,6 +118,16 @@ export function SignInPage() {
             {loading ? "Entrando..." : "Entrar"}
           </Button>
         </form>
+
+        <div className="auth-footer">
+          Não possui um cadastro?{" "}
+          <a href={accessMailto}>
+            Solicite seu acesso via e-mail institucional
+          </a>
+        </div>
+        <div className="auth-footer auth-footer-secondary">
+          <Link to="/mapa-iot">Acessar mapa de dispositivos</Link>
+        </div>
       </AuthLayout>
     </>
   );

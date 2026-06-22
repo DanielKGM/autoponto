@@ -50,6 +50,7 @@ export function UserDropdown() {
         onClick={() => setIsOpen((current) => !current)}
         className="tb-avatar"
         aria-label="Abrir menu do usuario"
+        data-tooltip="Menu do usuario"
         aria-expanded={isOpen}
       >
         {initials(nome)}

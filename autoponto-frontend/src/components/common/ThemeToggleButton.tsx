@@ -10,6 +10,7 @@ export function ThemeToggleButton() {
       onClick={toggleTheme}
       className="tb-btn theme-toggle"
       aria-label={theme === "dark" ? "Usar tema claro" : "Usar tema escuro"}
+      data-tooltip={theme === "dark" ? "Usar tema claro" : "Usar tema escuro"}
     >
       {theme === "dark" ? <SunIcon /> : <MoonIcon />}
     </button>

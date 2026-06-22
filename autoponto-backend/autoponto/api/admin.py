@@ -93,7 +93,7 @@ class HorarioPadraoUFMAAdmin(admin.ModelAdmin):
 
 @admin.register(NoBorda)
 class NoBordaAdmin(admin.ModelAdmin):
-    list_display = ("codigo", "nome", "ativo", "ultimo_sync_em")
+    list_display = ("codigo", "nome", "ativo", "ultimo_sync_em", "latitude", "longitude")
     search_fields = ("codigo", "nome")
     list_filter = ("ativo",)
 
@@ -107,7 +107,7 @@ class TokenNoBordaAdmin(admin.ModelAdmin):
 
 @admin.register(DispositivoEsp32)
 class DispositivoEsp32Admin(admin.ModelAdmin):
-    list_display = ("codigo", "nome", "no", "sala", "ativo", "interscity_uuid", "latitude", "longitude")
+    list_display = ("codigo", "nome", "no", "sala", "ativo", "interscity_uuid")
     search_fields = ("codigo", "nome", "interscity_uuid")
     list_filter = ("no", "sala", "ativo")
 

@@ -36,6 +36,7 @@ from api.views.interscity import InterSCityDiagnosticoView
 from api.views.mapa_publico import (
     MapaDispositivoHistoricoView,
     MapaDispositivosPublicosView,
+    MapaNosPublicosView,
 )
 from api.views.presencas import AulaViewSet, RegistroPresencaViewSet
 
@@ -90,6 +91,11 @@ urlpatterns = [
     ),
     path("edge/pull/", EdgePullView.as_view(), name="edge-pull"),
     path("edge/attendance/", EdgeAttendanceView.as_view(), name="edge-attendance"),
+    path(
+        "public/mapa/nos/",
+        MapaNosPublicosView.as_view(),
+        name="mapa-nos-publicos",
+    ),
     path(
         "public/mapa/dispositivos/",
         MapaDispositivosPublicosView.as_view(),

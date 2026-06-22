@@ -25,7 +25,7 @@ export function areaInicial(me: MeResponse): Exclude<AreaApp, "mapa" | "perfil">
 }
 
 export function pathDaArea(area: AreaApp): string {
-  if (area === "mapa") return "/mapa-iot";
+  if (area === "mapa") return "/app/mapa-iot";
   return `/app/${area}`;
 }
 
@@ -51,7 +51,7 @@ export function destinoPadrao(me: MeResponse): string {
 }
 
 function areaDoPath(path: string): AreaApp | null {
-  if (path === "/mapa-iot") return "mapa";
+  if (path === "/mapa-iot" || path === "/app/mapa-iot") return "mapa";
   if (path === "/app/aluno") return "aluno";
   if (path === "/app/professor") return "professor";
   if (path === "/app/admin") return "admin";
