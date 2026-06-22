@@ -23,7 +23,7 @@ export function RootRedirect() {
 
   if (me === undefined) {
     return (
-      <main className="grid min-h-[100dvh] place-items-center bg-gray-50 text-sm font-medium text-gray-500 dark:bg-gray-950 dark:text-gray-400">
+      <main className="loading-page">
         Carregando AutoPonto...
       </main>
     );

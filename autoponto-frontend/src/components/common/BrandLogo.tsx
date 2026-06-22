@@ -1,5 +1,3 @@
-import { twMerge } from "tailwind-merge";
-
 type BrandLogoProps = {
   className?: string;
   iconClassName?: string;
@@ -9,28 +7,9 @@ type BrandLogoProps = {
   tone?: "default" | "onDark";
 };
 
-const sizes = {
-  sm: {
-    root: "gap-2",
-    icon: "h-6 w-6",
-    text: "text-xl",
-  },
-  md: {
-    root: "gap-2",
-    icon: "h-7 w-7",
-    text: "text-2xl",
-  },
-  lg: {
-    root: "gap-2.5",
-    icon: "h-8 w-8",
-    text: "text-3xl",
-  },
-  xl: {
-    root: "gap-3",
-    icon: "h-10 w-10",
-    text: "text-4xl",
-  },
-};
+function cx(...classes: Array<string | undefined | false>) {
+  return classes.filter(Boolean).join(" ");
+}
 
 export function BrandLogo({
   className,
@@ -40,39 +19,26 @@ export function BrandLogo({
   size = "md",
   tone = "default",
 }: BrandLogoProps) {
-  const currentSize = sizes[size];
-  const textTone =
-    tone === "onDark" ? "text-white" : "text-gray-900 dark:text-white";
-
   return (
     <span
-      className={twMerge(
-        "inline-flex items-center whitespace-nowrap",
-        currentSize.root,
+      className={cx(
+        "brand-logo",
+        `brand-logo-${size}`,
+        tone === "onDark" && "brand-logo-on-dark",
+        iconOnly && "brand-logo-icon-only",
         className,
       )}
     >
       <img
-        src="/images/logo/icone-logo.svg"
+        src="/images/icone-logo.svg"
         alt=""
         aria-hidden="true"
-        className={twMerge(
-          "shrink-0 object-contain",
-          currentSize.icon,
-          iconClassName,
-        )}
+        className={cx("brand-logo-icon", iconClassName)}
       />
       {iconOnly ? (
         <span className="sr-only">AutoPonto</span>
       ) : (
-        <span
-          className={twMerge(
-            "font-semibold leading-none tracking-normal",
-            currentSize.text,
-            textTone,
-            textClassName,
-          )}
-        >
+        <span className={cx("brand-logo-text", textClassName)}>
           AutoPonto
         </span>
       )}

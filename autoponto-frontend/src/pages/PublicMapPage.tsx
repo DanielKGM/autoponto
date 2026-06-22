@@ -29,7 +29,7 @@ function parseDevices(devices: DispositivoStatus[]): DeviceWithCoords[] {
   });
 }
 
-function escapeHtml(value: string | null): string {
+function escapeHtml(value: string | null | undefined): string {
   return (value || "-").replace(/[&<>"']/g, (char) => {
     const entities: Record<string, string> = {
       "&": "&amp;",
@@ -63,9 +63,9 @@ function clusterIcon(cluster: L.MarkerCluster) {
 
 function popupHtml(device: DeviceWithCoords): string {
   return `
-    <div style="min-width: 220px">
-      <strong style="display:block;font-size:14px;margin-bottom:6px">${escapeHtml(device.nome)}</strong>
-      <div style="display:grid;gap:4px;font-size:12px;color:#475467">
+    <div class="iot-popup">
+      <strong>${escapeHtml(device.nome)}</strong>
+      <div class="iot-popup-grid">
         <span><b>Codigo:</b> ${escapeHtml(device.codigo)}</span>
         <span><b>Sala:</b> ${escapeHtml(device.sala)}</span>
         <span><b>Predio:</b> ${escapeHtml(device.predio)}</span>
@@ -104,6 +104,12 @@ function ClusterLayer({ devices }: { devices: DeviceWithCoords[] }) {
   return null;
 }
 
+function statusText(total: number, valid: number) {
+  if (total === 0) return "Nenhum dispositivo publicado";
+  if (valid === total) return `${valid} dispositivos no mapa`;
+  return `${valid} de ${total} dispositivos com coordenadas`;
+}
+
 export function PublicMapPage() {
   const [devices, setDevices] = useState<DispositivoStatus[]>([]);
   const [loading, setLoading] = useState(true);
@@ -132,47 +138,79 @@ export function PublicMapPage() {
   return (
     <>
       <PageMeta title="Mapa IoT | AutoPonto" description="Mapa publico de dispositivos IoT AutoPonto." />
-      <main className="min-h-[100dvh] bg-gray-50 dark:bg-gray-950">
-        <header className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-          <div className="mx-auto flex max-w-[1536px] items-center justify-between gap-4 px-4 py-4 md:px-6">
+      <main className="public-page">
+        <header className="public-topbar">
+          <div className="public-topbar-inner">
             <Link to="/">
               <BrandLogo size="sm" />
             </Link>
-            <div className="flex items-center gap-3">
+            <div className="public-actions">
               <ThemeToggleButton />
-              <Link to="/signin" className="hidden rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-white/5 sm:inline-flex">
+              <Link to="/signin" className="btn btn-outline">
                 Entrar
               </Link>
             </div>
           </div>
         </header>
-        <section className="mx-auto grid max-w-[1536px] gap-4 p-4 md:p-6">
-          <div className="flex flex-col justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:flex-row md:items-center">
-            <div>
-              <h1 className="text-lg font-semibold text-gray-800 dark:text-white/90">Mapa IoT</h1>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Dispositivos ESP32 cadastrados com coordenadas publicas.</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="text-sm text-gray-500 dark:text-gray-400">{updatedAt ? `Atualizado em ${updatedAt}` : "Aguardando atualizacao"}</span>
-              <Button onClick={() => void loadDevices()} disabled={loading} variant="secondary">
-                {loading ? "Atualizando..." : "Atualizar"}
-              </Button>
+
+        <section className="public-wrapper">
+          <div className="page-header">
+            <div className="page-header-row">
+              <div>
+                <div className="page-pretitle">Geo</div>
+                <h1 className="page-title">Mapa IoT</h1>
+                <p className="page-description">Dispositivos ESP32 cadastrados com coordenadas publicas.</p>
+              </div>
+              <div className="page-actions">
+                <Button onClick={() => void loadDevices()} disabled={loading} variant="secondary">
+                  {loading ? "Atualizando..." : "Atualizar"}
+                </Button>
+              </div>
             </div>
           </div>
-          {error && <div className="rounded-xl border border-error-500/20 bg-error-50 px-4 py-3 text-sm font-medium text-error-500">{error}</div>}
-          <div className="relative min-h-[640px] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
-            <MapContainer center={UFMA_CENTER} zoom={15} className="h-[640px] min-h-[640px]">
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-              <ClusterLayer devices={devicesWithCoords} />
-            </MapContainer>
-            {!loading && devicesWithCoords.length === 0 && !error && (
-              <div className="pointer-events-none absolute inset-x-4 top-4 z-[500] rounded-xl border border-gray-200 bg-white/95 px-4 py-3 text-sm font-medium text-gray-500 shadow-theme-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/95 dark:text-gray-400">
-                Nenhum dispositivo com coordenadas cadastrado.
+
+          {error && <div className="alert alert-error">{error}</div>}
+
+          <div className="row col-8-4">
+            <div className="card map-card">
+              <MapContainer center={UFMA_CENTER} zoom={15} className="iot-map">
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <ClusterLayer devices={devicesWithCoords} />
+              </MapContainer>
+              {loading && <div className="map-state">Carregando dispositivos...</div>}
+              {!loading && devicesWithCoords.length === 0 && !error && (
+                <div className="map-state">Nenhum dispositivo com coordenadas cadastrado.</div>
+              )}
+            </div>
+
+            <aside className="card">
+              <div className="card-header">
+                <div>
+                  <div className="card-title">Dispositivos</div>
+                  <div className="card-subtitle">{statusText(devices.length, devicesWithCoords.length)}</div>
+                </div>
               </div>
-            )}
+              <div className="card-body map-status-list">
+                <div className="device-meta">{updatedAt ? `Atualizado em ${updatedAt}` : "Aguardando atualizacao"}</div>
+                {!loading && devicesWithCoords.length === 0 && (
+                  <div className="empty-card-description">A lista sera preenchida quando houver dispositivos com latitude e longitude.</div>
+                )}
+                {devicesWithCoords.slice(0, 8).map((device) => (
+                  <div key={device.id} className="device-row">
+                    <span className="device-dot" />
+                    <span>
+                      <span className="device-name">{device.nome || device.codigo}</span>
+                      <span className="device-meta">
+                        {device.codigo} - {device.sala || "Sem sala"}
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </aside>
           </div>
         </section>
       </main>

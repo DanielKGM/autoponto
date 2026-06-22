@@ -14,11 +14,20 @@ const icons: Record<AreaApp, ReactNode> = {
   perfil: <UserIcon />,
 };
 
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "AP";
+}
+
 export function AppSidebar() {
   const { me } = useSession();
-  const { isExpanded, isHovered, isMobileOpen, setIsHovered, closeMobileSidebar } = useSidebar();
+  const { isMobileOpen, closeMobileSidebar } = useSidebar();
   const location = useLocation();
-  const expanded = isExpanded || isHovered || isMobileOpen;
+  const nome = me.usuario.nome_completo || me.usuario.username;
 
   function isActive(path: string) {
     return location.pathname === path;
@@ -26,47 +35,47 @@ export function AppSidebar() {
 
   return (
     <aside
-      className={`fixed left-0 top-0 z-50 mt-16 flex h-screen flex-col border-r border-gray-200 bg-white px-5 text-gray-900 transition-all duration-300 ease-in-out dark:border-gray-800 dark:bg-gray-900 lg:mt-0 ${
-        isExpanded || isMobileOpen ? "w-[290px]" : isHovered ? "w-[290px]" : "w-[90px]"
-      } ${isMobileOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}
-      onMouseEnter={() => !isExpanded && setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      className={`sidebar ${isMobileOpen ? "open" : ""}`}
+      aria-label="Navegacao principal"
     >
-      <div className={`flex py-8 ${!isExpanded && !isHovered ? "lg:justify-center" : "justify-start"}`}>
-        <Link to="/" onClick={closeMobileSidebar} className="block overflow-hidden">
-          {expanded ? (
-            <BrandLogo size="md" />
-          ) : (
-            <span className="grid h-10 w-10 place-items-center rounded-xl bg-white shadow-theme-xs ring-1 ring-gray-200 dark:bg-gray-900 dark:ring-gray-800">
-              <BrandLogo size="md" iconOnly />
-            </span>
-          )}
-        </Link>
-      </div>
-      <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar">
-        <nav className="mb-6">
-          <h2 className={`mb-4 flex text-xs uppercase leading-5 text-gray-400 ${!isExpanded && !isHovered ? "lg:justify-center" : "justify-start"}`}>
-          {expanded ? "Menu" : "..."}
-          </h2>
-          <ul className="flex flex-col gap-4">
+      <Link to="/" onClick={closeMobileSidebar} className="sidebar-brand">
+        <BrandLogo size="md" tone="onDark" />
+      </Link>
+
+      <nav className="sidebar-nav">
+        <div className="nav-group">
+          <div className="nav-label">Menu</div>
+          <ul className="nav-list">
           {itensNavegacao(me).map((item) => (
             <li key={item.path}>
               <Link
                 to={item.path}
                 onClick={closeMobileSidebar}
-                className={`menu-item group ${isActive(item.path) ? "menu-item-active" : "menu-item-inactive"} ${
-                  !isExpanded && !isHovered ? "lg:justify-center" : "lg:justify-start"
-                }`}
+                className={`nav-link ${isActive(item.path) ? "active" : ""}`}
+                data-rail-label={item.label}
               >
-                <span className={`menu-item-icon-size ${isActive(item.path) ? "menu-item-icon-active" : "menu-item-icon-inactive"}`}>
+                <span className="icon">
                   {icons[item.area]}
                 </span>
-                {expanded && <span className="menu-item-text">{item.label}</span>}
+                <span className="nav-text">{item.label}</span>
               </Link>
             </li>
           ))}
           </ul>
-        </nav>
+        </div>
+      </nav>
+
+      <div className="sidebar-footer">
+        <Link to="/app/perfil" className="sidebar-user" onClick={closeMobileSidebar}>
+          <span className="avatar">
+            {initials(nome)}
+            <span className="online" />
+          </span>
+          <span className="sidebar-user-info">
+            <span className="name">{nome}</span>
+            <span className="role">{me.usuario.papel}</span>
+          </span>
+        </Link>
       </div>
     </aside>
   );

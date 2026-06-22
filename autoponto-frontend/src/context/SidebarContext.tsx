@@ -1,31 +1,38 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
 type SidebarContextType = {
-  isExpanded: boolean;
-  isHovered: boolean;
+  isRail: boolean;
   isMobileOpen: boolean;
   toggleSidebar: () => void;
   toggleMobileSidebar: () => void;
   closeMobileSidebar: () => void;
-  setIsHovered: (value: boolean) => void;
 };
 
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
 
+function initialRailMode(): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem("sidebar-rail") === "true";
+}
+
 export function SidebarProvider({ children }: { children: ReactNode }) {
-  const [isExpanded, setIsExpanded] = useState(true);
-  const [isHovered, setIsHovered] = useState(false);
+  const [isRail, setIsRail] = useState(initialRailMode);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem("sidebar-rail", String(isRail));
+    document.body.classList.toggle("sidebar-rail", isRail);
+  }, [isRail]);
+
+  useEffect(() => {
+    document.body.classList.toggle("sidebar-open", isMobileOpen);
+    return () => document.body.classList.remove("sidebar-open");
+  }, [isMobileOpen]);
 
   useEffect(() => {
     function handleResize() {
-      const mobile = window.innerWidth < 1024;
-      setIsMobile(mobile);
-      if (!mobile) setIsMobileOpen(false);
+      if (window.innerWidth > 768) setIsMobileOpen(false);
     }
-
-    handleResize();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
@@ -33,13 +40,11 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   return (
     <SidebarContext.Provider
       value={{
-        isExpanded: isMobile ? false : isExpanded,
-        isHovered,
         isMobileOpen,
-        toggleSidebar: () => setIsExpanded((current) => !current),
+        isRail,
+        toggleSidebar: () => setIsRail((current) => !current),
         toggleMobileSidebar: () => setIsMobileOpen((current) => !current),
         closeMobileSidebar: () => setIsMobileOpen(false),
-        setIsHovered,
       }}
     >
       {children}

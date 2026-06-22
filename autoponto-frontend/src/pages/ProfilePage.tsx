@@ -14,13 +14,22 @@ export function ProfilePage() {
   return (
     <>
       <PageMeta title="Perfil | AutoPonto" description="Perfil do usuario autenticado." />
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">
-        <h1 className="mb-6 text-lg font-semibold text-gray-800 dark:text-white/90">Perfil</h1>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="page-header">
+        <div className="page-pretitle">Conta</div>
+        <h1 className="page-title">Perfil</h1>
+      </div>
+      <section className="card">
+        <div className="card-header">
+          <div>
+            <div className="card-title">Dados do usuario</div>
+            <div className="card-subtitle">Resumo da sessao autenticada.</div>
+          </div>
+        </div>
+        <div className="card-body profile-grid">
           {fields.map(([label, value]) => (
-            <div key={label} className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-white/[0.03]">
-              <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">{label}</span>
-              <strong className="mt-2 block break-words text-sm font-semibold text-gray-800 dark:text-white/90">{value}</strong>
+            <div key={label} className="profile-field">
+              <span className="profile-label">{label}</span>
+              <strong className="profile-value">{value}</strong>
             </div>
           ))}
         </div>

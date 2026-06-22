@@ -6,6 +6,7 @@ import { PageMeta } from "../components/common/PageMeta";
 import { Button } from "../components/ui/Button";
 import { AuthLayout } from "../layout/AuthLayout";
 import { destinoAposLogin } from "../app/navigation";
+import { LockIcon, UserIcon } from "../components/icons";
 
 export function SignInPage() {
   const [username, setUsername] = useState("");
@@ -33,40 +34,53 @@ export function SignInPage() {
     <>
       <PageMeta title="Entrar | AutoPonto" description="Acesso ao painel AutoPonto." />
       <AuthLayout>
-        <section className="w-full max-w-md">
-          <div className="mb-8">
-            <BrandLogo size="lg" className="mb-8" />
-            <h1 className="mb-2 text-title-sm font-semibold text-gray-800 dark:text-white/90 sm:text-title-md">Entrar</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Use seu usuario e senha para acessar o painel.</p>
-          </div>
-          <form onSubmit={submit} className="space-y-6">
-            <label className="grid gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+        <div className="auth-brand">
+          <BrandLogo size="lg" />
+        </div>
+        <h1 className="auth-title">Entrar</h1>
+        <p className="auth-subtitle">Use seu usuario e senha para acessar o painel.</p>
+
+        <form onSubmit={submit}>
+          <div className="form-group">
+            <label className="form-label" htmlFor="username">
               Usuario
+            </label>
+            <div className="input-group">
+              <UserIcon className="input-icon" />
               <input
+                id="username"
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
                 autoComplete="username"
                 required
-                className="h-11 rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs outline-none transition placeholder:text-gray-400 focus:border-brand-300 focus:ring-4 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                className="form-control"
+                placeholder="usuario"
               />
-            </label>
-            <label className="grid gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label" htmlFor="password">
               Senha
+            </label>
+            <div className="input-group">
+              <LockIcon className="input-icon" />
               <input
+                id="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 type="password"
                 autoComplete="current-password"
                 required
-                className="h-11 rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs outline-none transition placeholder:text-gray-400 focus:border-brand-300 focus:ring-4 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                className="form-control"
+                placeholder="********"
               />
-            </label>
-            {error && <div className="rounded-lg border border-error-500/20 bg-error-50 px-4 py-3 text-sm font-medium text-error-500">{error}</div>}
-            <Button type="submit" disabled={loading} className="w-full">
-              {loading ? "Entrando..." : "Entrar"}
-            </Button>
-          </form>
-        </section>
+            </div>
+          </div>
+          {error && <div className="alert alert-error">{error}</div>}
+          <Button type="submit" disabled={loading} className="btn-block btn-lg">
+            {loading ? "Entrando..." : "Entrar"}
+          </Button>
+        </form>
       </AuthLayout>
     </>
   );

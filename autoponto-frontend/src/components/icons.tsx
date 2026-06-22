@@ -30,6 +30,10 @@ export function LogOutIcon(props: IconProps) {
   return iconPath(props, <><path d="M10 17l5-5-5-5" /><path d="M15 12H3" /><path d="M21 4v16" /></>);
 }
 
+export function LockIcon(props: IconProps) {
+  return iconPath(props, <><rect x="4" y="10" width="16" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>);
+}
+
 export function GraduationIcon(props: IconProps) {
   return iconPath(props, <><path d="M22 10L12 5 2 10l10 5 10-5Z" /><path d="M6 12v5c3 2 9 2 12 0v-5" /></>);
 }
