@@ -11,12 +11,13 @@ import { StudentBiometricsPage } from "../pages/StudentBiometricsPage";
 import { ProtectedLayout } from "./ProtectedLayout";
 import { RequireArea } from "./RequireArea";
 import { RootRedirect } from "./RootRedirect";
+import { routerBasename } from "./basename";
 
 export default function App() {
   return (
     <HelmetProvider>
       <ThemeProvider>
-        <BrowserRouter>
+        <BrowserRouter basename={routerBasename}>
           <ScrollToTop />
           <Routes>
             <Route path="/" element={<RootRedirect />} />

@@ -1,3 +1,5 @@
+import { publicAssetPath } from "../../app/assets";
+
 type BrandLogoProps = {
   className?: string;
   iconClassName?: string;
@@ -30,7 +32,7 @@ export function BrandLogo({
       )}
     >
       <img
-        src="/images/icone-logo.svg"
+        src={publicAssetPath("images/icone-logo.svg")}
         alt=""
         aria-hidden="true"
         className={cx("brand-logo-icon", iconClassName)}
