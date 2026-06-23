@@ -58,9 +58,22 @@ def env_lista(nome: str) -> list[str]:
     return valores
 
 
+def normalizar_base_publica(valor: str | None) -> str:
+    if not valor:
+        return ""
+    valor = valor.strip()
+    if not valor or valor == "/":
+        return ""
+    return f"/{valor.strip('/')}"
+
+
 SECRET_KEY = env_obrigatoria("DJANGO_SECRET_KEY")
 DEBUG = env_bool("DJANGO_DEBUG")
 ALLOWED_HOSTS = env_lista("DJANGO_ALLOWED_HOSTS")
+PUBLIC_BASE_PATH = normalizar_base_publica(
+    os.environ.get("DJANGO_PUBLIC_BASE_PATH") or os.environ.get("VITE_BASE_PATH")
+)
+FORCE_SCRIPT_NAME = PUBLIC_BASE_PATH or None
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -141,7 +154,7 @@ TIME_ZONE = env_obrigatoria("TIME_ZONE")
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = "static/"
+STATIC_URL = f"{PUBLIC_BASE_PATH}/static/" if PUBLIC_BASE_PATH else "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
