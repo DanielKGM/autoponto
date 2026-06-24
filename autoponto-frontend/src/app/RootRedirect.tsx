@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router";
 import { carregarSessaoAutenticada } from "../api";
+import { LoadingDots } from "../components/common/LoadingDots";
 import type { MeResponse } from "../types";
 import { destinoPadrao } from "./navigation";
 
@@ -24,7 +25,7 @@ export function RootRedirect() {
   if (me === undefined) {
     return (
       <main className="loading-page">
-        Carregando AutoPonto...
+        <LoadingDots label="Carregando AutoPonto" />
       </main>
     );
   }

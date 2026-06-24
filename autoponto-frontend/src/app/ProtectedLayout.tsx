@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router";
 import { carregarSessaoAutenticada, logout } from "../api";
+import { LoadingDots } from "../components/common/LoadingDots";
 import { AppLayout } from "../layout/AppLayout";
 import type { MeResponse } from "../types";
 import { SessionProvider } from "./session";
@@ -36,7 +37,7 @@ export function ProtectedLayout() {
   if (loading) {
     return (
       <main className="loading-page">
-        Carregando AutoPonto...
+        <LoadingDots label="Carregando AutoPonto" />
       </main>
     );
   }

@@ -52,13 +52,13 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "--dev-24h",
+            "--dev",
             action="store_true",
             help="Cria horarios 24h de segunda a domingo para desenvolvimento local.",
         )
 
     def handle(self, *args, **options):
-        usar_horarios_dev_24h = options["dev_24h"]
+        usar_horarios_dev_24h = options["dev"]
         campus = self._criar_topologia_academica()
         curso, disciplina, periodo, sala = self._criar_oferta_academica(campus)
         turma = self._criar_turma(periodo, disciplina)
@@ -173,7 +173,7 @@ class Command(BaseCommand):
                 "no": no,
                 "sala": sala,
                 "ativo": True,
-                "interscity_uuid": "8cf4ce45-3aff-4aa2-81e0-27a2fc361f09",
+                "interscity_uuid": "57395bf6-d8c8-49dd-aa28-57ce7a3d68c3",
             },
         )
         return no

@@ -159,6 +159,20 @@ class ClienteInterSCity:
             for nome, (base_url, caminho) in servicos.items()
         }
 
+    def _resources_da_resposta(self, resposta: dict) -> list[dict]:
+        dados = resposta.get("data", {})
+        if not isinstance(dados, dict):
+            return []
+        resources = dados.get("resources")
+        if isinstance(resources, list):
+            return resources
+        response_content = dados.get("response_content")
+        if isinstance(response_content, dict):
+            resources = response_content.get("resources")
+            if isinstance(resources, list):
+                return resources
+        return []
+
     def buscar_historico_recursos(
         self,
         *,
@@ -179,6 +193,17 @@ class ClienteInterSCity:
         return {
             "ok": resposta["ok"],
             "status": resposta["status"],
-            "resources": resposta.get("data", {}).get("resources", []),
+            "resources": self._resources_da_resposta(resposta),
+            "detalhe": resposta.get("detalhe"),
+        }
+
+    def buscar_ultimos_recursos(self, *, uuids: list[str]) -> dict:
+        resposta = self._request_json(
+            "POST", self.collector_url, "/resources/data/last", {"uuids": uuids}
+        )
+        return {
+            "ok": resposta["ok"],
+            "status": resposta["status"],
+            "resources": self._resources_da_resposta(resposta),
             "detalhe": resposta.get("detalhe"),
         }

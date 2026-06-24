@@ -1,16 +1,38 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link, useNavigate } from "react-router";
 import L from "leaflet";
 import "leaflet.markercluster";
 import { MapContainer, TileLayer, useMap } from "react-leaflet";
+import type { EChartsOption } from "echarts";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
+import { publicAssetPath } from "../app/assets";
 import { apiFetch, carregarSessaoAutenticada, detalheErro } from "../api";
 import { BrandLogo } from "../components/common/BrandLogo";
+import { EmptyState } from "../components/common/EmptyState";
+import { LoadingDots } from "../components/common/LoadingDots";
 import { PageMeta } from "../components/common/PageMeta";
+import { Popover } from "../components/common/Popover";
 import { ThemeToggleButton } from "../components/common/ThemeToggleButton";
-import { Button } from "../components/ui/Button";
+import {
+  ActivityIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  MaximizeIcon,
+  MemoryIcon,
+  MinimizeIcon,
+  RefreshIcon,
+  SignalIcon,
+} from "../components/icons";
 import type {
   DispositivoHistorico,
   DispositivoStatus,
@@ -26,17 +48,121 @@ type NodeWithCoords = NoBordaMapa & {
   lng: number;
 };
 
+type CapabilitySample = Record<string, unknown>;
+type TelemetryPeriod = "recentes" | "2h" | "1d";
+
+type CapabilityDefinition = {
+  key: string;
+  label: string;
+  formatter?: (value: unknown) => string;
+};
+
+type ChartSeries = {
+  name: string;
+  color: string;
+  data: Array<[number, number]>;
+};
+
+type RecentStatDefinition = CapabilityDefinition & {
+  description: string;
+  icon: "activity" | "memory" | "signal";
+  tone: "teal" | "blue" | "green" | "yellow" | "red";
+};
+
 const UFMA_CENTER: [number, number] = [-2.5583, -44.3077];
-const METRICS = [
-  ["heap_free", "Heap livre"],
-  ["heap_min", "Heap minimo"],
-  ["heap_max", "Maior heap"],
-  ["psram_free", "PSRAM livre"],
-  ["psram_min", "PSRAM minima"],
-  ["psram_max", "Maior PSRAM"],
-  ["rssi", "RSSI"],
-  ["post_max_ms", "POST maximo"],
-] as const;
+const EDGE_NODE_ICON_URL = publicAssetPath("images/edge-node-marker.svg");
+const EChart = lazy(() =>
+  import("../components/charts/EChart").then((module) => ({
+    default: module.EChart,
+  })),
+);
+
+const PERIOD_OPTIONS: Array<{ value: TelemetryPeriod; label: string }> = [
+  { value: "recentes", label: "Recentes" },
+  { value: "2h", label: "2 horas" },
+  { value: "1d", label: "1 dia" },
+];
+
+const CAPABILITY_DEFINITIONS: CapabilityDefinition[] = [
+  { key: "status", label: "Status" },
+  { key: "presenca", label: "PIR" },
+  { key: "heap_free", label: "Heap livre", formatter: formatBytes },
+  { key: "heap_min", label: "Piso heap", formatter: formatBytes },
+  { key: "heap_max", label: "Bloco heap", formatter: formatBytes },
+  { key: "psram_free", label: "PSRAM livre", formatter: formatBytes },
+  { key: "psram_min", label: "Piso PSRAM", formatter: formatBytes },
+  { key: "psram_max", label: "Bloco PSRAM", formatter: formatBytes },
+  { key: "rssi", label: "Sinal Wi-Fi", formatter: formatRssi },
+  { key: "post_max_ms", label: "Pico envio", formatter: formatMs },
+];
+
+const RECENT_STAT_CARDS: RecentStatDefinition[] = [
+  {
+    key: "heap_free",
+    label: "Heap livre",
+    description: "Memória interna disponível para novas operações.",
+    formatter: formatBytes,
+    icon: "memory",
+    tone: "teal",
+  },
+  {
+    key: "heap_min",
+    label: "Piso heap",
+    description: "Menor memória interna livre observada recentemente.",
+    formatter: formatBytes,
+    icon: "memory",
+    tone: "blue",
+  },
+  {
+    key: "heap_max",
+    label: "Bloco heap",
+    description: "Maior bloco contínuo disponível na memória interna.",
+    formatter: formatBytes,
+    icon: "memory",
+    tone: "green",
+  },
+  {
+    key: "psram_free",
+    label: "PSRAM livre",
+    description: "Memória externa disponível para buffers maiores.",
+    formatter: formatBytes,
+    icon: "memory",
+    tone: "teal",
+  },
+  {
+    key: "psram_min",
+    label: "Piso PSRAM",
+    description: "Menor memória externa livre observada recentemente.",
+    formatter: formatBytes,
+    icon: "memory",
+    tone: "blue",
+  },
+  {
+    key: "psram_max",
+    label: "Bloco PSRAM",
+    description: "Maior bloco contínuo disponível na memória externa.",
+    formatter: formatBytes,
+    icon: "memory",
+    tone: "green",
+  },
+  {
+    key: "rssi",
+    label: "Sinal Wi-Fi",
+    description:
+      "Potência do sinal recebido. Valores menos negativos indicam sinal melhor.",
+    formatter: formatRssi,
+    icon: "signal",
+    tone: "yellow",
+  },
+  {
+    key: "post_max_ms",
+    label: "Pico envio",
+    description: "Maior duração recente de envio HTTP para o servidor.",
+    formatter: formatMs,
+    icon: "activity",
+    tone: "red",
+  },
+];
 
 function parseNodes(nodes: NoBordaMapa[]): NodeWithCoords[] {
   return nodes.flatMap((node) => {
@@ -61,31 +187,302 @@ function escapeHtml(value: string | null | undefined): string {
 }
 
 function formatDate(value: string | null | undefined) {
-  if (!value) return "Sem sincronizacao registrada";
-  return new Date(value).toLocaleString("pt-BR");
+  if (!value) return "Sem sincronização registrada";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("pt-BR");
+}
+
+function formatShortDate(value: string | null | undefined) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  if (Array.isArray(value)) return toFiniteNumber(value[1]);
+  if (typeof value === "boolean") return value ? 1 : 0;
+  const numberValue =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : Number.NaN;
+  return Number.isFinite(numberValue) ? numberValue : null;
 }
 
 function formatMetric(value: unknown) {
+  if (Array.isArray(value)) return formatMetric(value[1]);
   if (value === null || value === undefined || value === "") return "-";
   if (typeof value === "number") return value.toLocaleString("pt-BR");
   if (typeof value === "string") return value;
-  if (typeof value === "boolean") return value ? "Sim" : "Nao";
+  if (typeof value === "boolean") return value ? "Sim" : "Não";
   return JSON.stringify(value);
 }
 
-function metricValue(history: DispositivoHistorico | null, key: string) {
+function formatBytes(value: unknown) {
+  const numberValue = toFiniteNumber(value);
+  if (numberValue === null) return formatMetric(value);
+  if (Math.abs(numberValue) >= 1024 * 1024) {
+    return `${(numberValue / 1024 / 1024).toLocaleString("pt-BR", {
+      maximumFractionDigits: 1,
+    })} MB`;
+  }
+  if (Math.abs(numberValue) >= 1024) {
+    return `${(numberValue / 1024).toLocaleString("pt-BR", {
+      maximumFractionDigits: 1,
+    })} KB`;
+  }
+  return `${numberValue.toLocaleString("pt-BR")} B`;
+}
+
+function formatMs(value: unknown) {
+  const numberValue = toFiniteNumber(value);
+  if (numberValue === null) return formatMetric(value);
+  return `${numberValue.toLocaleString("pt-BR")} ms`;
+}
+
+function formatRssi(value: unknown) {
+  const numberValue = toFiniteNumber(value);
+  if (numberValue === null) return formatMetric(value);
+  return `${numberValue.toLocaleString("pt-BR")} dBm`;
+}
+
+function sampleValue(sample: CapabilitySample | undefined) {
+  if (!sample) return undefined;
+  if ("value" in sample) return sample.value;
+  if ("valor" in sample) return sample.valor;
+  return undefined;
+}
+
+function sampleDate(sample: CapabilitySample | undefined) {
+  if (!sample) return undefined;
+  const value = sample.date ?? sample.data ?? sample.timestamp;
+  return typeof value === "string" ? value : undefined;
+}
+
+function latestSample(
+  history: DispositivoHistorico | null,
+  key: string,
+): CapabilitySample | undefined {
   const latest = history?.ultimo?.[key];
-  if (!latest) return "-";
-  return formatMetric(latest.value ?? latest.valor ?? latest.data ?? latest);
+  if (latest) return latest;
+  const values = history?.historico?.[key] || [];
+  return values.length > 0 ? values[values.length - 1] : undefined;
+}
+
+function numericSeries(history: DispositivoHistorico | null, key: string) {
+  const values = history?.historico?.[key] || [];
+  return values.flatMap((sample) => {
+    const numberValue = toFiniteNumber(sampleValue(sample));
+    const dateValue = sampleDate(sample);
+    const timeValue = dateValue ? Date.parse(dateValue) : Number.NaN;
+    if (numberValue === null || !Number.isFinite(timeValue)) return [];
+    return [[timeValue, numberValue] as [number, number]];
+  });
+}
+
+function latestDate(history: DispositivoHistorico | null) {
+  const timestamps = CAPABILITY_DEFINITIONS.flatMap((definition) => {
+    const dateValue = sampleDate(latestSample(history, definition.key));
+    return dateValue ? [dateValue] : [];
+  });
+  if (timestamps.length === 0) return null;
+  return timestamps.sort((a, b) => Date.parse(b) - Date.parse(a))[0];
+}
+
+function statusClass(value: unknown) {
+  const normalized = String(value || "").toLowerCase();
+  if (normalized.includes("online") || normalized === "ok")
+    return "status-green";
+  if (normalized.includes("offline") || normalized.includes("erro"))
+    return "status-red";
+  if (normalized.includes("timeout") || normalized.includes("indisponivel"))
+    return "status-yellow";
+  return "status-muted";
+}
+
+function statusLabel(value: unknown, fallback: string) {
+  const formatted = formatMetric(value);
+  return formatted === "-" ? fallback : formatted;
+}
+
+function hasSeriesData(series: ChartSeries[]) {
+  return series.some((item) => item.data.length > 0);
+}
+
+function lineChartOption(
+  series: ChartSeries[],
+  formatter: (value: unknown) => string,
+  axisLabelFormatter?: (value: number) => string,
+): EChartsOption {
+  return {
+    color: series.map((item) => item.color),
+    tooltip: {
+      trigger: "axis",
+      valueFormatter: formatter,
+    },
+    legend: {
+      top: 0,
+      textStyle: { color: "#7e8896", fontSize: 11 },
+    },
+    grid: {
+      top: 38,
+      right: 16,
+      bottom: 24,
+      left: 46,
+    },
+    xAxis: {
+      type: "time",
+      axisLabel: { color: "#7e8896" },
+      axisLine: { lineStyle: { color: "#e6e7eb" } },
+      splitLine: { show: false },
+    },
+    yAxis: {
+      type: "value",
+      axisLabel: { color: "#7e8896", formatter: axisLabelFormatter },
+      axisLine: { show: false },
+      splitLine: { lineStyle: { color: "#eff0f3", type: "dashed" } },
+    },
+    series: series.map((item) => ({
+      name: item.name,
+      type: "line",
+      smooth: true,
+      showSymbol: item.data.length <= 8,
+      symbolSize: 6,
+      areaStyle: { opacity: 0.06 },
+      lineStyle: { width: 2 },
+      data: item.data,
+    })),
+  };
+}
+
+function pirChartOption(
+  history: DispositivoHistorico | null,
+  period: TelemetryPeriod,
+): EChartsOption {
+  const pir = history?.pir;
+  const isHistogram = period === "1d" || pir?.tipo === "histograma";
+
+  if (isHistogram) {
+    const buckets = pir?.baldes || [];
+    return {
+      color: ["#1abb9c"],
+      tooltip: {
+        trigger: "axis",
+        axisPointer: { type: "shadow" },
+        formatter: (params: any) => {
+          const item = Array.isArray(params) ? params[0] : params;
+          const bucket = buckets[item.dataIndex];
+          return `${formatShortDate(bucket?.inicio)}<br/>Detecções: ${item.value}`;
+        },
+      },
+      grid: { top: 18, right: 16, bottom: 34, left: 38 },
+      xAxis: {
+        type: "category",
+        data: buckets.map((bucket) => formatShortDate(bucket.inicio)),
+        axisLabel: { color: "#7e8896", fontSize: 10 },
+        axisLine: { lineStyle: { color: "#e6e7eb" } },
+        axisTick: { show: false },
+      },
+      yAxis: {
+        type: "value",
+        minInterval: 1,
+        axisLabel: { color: "#7e8896" },
+        axisLine: { show: false },
+        splitLine: { lineStyle: { color: "#eff0f3", type: "dashed" } },
+      },
+      series: [
+        {
+          name: "Detecções",
+          type: "bar",
+          barWidth: "52%",
+          data: buckets.map((bucket) => ({
+            value: bucket.quantidade,
+            itemStyle: { borderRadius: [4, 4, 0, 0] },
+          })),
+        },
+      ],
+    };
+  }
+
+  const events = pir?.eventos || [];
+  return {
+    color: ["#1abb9c"],
+    tooltip: {
+      trigger: "item",
+      formatter: (params: any) => {
+        const value = params.value as [number, number, string];
+        return `${formatShortDate(new Date(value[0]).toISOString())}<br/>${value[2]}`;
+      },
+    },
+    grid: { top: 18, right: 16, bottom: 34, left: 42 },
+    xAxis: {
+      type: "time",
+      axisLabel: { color: "#7e8896" },
+      axisLine: { lineStyle: { color: "#e6e7eb" } },
+      splitLine: { show: false },
+    },
+    yAxis: {
+      type: "value",
+      min: -0.2,
+      max: 1.2,
+      interval: 1,
+      axisLabel: {
+        color: "#7e8896",
+        formatter: (value: number) => (value >= 1 ? "PIR" : "Sem"),
+      },
+      axisLine: { show: false },
+      splitLine: { lineStyle: { color: "#eff0f3", type: "dashed" } },
+    },
+    series: [
+      {
+        name: "PIR",
+        type: "scatter",
+        symbolSize: (value: unknown[]) => (Number(value[1]) >= 1 ? 12 : 7),
+        data: events.map((event) => [
+          Date.parse(event.timestamp),
+          event.nivel,
+          event.valor ? "Movimento detectado" : "Sem movimento",
+        ]),
+      },
+    ],
+  };
+}
+
+function TelemetryChart({ option }: { option: EChartsOption }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="chart-loading">
+          <LoadingDots label="Carregando gráfico" />
+        </div>
+      }
+    >
+      <EChart option={option} />
+    </Suspense>
+  );
+}
+
+function StatCardIcon({ icon }: { icon: RecentStatDefinition["icon"] }) {
+  if (icon === "signal") return <SignalIcon />;
+  if (icon === "activity") return <ActivityIcon />;
+  return <MemoryIcon />;
 }
 
 function markerIcon() {
-  return L.divIcon({
-    className: "",
-    html: '<span class="iot-marker"></span>',
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
-    popupAnchor: [0, -18],
+  return L.icon({
+    iconUrl: EDGE_NODE_ICON_URL,
+    className: "iot-marker-icon",
+    iconSize: [46, 46],
+    iconAnchor: [23, 42],
+    popupAnchor: [0, -38],
   });
 }
 
@@ -103,12 +500,22 @@ function popupHtml(node: NodeWithCoords): string {
     <div class="iot-popup">
       <strong>${escapeHtml(node.nome)}</strong>
       <div class="iot-popup-grid">
-        <span><b>Codigo:</b> ${escapeHtml(node.codigo)}</span>
-        <span><b>Ultima sincronizacao:</b> ${escapeHtml(formatDate(node.ultimo_sync_em))}</span>
+        <span><b>Última sincronização:</b> ${escapeHtml(formatDate(node.ultimo_sync_em))}</span>
         <span><b>Dispositivos:</b> ${node.dispositivos.length}</span>
       </div>
     </div>
   `;
+}
+
+function ResizeMapOnChange({ expanded }: { expanded: boolean }) {
+  const map = useMap();
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => map.invalidateSize(), 260);
+    return () => window.clearTimeout(timeout);
+  }, [expanded, map]);
+
+  return null;
 }
 
 function ClusterLayer({
@@ -150,9 +557,9 @@ function ClusterLayer({
 }
 
 function statusText(total: number, valid: number) {
-  if (total === 0) return "Nenhum no de borda publicado";
-  if (valid === total) return `${valid} nos de borda no mapa`;
-  return `${valid} de ${total} nos de borda com coordenadas`;
+  if (total === 0) return "Nenhum nó de borda publicado";
+  if (valid === total) return `${valid} nós de borda no mapa`;
+  return `${valid} de ${total} nós de borda com coordenadas`;
 }
 
 export function PublicMapPage({ embedded = false }: PublicMapPageProps) {
@@ -160,6 +567,8 @@ export function PublicMapPage({ embedded = false }: PublicMapPageProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedDevice, setSelectedDevice] =
     useState<DispositivoStatus | null>(null);
+  const [selectedPeriod, setSelectedPeriod] =
+    useState<TelemetryPeriod>("recentes");
   const [deviceHistory, setDeviceHistory] =
     useState<DispositivoHistorico | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -167,6 +576,10 @@ export function PublicMapPage({ embedded = false }: PublicMapPageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [mapExpanded, setMapExpanded] = useState(false);
+  const [mapCollapsed, setMapCollapsed] = useState(false);
+  const [dashboardCollapsed, setDashboardCollapsed] = useState(false);
+  const dashboardRef = useRef<HTMLElement | null>(null);
   const navigate = useNavigate();
 
   const nodesWithCoords = useMemo(() => parseNodes(nodes), [nodes]);
@@ -174,7 +587,7 @@ export function PublicMapPage({ embedded = false }: PublicMapPageProps) {
     return nodes.find((node) => node.id === selectedNodeId) || nodes[0] || null;
   }, [nodes, selectedNodeId]);
 
-  async function loadNodes() {
+  const loadNodes = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -193,18 +606,34 @@ export function PublicMapPage({ embedded = false }: PublicMapPageProps) {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  async function loadDeviceHistory(device: DispositivoStatus) {
+  const selectNode = useCallback((nodeId: string) => {
+    setSelectedNodeId(nodeId);
+  }, []);
+
+  const selectDevice = useCallback((device: DispositivoStatus) => {
     setSelectedDevice(device);
+    setDashboardCollapsed(false);
+    requestAnimationFrame(() => {
+      dashboardRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }, []);
+
+  const loadDeviceHistory = useCallback(async () => {
+    if (!selectedDevice) return;
+
     setDeviceHistory(null);
     setHistoryError("");
-    if (!device.interscity_uuid) return;
+    if (!selectedDevice.interscity_uuid) return;
 
     setHistoryLoading(true);
     try {
       const response = await apiFetch<DispositivoHistorico>(
-        `/public/mapa/dispositivos/${device.id}/historico/?dias=1`,
+        `/public/mapa/dispositivos/${selectedDevice.id}/historico/?periodo=${selectedPeriod}`,
         {
           skipAuth: true,
         },
@@ -215,11 +644,11 @@ export function PublicMapPage({ embedded = false }: PublicMapPageProps) {
     } finally {
       setHistoryLoading(false);
     }
-  }
+  }, [selectedDevice, selectedPeriod]);
 
   useEffect(() => {
     void loadNodes();
-  }, []);
+  }, [loadNodes]);
 
   useEffect(() => {
     if (embedded) return;
@@ -246,6 +675,122 @@ export function PublicMapPage({ embedded = false }: PublicMapPageProps) {
     setHistoryError("");
   }, [selectedNodeId]);
 
+  useEffect(() => {
+    void loadDeviceHistory();
+  }, [loadDeviceHistory]);
+
+  const heapSeries = useMemo<ChartSeries[]>(
+    () => [
+      {
+        name: "Livre",
+        color: "#1abb9c",
+        data: numericSeries(deviceHistory, "heap_free"),
+      },
+      {
+        name: "Piso",
+        color: "#4299e1",
+        data: numericSeries(deviceHistory, "heap_min"),
+      },
+      {
+        name: "Maior bloco",
+        color: "#2fb344",
+        data: numericSeries(deviceHistory, "heap_max"),
+      },
+    ],
+    [deviceHistory],
+  );
+
+  const psramSeries = useMemo<ChartSeries[]>(
+    () => [
+      {
+        name: "Livre",
+        color: "#1abb9c",
+        data: numericSeries(deviceHistory, "psram_free"),
+      },
+      {
+        name: "Piso",
+        color: "#4299e1",
+        data: numericSeries(deviceHistory, "psram_min"),
+      },
+      {
+        name: "Maior bloco",
+        color: "#2fb344",
+        data: numericSeries(deviceHistory, "psram_max"),
+      },
+    ],
+    [deviceHistory],
+  );
+
+  const networkSeries = useMemo<ChartSeries[]>(
+    () => [
+      {
+        name: "Sinal Wi-Fi",
+        color: "#4299e1",
+        data: numericSeries(deviceHistory, "rssi"),
+      },
+      {
+        name: "Pico envio",
+        color: "#d63939",
+        data: numericSeries(deviceHistory, "post_max_ms"),
+      },
+    ],
+    [deviceHistory],
+  );
+
+  const heapChart = useMemo(
+    () => lineChartOption(heapSeries, formatBytes),
+    [heapSeries],
+  );
+
+  const psramChart = useMemo(
+    () => lineChartOption(psramSeries, formatBytes),
+    [psramSeries],
+  );
+
+  const signalChart = useMemo(
+    () => lineChartOption(networkSeries, formatMetric),
+    [networkSeries],
+  );
+
+  const pirChart = useMemo(
+    () => pirChartOption(deviceHistory, selectedPeriod),
+    [deviceHistory, selectedPeriod],
+  );
+
+  const recentStats = useMemo(
+    () =>
+      RECENT_STAT_CARDS.flatMap((definition) => {
+        const sample = latestSample(deviceHistory, definition.key);
+        if (!sample) return [];
+        return [
+          {
+            ...definition,
+            value: definition.formatter
+              ? definition.formatter(sampleValue(sample))
+              : formatMetric(sampleValue(sample)),
+            date: sampleDate(sample),
+          },
+        ];
+      }),
+    [deviceHistory],
+  );
+
+  const hasRecentData = recentStats.length > 0;
+  const hasHeapData = hasSeriesData(heapSeries);
+  const hasPsramData = hasSeriesData(psramSeries);
+  const hasNetworkData = hasSeriesData(networkSeries);
+  const hasPirData =
+    selectedPeriod === "1d"
+      ? Boolean(deviceHistory?.pir?.baldes?.length)
+      : Boolean(deviceHistory?.pir?.eventos?.length);
+  const isRecentPeriod = selectedPeriod === "recentes";
+  const selectedPeriodLabel =
+    PERIOD_OPTIONS.find((option) => option.value === selectedPeriod)?.label ||
+    "Recentes";
+  const freshness = latestDate(deviceHistory);
+  const collectorStatus = deviceHistory?.collector_status || "-";
+  const deviceStatus = sampleValue(latestSample(deviceHistory, "status"));
+
   const content = (
     <section className={embedded ? "map-shell-wrapper" : "public-wrapper"}>
       <div className="page-header">
@@ -254,165 +799,403 @@ export function PublicMapPage({ embedded = false }: PublicMapPageProps) {
             <div className="page-pretitle">Geo</div>
             <h1 className="page-title">Mapa IoT</h1>
             <p className="page-description">
-              Nós de borda aparecem no mapa abaixo. Eles são centrais de
-              processamento e reconhecimento facial que agem como intermediários
-              entre a API e os dispositivos AutoPonto.
+              Nós de borda e dispositivos AutoPonto com telemetria operacional
+              publicada no IntersCity.
             </p>
-          </div>
-          <div className="page-actions">
-            <Button
-              onClick={() => void loadNodes()}
-              disabled={loading}
-              variant="secondary"
-            >
-              {loading ? "Atualizando..." : "Atualizar"}
-            </Button>
           </div>
         </div>
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
 
-      <div className="row col-8-4">
-        <div className="card map-card">
-          <MapContainer center={UFMA_CENTER} zoom={15} className="iot-map">
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            <ClusterLayer
-              nodes={nodesWithCoords}
-              onSelect={setSelectedNodeId}
-            />
-          </MapContainer>
-          {loading && (
-            <div className="map-state">Carregando nos de borda...</div>
-          )}
-          {!loading && nodesWithCoords.length === 0 && !error && (
-            <div className="map-state">
-              Nenhum no de borda com coordenadas cadastrado.
-            </div>
-          )}
-        </div>
-
-        <aside className="card">
-          <div className="card-header">
+      <div
+        className={[
+          "row col-8-4 map-layout",
+          mapExpanded && "map-layout-expanded",
+          mapCollapsed && "map-layout-collapsed",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        <div className={`card map-card ${mapCollapsed ? "is-collapsed" : ""}`}>
+          <div className="card-header map-card-header">
             <div>
-              <div className="card-title">Nos de borda</div>
+              <div className="card-title">Mapa operacional</div>
               <div className="card-subtitle">
                 {statusText(nodes.length, nodesWithCoords.length)}
               </div>
             </div>
-          </div>
-          <div className="card-body map-status-list">
-            <div className="device-meta">
-              {updatedAt
-                ? `Atualizado em ${updatedAt}`
-                : "Aguardando atualizacao"}
+            <div className="panel-actions">
+              <button
+                type="button"
+                className="tb-btn"
+                onClick={() => void loadNodes()}
+                disabled={loading}
+                aria-label="Atualizar mapa"
+                data-tooltip={loading ? "Atualizando mapa" : "Atualizar mapa"}
+              >
+                <RefreshIcon />
+              </button>
+              <button
+                type="button"
+                className="tb-btn"
+                onClick={() => setMapExpanded((current) => !current)}
+                aria-label={mapExpanded ? "Compactar mapa" : "Expandir mapa"}
+                data-tooltip={mapExpanded ? "Compactar mapa" : "Expandir mapa"}
+              >
+                {mapExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
+              </button>
+              <button
+                type="button"
+                className="tb-btn"
+                onClick={() => setMapCollapsed((current) => !current)}
+                aria-label={mapCollapsed ? "Mostrar mapa" : "Recolher mapa"}
+                data-tooltip={mapCollapsed ? "Mostrar mapa" : "Recolher mapa"}
+              >
+                {mapCollapsed ? <ChevronDownIcon /> : <ChevronUpIcon />}
+              </button>
             </div>
-            {!selectedNode && (
-              <div className="empty-card-description">
-                Selecione um nó no mapa para ver detalhes e dispositivos
-                associados.
-              </div>
-            )}
-            {selectedNode && (
-              <>
-                <div className="node-summary">
-                  <span className="device-dot" />
-                  <span>
-                    <span className="device-name">
-                      {selectedNode.nome || selectedNode.codigo}
-                    </span>
-                    <span className="device-meta">{selectedNode.codigo}</span>
-                    <span className="device-meta">
-                      Ultima sincronizacao:{" "}
-                      {formatDate(selectedNode.ultimo_sync_em)}
-                    </span>
-                  </span>
-                </div>
+          </div>
 
-                <div className="divider-label">Dispositivos</div>
-                {selectedNode.dispositivos.length === 0 && (
-                  <div className="empty-card-description">
-                    Este no ainda nao possui dispositivos ativos.
-                  </div>
-                )}
-                {selectedNode.dispositivos.map((device) => (
-                  <button
-                    type="button"
-                    key={device.id}
-                    className={`device-row device-row-button ${selectedDevice?.id === device.id ? "active" : ""}`}
-                    onClick={() => void loadDeviceHistory(device)}
-                  >
+          {!mapCollapsed && (
+            <div className="map-card-body">
+              <MapContainer center={UFMA_CENTER} zoom={15} className="iot-map">
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <ResizeMapOnChange expanded={mapExpanded} />
+                <ClusterLayer nodes={nodesWithCoords} onSelect={selectNode} />
+              </MapContainer>
+              {loading && (
+                <div className="map-state">
+                  <LoadingDots label="Carregando nós de borda" />
+                </div>
+              )}
+              {!loading && nodesWithCoords.length === 0 && !error && (
+                <div className="map-empty-state">
+                  <EmptyState
+                    title="Nenhum nó de borda no mapa"
+                    text="Cadastre latitude e longitude para que os nós apareçam aqui."
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {!mapCollapsed && (
+          <aside className="card map-side-card">
+            <div className="card-header">
+              <div>
+                <div className="card-title">Nós de borda</div>
+                <div className="card-subtitle">
+                  {statusText(nodes.length, nodesWithCoords.length)}
+                </div>
+              </div>
+            </div>
+            <div className="card-body map-status-list">
+              <div className="device-meta">
+                {updatedAt
+                  ? `Atualizado em ${updatedAt}`
+                  : "Aguardando atualização"}
+              </div>
+              {!selectedNode && (
+                <EmptyState
+                  title="Nenhum nó selecionado"
+                  text="Selecione um nó no mapa para ver os dispositivos associados."
+                />
+              )}
+              {selectedNode && (
+                <>
+                  <div className="node-summary">
                     <span className="device-dot" />
                     <span>
                       <span className="device-name">
-                        {device.nome || device.codigo}
+                        {selectedNode.nome || selectedNode.codigo}
                       </span>
+                      <span className="device-meta">{selectedNode.codigo}</span>
                       <span className="device-meta">
-                        {device.codigo} - {device.sala || "Sem sala"}
-                      </span>
-                      <span className="device-meta">
-                        {device.interscity_uuid
-                          ? "Telemetria IntersCity"
-                          : "Sem UUID IntersCity"}
+                        Última sincronização:{" "}
+                        {formatDate(selectedNode.ultimo_sync_em)}
                       </span>
                     </span>
-                  </button>
-                ))}
-              </>
-            )}
-          </div>
-        </aside>
+                  </div>
+
+                  <div className="divider-label">Dispositivos</div>
+                  {selectedNode.dispositivos.length === 0 && (
+                    <EmptyState
+                      title="Sem dispositivos"
+                      text="Este nó ainda não possui dispositivos ativos para selecionar."
+                    />
+                  )}
+                  {selectedNode.dispositivos.map((device) => (
+                    <button
+                      type="button"
+                      key={device.id}
+                      className={`device-row device-row-button ${selectedDevice?.id === device.id ? "active" : ""}`}
+                      onClick={() => selectDevice(device)}
+                    >
+                      <span className="device-dot" />
+                      <span>
+                        <span className="device-name">
+                          {device.nome || device.codigo}
+                        </span>
+                        <span className="device-meta">
+                          {device.codigo} - {device.sala || "Sem sala"}
+                        </span>
+                        <span className="device-meta">
+                          {device.interscity_uuid
+                            ? "Telemetria IntersCity"
+                            : "Sem UUID IntersCity"}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
+          </aside>
+        )}
       </div>
 
-      <section className="card device-dashboard-card">
-        <div className="card-header">
+      <section
+        ref={dashboardRef}
+        className={`card device-dashboard-card ${dashboardCollapsed ? "is-collapsed" : ""}`}
+      >
+        <div className="card-header dashboard-card-header">
           <div>
             <div className="card-title">Dashboard do dispositivo</div>
             <div className="card-subtitle">
               {selectedDevice
                 ? `${selectedDevice.nome || selectedDevice.codigo} - ${selectedDevice.codigo}`
-                : "Selecione um dispositivo do no"}
+                : "Selecione um dispositivo do nó"}
             </div>
           </div>
+          <div className="dashboard-header-actions">
+            <div className="chart-tabs" aria-label="Período de telemetria">
+              {PERIOD_OPTIONS.map((option) => (
+                <button
+                  type="button"
+                  key={option.value}
+                  className={`chart-tab ${selectedPeriod === option.value ? "active" : ""}`}
+                  onClick={() => setSelectedPeriod(option.value)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="tb-btn"
+              onClick={() => void loadDeviceHistory()}
+              disabled={!selectedDevice || historyLoading}
+              aria-label="Atualizar dashboard"
+              data-tooltip={
+                historyLoading ? "Atualizando dashboard" : "Atualizar dashboard"
+              }
+            >
+              <RefreshIcon />
+            </button>
+            <button
+              type="button"
+              className="tb-btn"
+              onClick={() => setDashboardCollapsed((current) => !current)}
+              aria-label={
+                dashboardCollapsed ? "Mostrar dashboard" : "Recolher dashboard"
+              }
+              data-tooltip={
+                dashboardCollapsed ? "Mostrar dashboard" : "Recolher dashboard"
+              }
+            >
+              {dashboardCollapsed ? <ChevronDownIcon /> : <ChevronUpIcon />}
+            </button>
+          </div>
         </div>
-        <div className="card-body">
-          {!selectedDevice && (
-            <div className="empty-card-description">
-              As capacidades recuperadas do IntersCity aparecem aqui.
-            </div>
-          )}
-          {selectedDevice && !selectedDevice.interscity_uuid && (
-            <div className="alert alert-error">
-              Este dispositivo ainda nao possui UUID IntersCity para consulta de
-              metricas.
-            </div>
-          )}
-          {historyError && (
-            <div className="alert alert-error">{historyError}</div>
-          )}
-          {historyLoading && (
-            <div className="empty-card-description">
-              Carregando metricas do dispositivo...
-            </div>
-          )}
-          {selectedDevice &&
-            selectedDevice.interscity_uuid &&
-            !historyLoading && (
-              <div className="metrics-grid">
-                {METRICS.map(([key, label]) => (
-                  <div className="metric-card" key={key}>
-                    <span className="metric-label">{label}</span>
-                    <strong className="metric-value">
-                      {metricValue(deviceHistory, key)}
-                    </strong>
-                  </div>
-                ))}
+
+        {!dashboardCollapsed && (
+          <div className="card-body device-dashboard-body">
+            {!selectedDevice && (
+              <EmptyState
+                title="Nenhum dispositivo selecionado"
+                text="Selecione um dispositivo na lista de nós de borda para abrir os gráficos."
+              />
+            )}
+            {selectedDevice && !selectedDevice.interscity_uuid && (
+              <div className="alert alert-error">
+                Este dispositivo ainda não possui UUID IntersCity para consulta
+                de métricas.
               </div>
             )}
-        </div>
+            {historyError && (
+              <div className="alert alert-error">{historyError}</div>
+            )}
+            {historyLoading && (
+              <div className="empty-card-description">
+                <LoadingDots label="Carregando métricas do dispositivo" />
+              </div>
+            )}
+            {selectedDevice &&
+              selectedDevice.interscity_uuid &&
+              !historyLoading && (
+                <>
+                  <div className="dashboard-meta-row">
+                    <span
+                      className={`status ${statusClass(collectorStatus)}`}
+                      tabIndex={0}
+                    >
+                      Collector: {collectorStatus}
+                    </span>
+                    <span
+                      className={`status ${statusClass(deviceStatus)}`}
+                      data-tooltip="Último valor da capacidade status enviada pelo dispositivo."
+                      tabIndex={0}
+                    >
+                      Status: {statusLabel(deviceStatus, "Sem status")}
+                    </span>
+                    <span
+                      className="status status-green"
+                      data-tooltip="Janela selecionada para consulta."
+                      tabIndex={0}
+                    >
+                      Janela: {selectedPeriodLabel}
+                    </span>
+                    <span
+                      className="status status-muted"
+                      data-tooltip="Data mais recente entre as capacidades retornadas."
+                      tabIndex={0}
+                    >
+                      Última amostra: {formatShortDate(freshness)}
+                    </span>
+                  </div>
+
+                  {isRecentPeriod ? (
+                    hasRecentData ? (
+                      <div className="dashboard-kpi-grid recent-stats-grid">
+                        {recentStats.map((stat) => (
+                          <div className="telemetry-stat" key={stat.key}>
+                            <div className={`stat-icon ${stat.tone}`}>
+                              <StatCardIcon icon={stat.icon} />
+                            </div>
+                            <div className="stat-content">
+                              <Popover
+                                className="stat-popover"
+                                title={stat.label}
+                                text={stat.description}
+                              >
+                                <span className="stat-label stat-label-help">
+                                  {stat.label}
+                                </span>
+                              </Popover>
+                              <div className="stat-value-row">
+                                <span className="stat-value">{stat.value}</span>
+                              </div>
+                              <div className="stat-subtext">
+                                {formatShortDate(stat.date)}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <EmptyState
+                        title="Sem dados recentes"
+                        text="O Collector não retornou amostras recentes para este dispositivo."
+                      />
+                    )
+                  ) : (
+                    <div className="dashboard-chart-grid dashboard-chart-grid-history">
+                      <div className="dashboard-panel">
+                        <div className="dashboard-panel-header">
+                          <div>
+                            <div className="card-title">Heap</div>
+                            <div className="card-subtitle">
+                              Livre, piso e maior bloco no período.
+                            </div>
+                          </div>
+                        </div>
+                        <div className="chart-area chart-area-lg">
+                          {hasHeapData ? (
+                            <TelemetryChart option={heapChart} />
+                          ) : (
+                            <EmptyState
+                              title="Sem dados de heap"
+                              text="Não há amostras históricas de heap nesta janela."
+                            />
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="dashboard-panel">
+                        <div className="dashboard-panel-header">
+                          <div>
+                            <div className="card-title">PSRAM</div>
+                            <div className="card-subtitle">
+                              Livre, piso e maior bloco no período.
+                            </div>
+                          </div>
+                        </div>
+                        <div className="chart-area chart-area-lg">
+                          {hasPsramData ? (
+                            <TelemetryChart option={psramChart} />
+                          ) : (
+                            <EmptyState
+                              title="Sem dados de PSRAM"
+                              text="Não há amostras históricas de PSRAM nesta janela."
+                            />
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="dashboard-panel">
+                        <div className="dashboard-panel-header">
+                          <div>
+                            <div className="card-title">Rede e envio</div>
+                            <div className="card-subtitle">
+                              Sinal Wi-Fi e pico de envio no período.
+                            </div>
+                          </div>
+                        </div>
+                        <div className="chart-area chart-area-lg">
+                          {hasNetworkData ? (
+                            <TelemetryChart option={signalChart} />
+                          ) : (
+                            <EmptyState
+                              title="Sem dados de rede"
+                              text="Não há amostras históricas de sinal ou envio nesta janela."
+                            />
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="dashboard-panel">
+                        <div className="dashboard-panel-header">
+                          <div>
+                            <div className="card-title">Presença PIR</div>
+                            <div className="card-subtitle">
+                              {selectedPeriod === "1d"
+                                ? "Detecções agrupadas por hora."
+                                : "Eventos booleanos em linha do tempo."}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="chart-area chart-area-lg">
+                          {hasPirData ? (
+                            <TelemetryChart option={pirChart} />
+                          ) : (
+                            <EmptyState
+                              title="Sem dados PIR"
+                              text="Não há eventos de presença PIR nesta janela."
+                            />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+          </div>
+        )}
       </section>
     </section>
   );
@@ -421,7 +1204,7 @@ export function PublicMapPage({ embedded = false }: PublicMapPageProps) {
     <>
       <PageMeta
         title="Mapa IoT | AutoPonto"
-        description="Mapa publico de dispositivos IoT AutoPonto."
+        description="Mapa público de dispositivos IoT AutoPonto."
       />
       {embedded ? (
         content
@@ -429,7 +1212,7 @@ export function PublicMapPage({ embedded = false }: PublicMapPageProps) {
         <main className="public-page">
           <header className="public-topbar">
             <div className="public-topbar-inner">
-              <Link to="/">
+              <Link to="/" className="public-brand-link">
                 <BrandLogo size="sm" />
               </Link>
               <div className="public-actions">

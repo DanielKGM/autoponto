@@ -131,7 +131,15 @@ export type NoBordaMapa = {
 export type DispositivoHistorico = {
   dispositivo: DispositivoStatus;
   collector_status: string;
+  periodo?: string;
   historico: Record<string, Array<Record<string, unknown>>>;
+  pir?: {
+    tipo: "linha_tempo" | "histograma";
+    balde_minutos?: number;
+    eventos: Array<{ timestamp: string; valor: boolean; nivel: number }>;
+    baldes: Array<{ inicio: string; fim: string; quantidade: number }>;
+    total: number;
+  };
   ultimo: Record<string, Record<string, unknown>>;
 };
 

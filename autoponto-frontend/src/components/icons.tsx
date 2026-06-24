@@ -4,50 +4,205 @@ type IconProps = SVGProps<SVGSVGElement>;
 
 function iconPath(props: IconProps, children: ReactNode) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
       {children}
     </svg>
   );
 }
 
 export function MenuIcon(props: IconProps) {
-  return iconPath(props, <><path d="M4 7h16" /><path d="M4 12h16" /><path d="M4 17h10" /></>);
+  return iconPath(
+    props,
+    <>
+      <path d="M4 7h16" />
+      <path d="M4 12h16" />
+      <path d="M4 17h10" />
+    </>,
+  );
 }
 
 export function CloseIcon(props: IconProps) {
-  return iconPath(props, <><path d="M6 6l12 12" /><path d="M18 6L6 18" /></>);
+  return iconPath(
+    props,
+    <>
+      <path d="M6 6l12 12" />
+      <path d="M18 6L6 18" />
+    </>,
+  );
 }
 
 export function ChevronDownIcon(props: IconProps) {
   return iconPath(props, <path d="M6 9l6 6 6-6" />);
 }
 
+export function ChevronUpIcon(props: IconProps) {
+  return iconPath(props, <path d="M6 15l6-6 6 6" />);
+}
+
+export function RefreshIcon(props: IconProps) {
+  return iconPath(
+    props,
+    <>
+      <path d="M20 6v5h-5" />
+      <path d="M4 18v-5h5" />
+      <path d="M6.5 9a7 7 0 0 1 11.8-2.5L20 11" />
+      <path d="M4 13l1.7 4.5A7 7 0 0 0 17.5 15" />
+    </>,
+  );
+}
+
+export function MaximizeIcon(props: IconProps) {
+  return iconPath(
+    props,
+    <>
+      <path d="M8 3H3v5" />
+      <path d="M16 3h5v5" />
+      <path d="M21 16v5h-5" />
+      <path d="M8 21H3v-5" />
+      <path d="M3 3l6 6" />
+      <path d="M21 3l-6 6" />
+      <path d="M21 21l-6-6" />
+      <path d="M3 21l6-6" />
+    </>,
+  );
+}
+
+export function MinimizeIcon(props: IconProps) {
+  return iconPath(
+    props,
+    <>
+      <path d="M9 3v6H3" />
+      <path d="M15 3v6h6" />
+      <path d="M15 21v-6h6" />
+      <path d="M9 21v-6H3" />
+    </>,
+  );
+}
+
+export function MemoryIcon(props: IconProps) {
+  return iconPath(
+    props,
+    <>
+      <rect x="6" y="6" width="12" height="12" rx="2" />
+      <path d="M9 2v4" />
+      <path d="M15 2v4" />
+      <path d="M9 18v4" />
+      <path d="M15 18v4" />
+      <path d="M2 9h4" />
+      <path d="M2 15h4" />
+      <path d="M18 9h4" />
+      <path d="M18 15h4" />
+    </>,
+  );
+}
+
+export function SignalIcon(props: IconProps) {
+  return iconPath(
+    props,
+    <>
+      <path d="M2 20h.01" />
+      <path d="M7 20v-4" />
+      <path d="M12 20v-8" />
+      <path d="M17 20V8" />
+      <path d="M22 20V4" />
+    </>,
+  );
+}
+
+export function ActivityIcon(props: IconProps) {
+  return iconPath(props, <path d="M3 12h4l3-7 4 14 3-7h4" />);
+}
+
+export function NoDataIcon(props: IconProps) {
+  return iconPath(
+    props,
+    <>
+      <path d="M6 6l12 12" />
+      <path d="M18 6L6 18" />
+    </>,
+  );
+}
+
 export function UserIcon(props: IconProps) {
-  return iconPath(props, <><path d="M20 21a8 8 0 0 0-16 0" /><circle cx="12" cy="7" r="4" /></>);
+  return iconPath(
+    props,
+    <>
+      <path d="M20 21a8 8 0 0 0-16 0" />
+      <circle cx="12" cy="7" r="4" />
+    </>,
+  );
 }
 
 export function LogOutIcon(props: IconProps) {
-  return iconPath(props, <><path d="M10 17l5-5-5-5" /><path d="M15 12H3" /><path d="M21 4v16" /></>);
+  return iconPath(
+    props,
+    <>
+      <path d="M10 17l5-5-5-5" />
+      <path d="M15 12H3" />
+      <path d="M21 4v16" />
+    </>,
+  );
 }
 
 export function LockIcon(props: IconProps) {
-  return iconPath(props, <><rect x="4" y="10" width="16" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>);
+  return iconPath(
+    props,
+    <>
+      <rect x="4" y="10" width="16" height="10" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+    </>,
+  );
 }
 
 export function GraduationIcon(props: IconProps) {
-  return iconPath(props, <><path d="M22 10L12 5 2 10l10 5 10-5Z" /><path d="M6 12v5c3 2 9 2 12 0v-5" /></>);
+  return iconPath(
+    props,
+    <>
+      <path d="M22 10L12 5 2 10l10 5 10-5Z" />
+      <path d="M6 12v5c3 2 9 2 12 0v-5" />
+    </>,
+  );
 }
 
 export function TeacherIcon(props: IconProps) {
-  return iconPath(props, <><path d="M4 5h16v10H4z" /><path d="M8 21l4-6 4 6" /><path d="M12 15v6" /></>);
+  return iconPath(
+    props,
+    <>
+      <path d="M4 5h16v10H4z" />
+      <path d="M8 21l4-6 4 6" />
+      <path d="M12 15v6" />
+    </>,
+  );
 }
 
 export function AdminIcon(props: IconProps) {
-  return iconPath(props, <><path d="M12 3l7 4v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V7l7-4Z" /><path d="M9 12l2 2 4-5" /></>);
+  return iconPath(
+    props,
+    <>
+      <path d="M12 3l7 4v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V7l7-4Z" />
+      <path d="M9 12l2 2 4-5" />
+    </>,
+  );
 }
 
 export function MapIcon(props: IconProps) {
-  return iconPath(props, <><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3Z" /><path d="M9 3v15" /><path d="M15 6v15" /></>);
+  return iconPath(
+    props,
+    <>
+      <path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3Z" />
+      <path d="M9 3v15" />
+      <path d="M15 6v15" />
+    </>,
+  );
 }
 
 export function GitHubIcon(props: IconProps) {
@@ -59,13 +214,35 @@ export function GitHubIcon(props: IconProps) {
 }
 
 export function SunIcon(props: IconProps) {
-  return iconPath(props, <><circle cx="12" cy="12" r="4" /><path d="M12 2v2" /><path d="M12 20v2" /><path d="M4.93 4.93l1.41 1.41" /><path d="M17.66 17.66l1.41 1.41" /><path d="M2 12h2" /><path d="M20 12h2" /><path d="M4.93 19.07l1.41-1.41" /><path d="M17.66 6.34l1.41-1.41" /></>);
+  return iconPath(
+    props,
+    <>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2" />
+      <path d="M12 20v2" />
+      <path d="M4.93 4.93l1.41 1.41" />
+      <path d="M17.66 17.66l1.41 1.41" />
+      <path d="M2 12h2" />
+      <path d="M20 12h2" />
+      <path d="M4.93 19.07l1.41-1.41" />
+      <path d="M17.66 6.34l1.41-1.41" />
+    </>,
+  );
 }
 
 export function MoonIcon(props: IconProps) {
-  return iconPath(props, <path d="M21 12.8A8.5 8.5 0 1 1 11.2 3 6.8 6.8 0 0 0 21 12.8Z" />);
+  return iconPath(
+    props,
+    <path d="M21 12.8A8.5 8.5 0 1 1 11.2 3 6.8 6.8 0 0 0 21 12.8Z" />,
+  );
 }
 
 export function PinIcon(props: IconProps) {
-  return iconPath(props, <><path d="M12 21s7-4.6 7-11a7 7 0 1 0-14 0c0 6.4 7 11 7 11Z" /><circle cx="12" cy="10" r="2.5" /></>);
+  return iconPath(
+    props,
+    <>
+      <path d="M12 21s7-4.6 7-11a7 7 0 1 0-14 0c0 6.4 7 11 7 11Z" />
+      <circle cx="12" cy="10" r="2.5" />
+    </>,
+  );
 }
