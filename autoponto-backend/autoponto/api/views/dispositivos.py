@@ -1,14 +1,21 @@
 ﻿from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.db.models import Prefetch
 
-from api.models import DispositivoEsp32, NoBorda
+from api.models import DispositivoEsp32, NoBorda, TokenNoBorda
 from api.permissions import IsAdministrador
 from api.serializers.dispositivos import DispositivoEsp32Serializer, NoBordaSerializer, TokenNoBordaEmitirSerializer
 from .mixins import AdminReadableModelViewSet
 
 
 class NoBordaViewSet(AdminReadableModelViewSet):
-    queryset = NoBorda.objects.all()
+    queryset = NoBorda.objects.prefetch_related(
+        Prefetch(
+            "tokens",
+            queryset=TokenNoBorda.objects.filter(ativo=True).order_by("-criado_em"),
+            to_attr="tokens_ativos",
+        )
+    ).all()
     serializer_class = NoBordaSerializer
     filterset_fields = ("ativo",)
     search_fields = ("codigo", "nome")

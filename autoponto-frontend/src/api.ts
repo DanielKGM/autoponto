@@ -23,6 +23,13 @@ type ApiOptions = RequestInit & {
   retryOnUnauthorized?: boolean;
 };
 
+export type ListaApi<T> = T[] | {
+  count?: number;
+  next?: string | null;
+  previous?: string | null;
+  results: T[];
+};
+
 export function getAccessToken(): string | null {
   return accessToken;
 }
@@ -95,6 +102,22 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
   return (await resposta.json()) as T;
 }
 
+export function apiPathFromUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const fallbackOrigin = typeof window === "undefined" ? "http://localhost" : window.location.origin;
+  const url = new URL(value, fallbackOrigin);
+  let basePath = "";
+  try {
+    basePath = new URL(API_URL, fallbackOrigin).pathname.replace(/\/+$/, "");
+  } catch {
+    basePath = API_URL.startsWith("/") ? API_URL.replace(/\/+$/, "") : "";
+  }
+  const pathname = basePath && url.pathname.startsWith(`${basePath}/`)
+    ? url.pathname.slice(basePath.length)
+    : url.pathname;
+  return `${pathname}${url.search}`;
+}
+
 export async function login(username: string, password: string): Promise<MeResponse> {
   const tokens = await apiFetch<{ access: string }>("/auth/token/", {
     method: "POST",
@@ -133,7 +156,7 @@ export async function logout(): Promise<void> {
   }
 }
 
-export function normalizarLista<T>(dados: T[] | { results: T[] }): T[] {
+export function normalizarLista<T>(dados: ListaApi<T>): T[] {
   return Array.isArray(dados) ? dados : dados.results;
 }
 

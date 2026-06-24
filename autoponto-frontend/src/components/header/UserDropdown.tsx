@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useSession } from "../../app/session";
+import { ConfirmModal } from "../common/ConfirmModal";
 import { LogOutIcon, UserIcon } from "../icons";
 
 function initials(name: string) {
@@ -15,6 +16,7 @@ function initials(name: string) {
 export function UserDropdown() {
   const { me, signOut } = useSession();
   const [isOpen, setIsOpen] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const nome = me.usuario.nome_completo || me.usuario.username;
 
@@ -70,9 +72,9 @@ export function UserDropdown() {
             type="button"
             onClick={() => {
               closeDropdown();
-              signOut();
+              setConfirmLogout(true);
             }}
-            className="menu-item"
+            className="menu-item menu-item-danger"
             role="menuitem"
           >
             <LogOutIcon />
@@ -80,6 +82,21 @@ export function UserDropdown() {
           </button>
         </div>
       )}
+      <ConfirmModal
+        open={confirmLogout}
+        title="Sair da conta"
+        confirmLabel="Sair"
+        variant="danger"
+        onCancel={() => setConfirmLogout(false)}
+        onConfirm={() => {
+          setConfirmLogout(false);
+          signOut();
+        }}
+      >
+        <p className="modal-confirm-text">
+          Você precisará entrar novamente para acessar as áreas protegidas.
+        </p>
+      </ConfirmModal>
     </div>
   );
 }

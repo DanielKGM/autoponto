@@ -4,10 +4,26 @@ from api.models import DispositivoEsp32, NoBorda
 
 
 class NoBordaSerializer(serializers.ModelSerializer):
+    token_prefixo_atual = serializers.SerializerMethodField()
+
     class Meta:
         model = NoBorda
         fields = "__all__"
-        read_only_fields = ("id", "criado_em", "atualizado_em", "ultimo_sync_em")
+        read_only_fields = (
+            "id",
+            "criado_em",
+            "atualizado_em",
+            "ultimo_sync_em",
+            "token_prefixo_atual",
+        )
+
+    def get_token_prefixo_atual(self, obj):
+        tokens_ativos = getattr(obj, "tokens_ativos", None)
+        if tokens_ativos is not None:
+            token = tokens_ativos[0] if tokens_ativos else None
+            return token.prefixo_token if token else ""
+        token = obj.tokens.filter(ativo=True).order_by("-criado_em").first()
+        return token.prefixo_token if token else ""
 
 
 class DispositivoEsp32Serializer(serializers.ModelSerializer):

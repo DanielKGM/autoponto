@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useLocation } from "react-router";
-import { itensNavegacao } from "../app/navigation";
+import { rotuloDoPath } from "../app/navigation";
 import { useSession } from "../app/session";
 import { ThemeToggleButton } from "../components/common/ThemeToggleButton";
 import { MenuIcon } from "../components/icons";
@@ -12,7 +12,7 @@ export function AppHeader() {
   const { me } = useSession();
   const location = useLocation();
   const currentLabel = useMemo(() => {
-    return itensNavegacao(me).find((item) => item.path === location.pathname)?.label || "AutoPonto";
+    return rotuloDoPath(me, location.pathname);
   }, [location.pathname, me]);
 
   function toggleMenu() {

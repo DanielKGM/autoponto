@@ -3,6 +3,7 @@ import {
   areaInicial,
   destinoAposLogin,
   itensNavegacao,
+  rotuloDoPath,
   usuarioPodeAcessarArea,
 } from "./navigation";
 import type { MeResponse } from "../types";
@@ -40,6 +41,9 @@ describe("navigation rules", () => {
       "Mapa IoT",
       "Perfil",
     ]);
+    expect(
+      itensNavegacao(me(["admin"])).find((item) => item.area === "admin")?.children?.map((item) => item.label),
+    ).toEqual(["Acadêmico", "IoT"]);
   });
 
   it("checks protected area access without restricting map or profile", () => {
@@ -55,5 +59,11 @@ describe("navigation rules", () => {
     expect(destinoAposLogin(me(["professor"]), "/app/perfil")).toBe("/app/perfil");
     expect(destinoAposLogin(me(["professor"]), "https://externo.test")).toBe("/app/professor");
     expect(destinoAposLogin(me(["professor"]), "/app/admin")).toBe("/app/professor");
+    expect(destinoAposLogin(me(["admin"]), "/app/admin/iot")).toBe("/app/admin/iot");
+  });
+
+  it("finds labels inside nested navigation", () => {
+    expect(rotuloDoPath(me(["admin"]), "/app/admin/academico")).toBe("Acadêmico");
+    expect(rotuloDoPath(me(["admin"]), "/app/admin/iot")).toBe("IoT");
   });
 });
