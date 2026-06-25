@@ -1,7 +1,10 @@
 import type { KeyboardEvent } from "react";
 import { IconButton } from "../../../shared/ui/IconButton";
 import { ChevronRightIcon } from "../../../shared/ui/icons";
-import type { AulaCalendario, CalendarioVisualizacao } from "../../../shared/types";
+import type {
+  AulaCalendario,
+  CalendarioVisualizacao,
+} from "../../../shared/types";
 import {
   buildMonthCells,
   getCalendarEventClass,
@@ -27,7 +30,10 @@ function monthTitle(year: number, month: number) {
   }).format(new Date(year, month, 1));
 }
 
-function activateDate(event: KeyboardEvent<HTMLDivElement>, callback: () => void) {
+function activateDate(
+  event: KeyboardEvent<HTMLDivElement>,
+  callback: () => void,
+) {
   if (event.key !== "Enter" && event.key !== " ") return;
   event.preventDefault();
   callback();
@@ -66,14 +72,18 @@ export function LessonMonthCalendar({
       <div className="calendar-scroll">
         <div className="calendar-grid">
           {WEEKDAYS.map((weekday) => (
-            <div className="dow" key={weekday}>{weekday}</div>
+            <div className="dow" key={weekday}>
+              {weekday}
+            </div>
           ))}
           {cells.map((cell) => {
             const className = [
               "calendar-day",
               !cell.currentMonth ? "muted" : "",
               cell.today ? "today" : "",
-            ].filter(Boolean).join(" ");
+            ]
+              .filter(Boolean)
+              .join(" ");
             const openDay = () => {
               if (cell.currentMonth) onSelectDate(cell.dateKey);
             };

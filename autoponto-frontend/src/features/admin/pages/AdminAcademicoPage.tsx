@@ -7,15 +7,24 @@ import { PageMeta } from "../../../shared/ui/PageMeta";
 
 type Collections = Record<string, Array<Record<string, any>>>;
 
-function lookup(collections: Collections, key: string, id: string | null | undefined, label: (item: Record<string, any>) => string) {
+function lookup(
+  collections: Collections,
+  key: string,
+  id: string | null | undefined,
+  label: (item: Record<string, any>) => string,
+) {
   if (!id) return "-";
-  const item = (collections[key] || []).find((entry) => String(entry.id) === String(id));
+  const item = (collections[key] || []).find(
+    (entry) => String(entry.id) === String(id),
+  );
   return item ? label(item) : id;
 }
 
 function status(item: Record<string, any>) {
   return (
-    <span className={`status ${item.ativo || item.is_active ? "status-green" : "status-muted"}`}>
+    <span
+      className={`chip ${item.ativo || item.is_active ? "chip-green" : "chip-muted"}`}
+    >
       {item.ativo || item.is_active ? "Ativo" : "Inativo"}
     </span>
   );
@@ -45,7 +54,12 @@ const resources: AdminResourceConfig[] = [
     deletable: true,
     fields: [
       { name: "username", label: "Usuário", required: true },
-      { name: "password", label: "Senha", type: "password", help: "Obrigatória ao criar. Em edição, deixe vazia para manter a senha atual." },
+      {
+        name: "password",
+        label: "Senha",
+        type: "password",
+        help: "Obrigatória ao criar. Em edição, deixe vazia para manter a senha atual.",
+      },
       { name: "nome_completo", label: "Nome completo" },
       { name: "email", label: "E-mail", type: "email" },
       { name: "matricula", label: "Matrícula" },
@@ -115,7 +129,8 @@ const resources: AdminResourceConfig[] = [
       {
         key: "campus",
         label: "Campus",
-        render: (item, collections) => lookup(collections, "campi", item.campus, (campus) => campus.nome),
+        render: (item, collections) =>
+          lookup(collections, "campi", item.campus, (campus) => campus.nome),
       },
       { key: "ativo", label: "Status", align: "center", render: status },
     ],
@@ -145,7 +160,8 @@ const resources: AdminResourceConfig[] = [
       {
         key: "predio",
         label: "Prédio",
-        render: (item, collections) => lookup(collections, "predios", item.predio, (predio) => predio.nome),
+        render: (item, collections) =>
+          lookup(collections, "predios", item.predio, (predio) => predio.nome),
       },
       { key: "ativo", label: "Status", align: "center", render: status },
     ],
@@ -193,7 +209,8 @@ const resources: AdminResourceConfig[] = [
       {
         key: "campus",
         label: "Campus",
-        render: (item, collections) => lookup(collections, "campi", item.campus, (campus) => campus.nome),
+        render: (item, collections) =>
+          lookup(collections, "campi", item.campus, (campus) => campus.nome),
       },
       { key: "ativo", label: "Status", align: "center", render: status },
     ],
@@ -223,7 +240,8 @@ const resources: AdminResourceConfig[] = [
       {
         key: "curso",
         label: "Curso",
-        render: (item, collections) => lookup(collections, "cursos", item.curso, (curso) => curso.nome),
+        render: (item, collections) =>
+          lookup(collections, "cursos", item.curso, (curso) => curso.nome),
       },
       { key: "ativo", label: "Status", align: "center", render: status },
     ],
@@ -236,8 +254,19 @@ const resources: AdminResourceConfig[] = [
     endpoint: "/horarios-padrao-ufma/",
     deletable: true,
     fields: [
-      { name: "codigo", label: "Código UFMA", placeholder: "2M12", required: true },
-      { name: "dia_semana", label: "Dia da semana", type: "number", required: true, step: "1" },
+      {
+        name: "codigo",
+        label: "Código UFMA",
+        placeholder: "2M12",
+        required: true,
+      },
+      {
+        name: "dia_semana",
+        label: "Dia da semana",
+        type: "number",
+        required: true,
+        step: "1",
+      },
       { name: "horario_inicio", label: "Início", type: "time", required: true },
       { name: "horario_fim", label: "Fim", type: "time", required: true },
       { name: "ativo", label: "Ativo", type: "checkbox" },
@@ -254,7 +283,8 @@ const resources: AdminResourceConfig[] = [
     key: "turmas",
     title: "Turmas",
     singular: "turma",
-    description: "Turmas e seus horários. Ao criar uma turma ativa, as aulas são sincronizadas.",
+    description:
+      "Turmas e seus horários. Ao criar uma turma ativa, as aulas são sincronizadas.",
     endpoint: "/turmas/",
     deletable: true,
     fields: [
@@ -270,14 +300,20 @@ const resources: AdminResourceConfig[] = [
         label: "Disciplina",
         type: "select",
         required: true,
-        source: { key: "disciplinas", label: (item) => `${item.codigo} - ${item.nome}` },
+        source: {
+          key: "disciplinas",
+          label: (item) => `${item.codigo} - ${item.nome}`,
+        },
       },
       { name: "codigo", label: "Código", required: true },
       {
         name: "professores",
         label: "Professores",
         type: "multiselect",
-        source: { key: "usuarios-professores", label: (item) => item.nome_completo || item.username },
+        source: {
+          key: "usuarios-professores",
+          label: (item) => item.nome_completo || item.username,
+        },
       },
       {
         name: "horarios",
@@ -292,12 +328,24 @@ const resources: AdminResourceConfig[] = [
       {
         key: "disciplina",
         label: "Disciplina",
-        render: (item, collections) => lookup(collections, "disciplinas", item.disciplina, (disciplina) => disciplina.nome),
+        render: (item, collections) =>
+          lookup(
+            collections,
+            "disciplinas",
+            item.disciplina,
+            (disciplina) => disciplina.nome,
+          ),
       },
       {
         key: "periodo_letivo",
         label: "Período",
-        render: (item, collections) => lookup(collections, "periodos-letivos", item.periodo_letivo, (periodo) => periodo.nome),
+        render: (item, collections) =>
+          lookup(
+            collections,
+            "periodos-letivos",
+            item.periodo_letivo,
+            (periodo) => periodo.nome,
+          ),
       },
       { key: "ativo", label: "Status", align: "center", render: status },
     ],
@@ -322,7 +370,10 @@ const resources: AdminResourceConfig[] = [
         label: "Aluno",
         type: "select",
         required: true,
-        source: { key: "usuarios-alunos", label: (item) => item.nome_completo || item.username },
+        source: {
+          key: "usuarios-alunos",
+          label: (item) => item.nome_completo || item.username,
+        },
       },
       { name: "ativo", label: "Ativa", type: "checkbox" },
     ],
@@ -330,12 +381,19 @@ const resources: AdminResourceConfig[] = [
       {
         key: "turma",
         label: "Turma",
-        render: (item, collections) => lookup(collections, "turmas", item.turma, (turma) => turma.codigo),
+        render: (item, collections) =>
+          lookup(collections, "turmas", item.turma, (turma) => turma.codigo),
       },
       {
         key: "aluno",
         label: "Aluno",
-        render: (item, collections) => lookup(collections, "usuarios-alunos", item.aluno, (aluno) => aluno.nome_completo || aluno.username),
+        render: (item, collections) =>
+          lookup(
+            collections,
+            "usuarios-alunos",
+            item.aluno,
+            (aluno) => aluno.nome_completo || aluno.username,
+          ),
       },
       { key: "ativo", label: "Status", align: "center", render: status },
     ],

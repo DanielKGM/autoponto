@@ -28,23 +28,23 @@ Para producao provisoria na VM da faculdade, use `.env.prod` baseado em `.env.pr
 
 ## Tecnologias E Justificativas
 
-| Parte | Tecnologia | Uso No Projeto | Justificativa |
-| --- | --- | --- | --- |
-| Backend | Python 3.13 | Linguagem da API principal | Ecossistema maduro para web, automacao, testes e integracao com bibliotecas de visao computacional. |
-| Backend | Django | Base da aplicacao web | Entrega estrutura robusta para modelos, autenticacao, admin, migrations e organizacao de projeto. |
-| Backend | Django REST Framework | API REST | Facilita serializers, ViewSets, permissoes e contratos HTTP para frontend, edge e integracoes. |
-| Backend | PostgreSQL | Banco de dados unico do sistema | Banco relacional robusto para dominio academico, presencas, relatorios e integridade referencial. |
-| Backend | Simple JWT | Autenticacao do frontend | Usa access token curto em memoria no React e refresh token em cookie HttpOnly. |
-| Backend | OpenCV YuNet/SFace | Geracao de embeddings faciais | Alinha o cadastro biometrico do backend com o reconhecimento usado no edge. |
-| Backend | Gunicorn | Servidor WSGI em container | Opcao comum e estavel para servir Django em deploy Linux. |
-| Backend | WhiteNoise | Arquivos estaticos do Django | Permite servir estaticos administrativos/coletados no container sem servico extra. |
-| Backend | django-cors-headers | CORS para o frontend | Controla origens permitidas quando frontend e backend rodam em portas/dominos diferentes. |
-| Frontend | React | Interface web | Componentizacao simples para telas por papel e atualizacao reativa dos dados da API. |
-| Frontend | TypeScript | Tipagem do frontend | Reduz erros de contrato entre telas e respostas da API. |
-| Frontend | Vite | Build e servidor local | Build rapido, configuracao pequena e boa ergonomia para MVP. |
-| Frontend | Nginx | Servir build em container | Entrega arquivos estaticos e faz proxy de `/api/` para o backend no Compose. |
-| Infra | Docker Compose | Orquestracao local/deploy simples | Sobe PostgreSQL, backend e frontend com um comando, facilitando demonstracao do TCC. |
-| Integracao | Interscity UFMA | Camada IoT opcional | Representa recursos, capacidades, descoberta e telemetria operacional sem tornar o AutoPonto dependente da plataforma externa. |
+| Parte      | Tecnologia            | Uso No Projeto                    | Justificativa                                                                                                                  |
+| ---------- | --------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Backend    | Python 3.13           | Linguagem da API principal        | Ecossistema maduro para web, automacao, testes e integracao com bibliotecas de visao computacional.                            |
+| Backend    | Django                | Base da aplicacao web             | Entrega estrutura robusta para modelos, autenticacao, admin, migrations e organizacao de projeto.                              |
+| Backend    | Django REST Framework | API REST                          | Facilita serializers, ViewSets, permissoes e contratos HTTP para frontend, edge e integracoes.                                 |
+| Backend    | PostgreSQL            | Banco de dados unico do sistema   | Banco relacional robusto para dominio academico, presencas, relatorios e integridade referencial.                              |
+| Backend    | Simple JWT            | Autenticacao do frontend          | Usa access token curto em memoria no React e refresh token em cookie HttpOnly.                                                 |
+| Backend    | OpenCV YuNet/SFace    | Geracao de embeddings faciais     | Alinha o cadastro biometrico do backend com o reconhecimento usado no edge.                                                    |
+| Backend    | Gunicorn              | Servidor WSGI em container        | Opcao comum e estavel para servir Django em deploy Linux.                                                                      |
+| Backend    | WhiteNoise            | Arquivos estaticos do Django      | Permite servir estaticos administrativos/coletados no container sem servico extra.                                             |
+| Backend    | django-cors-headers   | CORS para o frontend              | Controla origens permitidas quando frontend e backend rodam em portas/dominos diferentes.                                      |
+| Frontend   | React                 | Interface web                     | Componentizacao simples para telas por papel e atualizacao reativa dos dados da API.                                           |
+| Frontend   | TypeScript            | Tipagem do frontend               | Reduz erros de contrato entre telas e respostas da API.                                                                        |
+| Frontend   | Vite                  | Build e servidor local            | Build rapido, configuracao pequena e boa ergonomia para MVP.                                                                   |
+| Frontend   | Nginx                 | Servir build em container         | Entrega arquivos estaticos e faz proxy de `/api/` para o backend no Compose.                                                   |
+| Infra      | Docker Compose        | Orquestracao local/deploy simples | Sobe PostgreSQL, backend e frontend com um comando, facilitando demonstracao do TCC.                                           |
+| Integracao | Interscity UFMA       | Camada IoT opcional               | Representa recursos, capacidades, descoberta e telemetria operacional sem tornar o AutoPonto dependente da plataforma externa. |
 
 ## Como Rodar Tudo
 
@@ -61,9 +61,20 @@ Preencha os valores sensiveis que aparecem vazios, como `DJANGO_SECRET_KEY` e `D
 Para usar cadastro biometrico real, baixe os modelos ONNX em `autoponto-backend/autoponto/data/models/` antes de subir o backend. Eles nao sao versionados:
 
 ```bash
+
 mkdir -p autoponto-backend/autoponto/data/models
+
+# linux
+
 wget https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx -O autoponto-backend/autoponto/data/models/face_detection_yunet.onnx
+
 wget https://github.com/opencv/opencv_zoo/raw/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx -O autoponto-backend/autoponto/data/models/face_recognition_sface.onnx
+# windows
+
+curl.exe -L "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx" -o "autoponto-backend\autoponto\data\models\face_detection_yunet.onnx"
+
+curl.exe -L "https://github.com/opencv/opencv_zoo/raw/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx" -o "autoponto-backend\autoponto\data\models\face_recognition_sface.onnx"
+
 ```
 
 Suba os servicos:

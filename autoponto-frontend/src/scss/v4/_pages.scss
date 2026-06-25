@@ -167,23 +167,14 @@
   gap: var(--space-1);
   font-size: 11.5px;
   font-weight: var(--font-weight-medium);
-  line-height: 1.2;
 }
 
 .status::before {
+  content: "";
   width: 6px;
   height: 6px;
-  flex-shrink: 0;
   border-radius: 50%;
-  content: "";
-}
-
-.status-blue {
-  color: var(--blue);
-}
-
-.status-blue::before {
-  background: var(--blue);
+  flex-shrink: 0;
 }
 
 .status-green {
@@ -195,11 +186,19 @@
 }
 
 .status-yellow {
-  color: var(--yellow);
+  color: #b45309;
 }
 
 .status-yellow::before {
   background: var(--yellow);
+}
+
+.status-blue {
+  color: var(--blue);
+}
+
+.status-blue::before {
+  background: var(--blue);
 }
 
 .status-red {
@@ -210,12 +209,49 @@
   background: var(--red);
 }
 
-.status-muted {
-  color: var(--text-muted);
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 22px;
+  padding: 0 8px;
+  font-size: 11.5px;
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  background: var(--bg-surface-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 11px;
+  white-space: nowrap;
 }
-
-.status-muted::before {
-  background: var(--text-muted);
+.chip-primary {
+  color: var(--primary);
+  background: var(--primary-lt);
+  border-color: rgba(26, 187, 156, 0.2);
+}
+.chip-blue {
+  color: var(--blue);
+  background: var(--blue-lt);
+  border-color: rgba(6, 111, 209, 0.2);
+}
+.chip-green {
+  color: var(--green);
+  background: var(--green-lt);
+  border-color: rgba(47, 179, 68, 0.2);
+}
+.chip-yellow {
+  color: #b45309;
+  background: var(--yellow-lt);
+  border-color: rgba(245, 159, 0, 0.2);
+}
+.chip-red {
+  color: var(--red);
+  background: var(--red-lt);
+  border-color: rgba(214, 57, 57, 0.2);
+}
+.chip-purple {
+  color: var(--purple);
+  background: var(--purple-lt);
+  border-color: rgba(174, 62, 201, 0.2);
 }
 
 .stat {
@@ -390,6 +426,7 @@
 }
 
 .lesson-list-item {
+  text-decoration: none;
   display: flex;
   min-width: 0;
   align-items: center;
@@ -399,7 +436,6 @@
   border: 1px solid var(--border-color-light);
   border-radius: var(--radius-sm);
   color: inherit;
-  text-decoration: none;
   transition:
     background 120ms,
     border-color 120ms;
@@ -408,6 +444,7 @@
 .lesson-list-item:hover {
   border-color: var(--border-color);
   background: var(--bg-surface-secondary);
+  text-decoration: none;
 }
 
 .lesson-list-item strong,
@@ -558,10 +595,11 @@
 .profile-overview {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 .profile-main {
+  margin-top: var(--space-3);
   display: flex;
   min-width: 0;
   align-items: center;

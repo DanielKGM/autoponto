@@ -1,5 +1,13 @@
-import type { AulaStatus, StatusAlunoCalendario, StatusAlunoResumo } from "../types";
-import { getStudentStatusClass, LESSON_STATUS_LABELS, STUDENT_STATUS_LABELS } from "./studentCalendarUtils";
+import type {
+  AulaStatus,
+  StatusAlunoCalendario,
+  StatusAlunoResumo,
+} from "../types";
+import {
+  getStudentStatusClass,
+  LESSON_STATUS_LABELS,
+  STUDENT_STATUS_LABELS,
+} from "./studentCalendarUtils";
 
 export const SUMMARY_STATUS_LABELS: Record<StatusAlunoResumo, string> = {
   PRESENTE: "Presente",
@@ -7,12 +15,19 @@ export const SUMMARY_STATUS_LABELS: Record<StatusAlunoResumo, string> = {
   PENDENTE: "Pendente",
 };
 
-export function statusAlunoClass(status: StatusAlunoResumo | StatusAlunoCalendario): string {
+export function statusAlunoClass(
+  status: StatusAlunoResumo | StatusAlunoCalendario,
+): string {
   return getStudentStatusClass(status as StatusAlunoCalendario);
 }
 
-export function statusAlunoLabel(status: StatusAlunoResumo | StatusAlunoCalendario): string {
-  return STUDENT_STATUS_LABELS[status as StatusAlunoCalendario] || SUMMARY_STATUS_LABELS[status as StatusAlunoResumo];
+export function statusAlunoLabel(
+  status: StatusAlunoResumo | StatusAlunoCalendario,
+): string {
+  return (
+    STUDENT_STATUS_LABELS[status as StatusAlunoCalendario] ||
+    SUMMARY_STATUS_LABELS[status as StatusAlunoResumo]
+  );
 }
 
 export function statusAulaClass(status: AulaStatus): string {
@@ -31,7 +46,9 @@ export function statusAulaLabel(status: AulaStatus): string {
 
 export function formatDate(value: string): string {
   const [year, month, day] = value.split("-").map(Number);
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(new Date(year, month - 1, day));
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(
+    new Date(year, month - 1, day),
+  );
 }
 
 export function formatDateTime(value: string | null | undefined): string {

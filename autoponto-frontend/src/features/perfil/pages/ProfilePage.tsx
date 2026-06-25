@@ -4,8 +4,14 @@ import { useSession } from "../../../shared/session";
 import { EmptyState } from "../../../shared/ui/EmptyState";
 import { PageMeta } from "../../../shared/ui/PageMeta";
 import { ProgressBar } from "../../../shared/ui/ProgressBar";
-import { SimpleTable, type SimpleTableColumn } from "../../../shared/ui/SimpleTable";
-import type { FrequenciaTurmaAluno, ResumoFrequenciaAlunoResponse } from "../../../shared/types";
+import {
+  SimpleTable,
+  type SimpleTableColumn,
+} from "../../../shared/ui/SimpleTable";
+import type {
+  FrequenciaTurmaAluno,
+  ResumoFrequenciaAlunoResponse,
+} from "../../../shared/types";
 import { percentText } from "../../../shared/domain/academicUtils";
 
 const frequencyColumns: SimpleTableColumn<FrequenciaTurmaAluno>[] = [
@@ -15,7 +21,9 @@ const frequencyColumns: SimpleTableColumn<FrequenciaTurmaAluno>[] = [
     render: (row) => (
       <div>
         <span className="cell-strong">{row.disciplina}</span>
-        <div className="lesson-table-subtext">{row.codigo} · {row.periodo_letivo}</div>
+        <div className="lesson-table-subtext">
+          {row.codigo} · {row.periodo_letivo}
+        </div>
       </div>
     ),
   },
@@ -29,24 +37,30 @@ const frequencyColumns: SimpleTableColumn<FrequenciaTurmaAluno>[] = [
     render: (row) => (
       <div className="table-progress-cell">
         <span>{percentText(row.percentual)}</span>
-        <ProgressBar value={row.percentual} tone={row.percentual >= 75 ? "green" : "yellow"} />
+        <ProgressBar
+          value={row.percentual}
+          tone={row.percentual >= 75 ? "green" : "yellow"}
+        />
       </div>
     ),
   },
 ];
 
 function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("") || "AP";
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "AP"
+  );
 }
 
 export function ProfilePage() {
   const { me } = useSession();
-  const [frequency, setFrequency] = useState<ResumoFrequenciaAlunoResponse | null>(null);
+  const [frequency, setFrequency] =
+    useState<ResumoFrequenciaAlunoResponse | null>(null);
   const [periodoId, setPeriodoId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -106,9 +120,14 @@ export function ProfilePage() {
         </div>
         <div className="card-body profile-overview">
           <div className="profile-main">
-            <div className="profile-avatar profile-avatar-lg" aria-hidden="true">{initials(nome)}</div>
+            <div
+              className="profile-avatar profile-avatar-lg"
+              aria-hidden="true"
+            >
+              {initials(nome)}
+            </div>
             <div className="profile-main-copy">
-              <span className="status status-blue">{me.usuario.papel}</span>
+              <span className="chip chip-blue">{me.usuario.papel}</span>
               <strong>{nome}</strong>
               <span>{me.usuario.email || "Sem email cadastrado"}</span>
             </div>
@@ -132,7 +151,9 @@ export function ProfilePage() {
           <div className="card-header profile-frequency-header">
             <div>
               <div className="card-title">Frequência detalhada</div>
-              <div className="card-subtitle">Resumo por turma e disciplina, calculado com aulas fechadas.</div>
+              <div className="card-subtitle">
+                Resumo por turma e disciplina, calculado com aulas fechadas.
+              </div>
             </div>
             <select
               className="form-control profile-period-select"
@@ -153,7 +174,9 @@ export function ProfilePage() {
             </select>
           </div>
           <div className="card-body">
-            {loading && <div className="alert alert-info">Carregando frequência...</div>}
+            {loading && (
+              <div className="alert alert-info">Carregando frequência...</div>
+            )}
             {error && <div className="alert alert-error">{error}</div>}
             {frequency && (
               <>
@@ -179,7 +202,12 @@ export function ProfilePage() {
                   columns={frequencyColumns}
                   rows={frequency.turmas}
                   rowKey={(row) => row.turma_id}
-                  emptyState={<EmptyState title="Sem frequência" text="Nenhuma aula fechada foi encontrada para este período." />}
+                  emptyState={
+                    <EmptyState
+                      title="Sem frequência"
+                      text="Nenhuma aula fechada foi encontrada para este período."
+                    />
+                  }
                 />
               </>
             )}

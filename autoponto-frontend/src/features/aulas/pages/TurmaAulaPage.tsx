@@ -5,9 +5,18 @@ import { useSession } from "../../../shared/session";
 import { EmptyState } from "../../../shared/ui/EmptyState";
 import { IconButton } from "../../../shared/ui/IconButton";
 import { PageMeta } from "../../../shared/ui/PageMeta";
-import { SimpleTable, type SimpleTableColumn } from "../../../shared/ui/SimpleTable";
+import {
+  SimpleTable,
+  type SimpleTableColumn,
+} from "../../../shared/ui/SimpleTable";
 import { StatCard } from "../../../shared/ui/StatCard";
-import { ClockIcon, RefreshIcon, UserCheckIcon, UsersIcon, UserXIcon } from "../../../shared/ui/icons";
+import {
+  ClockIcon,
+  RefreshIcon,
+  UserCheckIcon,
+  UsersIcon,
+  UserXIcon,
+} from "../../../shared/ui/icons";
 import type { TurmaAulaDetalheResponse } from "../../../shared/types";
 import {
   formatDate,
@@ -17,10 +26,14 @@ import {
   statusAulaClass,
   statusAulaLabel,
 } from "../../../shared/domain/academicUtils";
-import { formatTimeRange, lessonDetailPath } from "../../../shared/domain/studentCalendarUtils";
+import {
+  formatTimeRange,
+  lessonDetailPath,
+} from "../../../shared/domain/studentCalendarUtils";
 
 type AlunoChamada = TurmaAulaDetalheResponse["alunos"][number];
-type EventoReconhecimento = TurmaAulaDetalheResponse["eventos_reconhecimento"][number];
+type EventoReconhecimento =
+  TurmaAulaDetalheResponse["eventos_reconhecimento"][number];
 
 const alunoColumns: SimpleTableColumn<AlunoChamada>[] = [
   {
@@ -29,7 +42,9 @@ const alunoColumns: SimpleTableColumn<AlunoChamada>[] = [
     render: (row) => (
       <div>
         <span className="cell-strong">{row.nome}</span>
-        <div className="lesson-table-subtext">{row.matricula || "Sem matrícula"}</div>
+        <div className="lesson-table-subtext">
+          {row.matricula || "Sem matrícula"}
+        </div>
       </div>
     ),
   },
@@ -37,7 +52,11 @@ const alunoColumns: SimpleTableColumn<AlunoChamada>[] = [
     key: "status",
     label: "Presença",
     align: "center",
-    render: (row) => <span className={statusAlunoClass(row.status)}>{statusAlunoLabel(row.status)}</span>,
+    render: (row) => (
+      <span className={statusAlunoClass(row.status)}>
+        {statusAlunoLabel(row.status)}
+      </span>
+    ),
   },
   {
     key: "registrado_em",
@@ -65,7 +84,11 @@ const eventoColumns: SimpleTableColumn<EventoReconhecimento>[] = [
     label: "Resultado",
     align: "center",
     render: (row) => (
-      <span className={row.reconhecido ? "status status-green" : "status status-red"}>
+      <span
+        className={
+          row.reconhecido ? "status status-green" : "status status-red"
+        }
+      >
         {row.reconhecido ? "Reconhecido" : "Não reconhecido"}
       </span>
     ),
@@ -88,7 +111,9 @@ export function TurmaAulaPage() {
 
   const load = useCallback(() => {
     if (!turmaId) return;
-    const path = aulaId ? `/turmas/${turmaId}/aula/${aulaId}/` : `/turmas/${turmaId}/aula/`;
+    const path = aulaId
+      ? `/turmas/${turmaId}/aula/${aulaId}/`
+      : `/turmas/${turmaId}/aula/`;
     setLoading(true);
     setError("");
     apiFetch<TurmaAulaDetalheResponse>(path)
@@ -106,7 +131,9 @@ export function TurmaAulaPage() {
     setSaving(true);
     setError("");
     try {
-      await apiFetch(`/aulas/${data.aula.aula_id}/${action}/`, { method: "POST" });
+      await apiFetch(`/aulas/${data.aula.aula_id}/${action}/`, {
+        method: "POST",
+      });
       load();
     } catch (err) {
       setError(detalheErro(err));
@@ -115,23 +142,36 @@ export function TurmaAulaPage() {
     }
   }
 
-  const canManage = me.usuario.papel === "PROFESSOR" || me.usuario.papel === "ADMINISTRADOR";
-  const title = data?.aula ? `${data.aula.disciplina} · ${data.aula.turma}` : data?.turma.nome || "Turma";
+  const canManage =
+    me.usuario.papel === "PROFESSOR" || me.usuario.papel === "ADMINISTRADOR";
+  const title = data?.aula
+    ? `${data.aula.disciplina} · ${data.aula.turma}`
+    : data?.turma.nome || "Turma";
 
   return (
     <>
-      <PageMeta title={`${title} | AutoPonto`} description="Detalhe da turma e da aula." />
+      <PageMeta
+        title={`${title} | AutoPonto`}
+        description="Detalhe da turma e da aula."
+      />
       <div className="page-header">
         <div className="page-header-row">
           <div>
             <div className="page-pretitle">Turma/Aula</div>
             <h1 className="page-title">{title}</h1>
             <p className="page-description">
-              {data?.turma ? `${data.turma.periodo_letivo} · ${data.turma.curso}` : "Carregando dados da turma."}
+              {data?.turma
+                ? `${data.turma.periodo_letivo} · ${data.turma.curso}`
+                : "Carregando dados da turma."}
             </p>
           </div>
           <div className="page-actions">
-            <IconButton label="Atualizar" icon={<RefreshIcon />} onClick={load} disabled={loading || saving} />
+            <IconButton
+              label="Atualizar"
+              icon={<RefreshIcon />}
+              onClick={load}
+              disabled={loading || saving}
+            />
           </div>
         </div>
       </div>
@@ -142,29 +182,63 @@ export function TurmaAulaPage() {
       {data && (
         <>
           <div className="dashboard-kpi-grid academic-kpi-grid">
-            <StatCard label="Alunos" value={data.turma.total_alunos} icon={<UsersIcon />} tone="blue" />
-            <StatCard label="Presentes" value={data.resumo?.presentes ?? 0} icon={<UserCheckIcon />} tone="green" />
-            <StatCard label="Ausentes" value={data.resumo?.ausentes ?? 0} icon={<UserXIcon />} tone="red" />
-            <StatCard label="Pendentes" value={data.resumo?.pendentes ?? 0} icon={<ClockIcon />} tone="yellow" />
+            <StatCard
+              label="Alunos"
+              value={data.turma.total_alunos}
+              icon={<UsersIcon />}
+              tone="blue"
+            />
+            <StatCard
+              label="Presentes"
+              value={data.resumo?.presentes ?? 0}
+              icon={<UserCheckIcon />}
+              tone="green"
+            />
+            <StatCard
+              label="Ausentes"
+              value={data.resumo?.ausentes ?? 0}
+              icon={<UserXIcon />}
+              tone="red"
+            />
+            <StatCard
+              label="Pendentes"
+              value={data.resumo?.pendentes ?? 0}
+              icon={<ClockIcon />}
+              tone="yellow"
+            />
           </div>
 
           <section className="card">
             <div className="card-header">
               <div>
-                <div className="card-title">{data.aula ? "Aula selecionada" : "Dados gerais da turma"}</div>
+                <div className="card-title">
+                  {data.aula ? "Aula selecionada" : "Dados gerais da turma"}
+                </div>
                 <div className="card-subtitle">
-                  {data.aula ? "Detalhes da chamada selecionada no calendário." : data.instrucao}
+                  {data.aula
+                    ? "Detalhes da chamada selecionada no calendário."
+                    : data.instrucao}
                 </div>
               </div>
               {data.aula && canManage && (
                 <div className="page-actions">
                   {data.aula.pode_abrir_chamada && (
-                    <button className="btn btn-primary btn-sm" type="button" onClick={() => void postAction("abrir-chamada")} disabled={saving}>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      type="button"
+                      onClick={() => void postAction("abrir-chamada")}
+                      disabled={saving}
+                    >
                       Abrir chamada
                     </button>
                   )}
                   {data.aula.pode_fechar_chamada && (
-                    <button className="btn btn-danger btn-sm" type="button" onClick={() => void postAction("fechar-chamada")} disabled={saving}>
+                    <button
+                      className="btn btn-danger btn-sm"
+                      type="button"
+                      onClick={() => void postAction("fechar-chamada")}
+                      disabled={saving}
+                    >
                       Fechar chamada
                     </button>
                   )}
@@ -172,11 +246,30 @@ export function TurmaAulaPage() {
               )}
             </div>
             <div className="card-body">
+              {data.aula?.status_aula === "CANCELADA" && (
+                <div className="alert alert-warning">
+                  Aula cancelada. A chamada não pode ser aberta nem fechada.
+                </div>
+              )}
+              {data.aula?.status_aula === "PLANEJADA" && (
+                <div className="alert alert-info">
+                  Aula ainda sem chamada aberta.
+                </div>
+              )}
+              {data.aula?.status_aula === "FECHADA" &&
+                data.resumo?.presentes === 0 && (
+                  <div className="alert alert-warning">
+                    Aula fechada sem presenças registradas.
+                  </div>
+                )}
+
               {data.aula ? (
                 <div className="lesson-detail-grid">
                   <div className="profile-field">
                     <span className="profile-label">Disciplina</span>
-                    <strong className="profile-value">{data.aula.disciplina}</strong>
+                    <strong className="profile-value">
+                      {data.aula.disciplina}
+                    </strong>
                   </div>
                   <div className="profile-field">
                     <span className="profile-label">Turma</span>
@@ -188,31 +281,27 @@ export function TurmaAulaPage() {
                   </div>
                   <div className="profile-field">
                     <span className="profile-label">Data</span>
-                    <strong className="profile-value">{formatDate(data.aula.data)}</strong>
+                    <strong className="profile-value">
+                      {formatDate(data.aula.data)}
+                    </strong>
                   </div>
                   <div className="profile-field">
                     <span className="profile-label">Horário</span>
-                    <strong className="profile-value">{formatTimeRange(data.aula.inicio, data.aula.fim)}</strong>
+                    <strong className="profile-value">
+                      {formatTimeRange(data.aula.inicio, data.aula.fim)}
+                    </strong>
                   </div>
                   <div className="profile-field">
                     <span className="profile-label">Status</span>
                     <strong className="profile-value">
-                      <span className={statusAulaClass(data.aula.status_aula)}>{statusAulaLabel(data.aula.status_aula)}</span>
+                      <span className={statusAulaClass(data.aula.status_aula)}>
+                        {statusAulaLabel(data.aula.status_aula)}
+                      </span>
                     </strong>
                   </div>
                 </div>
               ) : (
                 <EmptyState title="Selecione uma aula" text={data.instrucao} />
-              )}
-
-              {data.aula?.status_aula === "CANCELADA" && (
-                <div className="alert alert-warning">Aula cancelada. A chamada não pode ser aberta nem fechada.</div>
-              )}
-              {data.aula?.status_aula === "PLANEJADA" && (
-                <div className="alert alert-info">Aula ainda sem chamada aberta.</div>
-              )}
-              {data.aula?.status_aula === "FECHADA" && data.resumo?.presentes === 0 && (
-                <div className="alert alert-warning">Aula fechada sem presenças registradas.</div>
               )}
             </div>
           </section>
@@ -222,19 +311,30 @@ export function TurmaAulaPage() {
               <div className="card-header">
                 <div>
                   <div className="card-title">Próximas aulas</div>
-                  <div className="card-subtitle">Atalho para aulas desta turma.</div>
+                  <div className="card-subtitle">
+                    Atalho para aulas desta turma.
+                  </div>
                 </div>
               </div>
               <div className="card-body lesson-list">
                 {data.proximas_aulas.map((lesson) => (
-                  <Link className="lesson-list-item" to={lessonDetailPath(lesson.turma_id, lesson.aula_id)} key={lesson.aula_id}>
+                  <Link
+                    className="lesson-list-item"
+                    to={lessonDetailPath(lesson.turma_id, lesson.aula_id)}
+                    key={lesson.aula_id}
+                  >
                     <div>
                       <strong>{lesson.disciplina}</strong>
                       <span>{lesson.sala}</span>
                     </div>
                     <div className="lesson-list-meta">
-                      <span>{formatDate(lesson.data)} · {formatTimeRange(lesson.inicio, lesson.fim)}</span>
-                      <span className={statusAulaClass(lesson.status_aula)}>{statusAulaLabel(lesson.status_aula)}</span>
+                      <span>
+                        {formatDate(lesson.data)} ·{" "}
+                        {formatTimeRange(lesson.inicio, lesson.fim)}
+                      </span>
+                      <span className={statusAulaClass(lesson.status_aula)}>
+                        {statusAulaLabel(lesson.status_aula)}
+                      </span>
                     </div>
                   </Link>
                 ))}
@@ -247,7 +347,9 @@ export function TurmaAulaPage() {
               <div className="card-header">
                 <div>
                   <div className="card-title">Alunos matriculados</div>
-                  <div className="card-subtitle">Status de presença nesta aula.</div>
+                  <div className="card-subtitle">
+                    Status de presença nesta aula.
+                  </div>
                 </div>
               </div>
               <div className="card-body">
@@ -255,7 +357,12 @@ export function TurmaAulaPage() {
                   columns={alunoColumns}
                   rows={data.alunos}
                   rowKey={(row) => row.aluno_id}
-                  emptyState={<EmptyState title="Nenhum aluno" text="Não há alunos ativos nesta turma." />}
+                  emptyState={
+                    <EmptyState
+                      title="Nenhum aluno"
+                      text="Não há alunos ativos nesta turma."
+                    />
+                  }
                 />
               </div>
             </section>
@@ -266,7 +373,9 @@ export function TurmaAulaPage() {
               <div className="card-header">
                 <div>
                   <div className="card-title">Eventos de reconhecimento</div>
-                  <div className="card-subtitle">Eventos associados à aula selecionada.</div>
+                  <div className="card-subtitle">
+                    Eventos associados à aula selecionada.
+                  </div>
                 </div>
               </div>
               <div className="card-body">
@@ -274,7 +383,12 @@ export function TurmaAulaPage() {
                   columns={eventoColumns}
                   rows={data.eventos_reconhecimento}
                   rowKey={(row) => row.id}
-                  emptyState={<EmptyState title="Sem eventos" text="Nenhum reconhecimento foi associado a esta aula." />}
+                  emptyState={
+                    <EmptyState
+                      title="Sem eventos"
+                      text="Nenhum reconhecimento foi associado a esta aula."
+                    />
+                  }
                 />
               </div>
             </section>

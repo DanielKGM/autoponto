@@ -16,7 +16,11 @@ import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import { publicAssetPath } from "../../../shared/assets";
-import { apiFetch, carregarSessaoAutenticada, detalheErro } from "../../../shared/api";
+import {
+  apiFetch,
+  carregarSessaoAutenticada,
+  detalheErro,
+} from "../../../shared/api";
 import { BrandLogo } from "../../../shared/ui/BrandLogo";
 import { EmptyState } from "../../../shared/ui/EmptyState";
 import { LoadingDots } from "../../../shared/ui/LoadingDots";
@@ -297,15 +301,14 @@ function latestDate(history: DispositivoHistorico | null) {
   return timestamps.sort((a, b) => Date.parse(b) - Date.parse(a))[0];
 }
 
-function statusClass(value: unknown) {
+function chipClass(value: unknown) {
   const normalized = String(value || "").toLowerCase();
-  if (normalized.includes("online") || normalized === "ok")
-    return "status-green";
+  if (normalized.includes("online") || normalized === "ok") return "chip-green";
   if (normalized.includes("offline") || normalized.includes("erro"))
-    return "status-red";
+    return "chip-red";
   if (normalized.includes("timeout") || normalized.includes("indisponivel"))
-    return "status-yellow";
-  return "status-muted";
+    return "chip-yellow";
+  return "chip-muted";
 }
 
 function statusLabel(value: unknown, fallback: string) {
@@ -1038,27 +1041,27 @@ export function PublicMapPage({ embedded = false }: PublicMapPageProps) {
                 <>
                   <div className="dashboard-meta-row">
                     <span
-                      className={`status ${statusClass(collectorStatus)}`}
+                      className={`chip ${chipClass(collectorStatus)}`}
                       tabIndex={0}
                     >
                       Collector: {collectorStatus}
                     </span>
                     <span
-                      className={`status ${statusClass(deviceStatus)}`}
+                      className={`chip ${chipClass(deviceStatus)}`}
                       data-tooltip="Último valor da capacidade status enviada pelo dispositivo."
                       tabIndex={0}
                     >
                       Status: {statusLabel(deviceStatus, "Sem status")}
                     </span>
                     <span
-                      className="status status-green"
+                      className="chip chip-green"
                       data-tooltip="Janela selecionada para consulta."
                       tabIndex={0}
                     >
                       Janela: {selectedPeriodLabel}
                     </span>
                     <span
-                      className="status status-muted"
+                      className="chip chip-muted"
                       data-tooltip="Data mais recente entre as capacidades retornadas."
                       tabIndex={0}
                     >

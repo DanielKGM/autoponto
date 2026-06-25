@@ -21,15 +21,22 @@ type TokenResponse = {
 
 type Collections = Record<string, Array<Record<string, any>>>;
 
-function lookup(collections: Collections, key: string, id: string | null | undefined, label: (item: Record<string, any>) => string) {
+function lookup(
+  collections: Collections,
+  key: string,
+  id: string | null | undefined,
+  label: (item: Record<string, any>) => string,
+) {
   if (!id) return "-";
-  const item = (collections[key] || []).find((entry) => String(entry.id) === String(id));
+  const item = (collections[key] || []).find(
+    (entry) => String(entry.id) === String(id),
+  );
   return item ? label(item) : id;
 }
 
 function status(item: Record<string, any>) {
   return (
-    <span className={`status ${item.ativo ? "status-green" : "status-muted"}`}>
+    <span className={`chip ${item.ativo ? "chip-green" : "chip-muted"}`}>
       {item.ativo ? "Ativo" : "Inativo"}
     </span>
   );
@@ -87,7 +94,8 @@ function NodeTokenAction({ node }: { node: Record<string, any> }) {
         onConfirm={() => void emitToken()}
       >
         <p className="modal-confirm-text">
-          Um novo token completo será exibido apenas uma vez. O token ativo anterior de visualização única deste nó será excluído.
+          Um novo token completo será exibido apenas uma vez. O token ativo
+          anterior de visualização única deste nó será excluído.
         </p>
       </ConfirmModal>
       {token && (
@@ -98,10 +106,18 @@ function NodeTokenAction({ node }: { node: Record<string, any> }) {
           onClose={() => setOpen(false)}
           footer={
             <>
-              <button type="button" className="btn btn-outline" onClick={() => setOpen(false)}>
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() => setOpen(false)}
+              >
                 Fechar
               </button>
-              <button type="button" className="btn btn-success" onClick={copyToken}>
+              <button
+                type="button"
+                className="btn btn-success"
+                onClick={copyToken}
+              >
                 <CopyIcon />
                 Copiar
               </button>
@@ -125,23 +141,27 @@ function NodeTokenAction({ node }: { node: Record<string, any> }) {
   );
 }
 
-const collections: CollectionConfig[] = [
-  { key: "salas", endpoint: "/salas/" },
-];
+const collections: CollectionConfig[] = [{ key: "salas", endpoint: "/salas/" }];
 
 const resources: AdminResourceConfig[] = [
   {
     key: "nos-borda",
     title: "Nós de borda",
     singular: "nó de borda",
-    description: "Nós que sincronizam dados locais e autenticam dispositivos de borda.",
+    description:
+      "Nós que sincronizam dados locais e autenticam dispositivos de borda.",
     endpoint: "/nos-borda/",
     deletable: true,
     fields: [
       { name: "codigo", label: "Código", required: true },
       { name: "nome", label: "Nome", required: true },
       { name: "latitude", label: "Latitude", type: "number", step: "0.000001" },
-      { name: "longitude", label: "Longitude", type: "number", step: "0.000001" },
+      {
+        name: "longitude",
+        label: "Longitude",
+        type: "number",
+        step: "0.000001",
+      },
       { name: "ativo", label: "Ativo", type: "checkbox" },
     ],
     columns: [
@@ -171,13 +191,19 @@ const resources: AdminResourceConfig[] = [
         name: "no",
         label: "Nó de borda",
         type: "select",
-        source: { key: "nos-borda", label: (item) => `${item.codigo} - ${item.nome}` },
+        source: {
+          key: "nos-borda",
+          label: (item) => `${item.codigo} - ${item.nome}`,
+        },
       },
       {
         name: "sala",
         label: "Sala",
         type: "select",
-        source: { key: "salas", label: (item) => `${item.codigo} - ${item.nome}` },
+        source: {
+          key: "salas",
+          label: (item) => `${item.codigo} - ${item.nome}`,
+        },
       },
       { name: "codigo", label: "Código", required: true },
       { name: "nome", label: "Nome", required: true },
@@ -190,12 +216,19 @@ const resources: AdminResourceConfig[] = [
       {
         key: "no",
         label: "Nó",
-        render: (item, loaded) => lookup(loaded, "nos-borda", item.no, (node) => node.codigo),
+        render: (item, loaded) =>
+          lookup(loaded, "nos-borda", item.no, (node) => node.codigo),
       },
       {
         key: "sala",
         label: "Sala",
-        render: (item, loaded) => lookup(loaded, "salas", item.sala, (sala) => sala.codigo || sala.nome),
+        render: (item, loaded) =>
+          lookup(
+            loaded,
+            "salas",
+            item.sala,
+            (sala) => sala.codigo || sala.nome,
+          ),
       },
       { key: "ativo", label: "Status", align: "center", render: status },
     ],

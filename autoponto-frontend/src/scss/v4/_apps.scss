@@ -124,36 +124,7 @@
   min-height: 620px;
   border-radius: var(--radius-lg);
   font-family: var(--font);
-}
-
-.iot-map .leaflet-tile-pane {
   z-index: 1;
-}
-
-.iot-map .leaflet-overlay-pane {
-  z-index: 2;
-}
-
-.iot-map .leaflet-shadow-pane {
-  z-index: 3;
-}
-
-.iot-map .leaflet-marker-pane {
-  z-index: 4;
-}
-
-.iot-map .leaflet-tooltip-pane {
-  z-index: 5;
-}
-
-.iot-map .leaflet-popup-pane {
-  z-index: 6;
-}
-
-.iot-map .leaflet-control-container,
-.iot-map .leaflet-top,
-.iot-map .leaflet-bottom {
-  z-index: 7;
 }
 
 .map-state {
