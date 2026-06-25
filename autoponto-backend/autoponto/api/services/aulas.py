@@ -4,7 +4,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from api.models import Aula, HorarioPadraoUFMA, Sala, Turma
-from .errors import DomainValidationError
+from .errors import ConflictError, DomainValidationError
 
 
 def calcular_intervalo_aula(horario_padrao: HorarioPadraoUFMA, data_aula):
@@ -100,13 +100,21 @@ def sincronizar_aulas_da_turma(turma: Turma, horarios: list[dict]) -> None:
 
 
 def fechar_chamada_aula(aula: Aula, usuario, agora=None) -> Aula:
-    if aula.status == Aula.STATUS_CANCELADA:
-        raise DomainValidationError("Nao e possivel fechar chamada de aula cancelada.")
+    if aula.status != Aula.STATUS_ABERTA:
+        raise ConflictError("Apenas chamadas abertas podem ser fechadas.")
 
     agora = agora or timezone.now()
-    if aula.status != Aula.STATUS_FECHADA:
-        aula.status = Aula.STATUS_FECHADA
+    aula.status = Aula.STATUS_FECHADA
     aula.fechada_em = agora
     aula.fechada_por = usuario
     aula.save(update_fields=["status", "fechada_em", "fechada_por", "atualizado_em"])
+    return aula
+
+
+def abrir_chamada_aula(aula: Aula) -> Aula:
+    if aula.status != Aula.STATUS_PLANEJADA:
+        raise ConflictError("Apenas aulas planejadas podem ter chamada aberta.")
+
+    aula.status = Aula.STATUS_ABERTA
+    aula.save(update_fields=["status", "atualizado_em"])
     return aula

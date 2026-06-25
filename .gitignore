@@ -175,9 +175,6 @@ ENV/
 env.bak/
 venv.bak/
 
-
-autoponto-backend/autoponto/api/tests/
-
 # Spyder project settings
 .spyderproject
 .spyproject

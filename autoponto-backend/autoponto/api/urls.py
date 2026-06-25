@@ -21,14 +21,20 @@ from api.views.biometria import EmbeddingFacialViewSet
 from api.views.dispositivos import DispositivoEsp32ViewSet, NoBordaViewSet
 from api.views.edge_contract import EdgeAttendanceView, EdgePullView
 from api.views.frontend import (
+    DashboardAlunoView,
+    DashboardProfessorView,
     MeView,
     MinhaBiometriaView,
+    MinhaFrequenciaView,
+    MeuCalendarioAulasView,
     MinhasPresencasView,
     MinhasTurmasView,
+    ProfessorTurmaFrequenciaView,
     ProfessorTurmasView,
     RelatorioPresencasAlunoView,
     RelatorioPresencasTurmaDataView,
     RelatorioResumoTurmaView,
+    TurmaAulaDetalheView,
 )
 from api.views.health import HealthCheckView, ReadinessCheckView
 from api.views.identidade import UsuarioViewSet
@@ -72,8 +78,23 @@ urlpatterns = [
     path("me/", MeView.as_view(), name="me"),
     path("me/turmas/", MinhasTurmasView.as_view(), name="me-turmas"),
     path("me/presencas/", MinhasPresencasView.as_view(), name="me-presencas"),
+    path("me/calendario-aulas/", MeuCalendarioAulasView.as_view(), name="me-calendario-aulas"),
+    path("me/dashboard-aluno/", DashboardAlunoView.as_view(), name="me-dashboard-aluno"),
+    path("me/frequencia/", MinhaFrequenciaView.as_view(), name="me-frequencia"),
     path("me/biometria/", MinhaBiometriaView.as_view(), name="me-biometria"),
+    path("professor/dashboard/", DashboardProfessorView.as_view(), name="professor-dashboard"),
     path("professor/turmas/", ProfessorTurmasView.as_view(), name="professor-turmas"),
+    path(
+        "professor/turmas/<uuid:turma_id>/frequencia/",
+        ProfessorTurmaFrequenciaView.as_view(),
+        name="professor-turma-frequencia",
+    ),
+    path("turmas/<uuid:turma_id>/aula/", TurmaAulaDetalheView.as_view(), name="turma-aula-geral"),
+    path(
+        "turmas/<uuid:turma_id>/aula/<uuid:aula_id>/",
+        TurmaAulaDetalheView.as_view(),
+        name="turma-aula-detalhe",
+    ),
     path(
         "relatorios/turmas/<uuid:turma_id>/presencas/",
         RelatorioPresencasTurmaDataView.as_view(),

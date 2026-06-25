@@ -9,14 +9,20 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from api.models import PapelUsuario, Turma, Usuario
+from api.models import Aula, PapelUsuario, Turma, Usuario
 from api.serializers.frontend import MatriculaBiometricaPropriaSerializer
 from api.services.biometria import matricular_biometria_aluno
 from api.services.errors import AppError
 from api.services.relatorios import (
+    calendario_aulas_usuario,
+    dashboard_aluno,
+    dashboard_professor,
+    detalhe_turma_aula,
     historico_presencas_aluno,
     payload_turma,
     presencas_do_aluno,
+    resumo_frequencia_aluno,
+    resumo_frequencia_turma,
     relatorio_presencas_turma_data,
     relatorio_resumo_turma,
     turmas_do_aluno,
@@ -137,6 +143,40 @@ class MinhasPresencasView(APIView):
         return Response(presencas_do_aluno(request.user))
 
 
+class DashboardAlunoView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    @extend_schema(responses=OpenApiTypes.OBJECT)
+    def get(self, request):
+        if request.user.papel != PapelUsuario.ALUNO:
+            raise PermissionDenied("Apenas alunos podem acessar este dashboard.")
+        return Response(dashboard_aluno(request.user))
+
+
+class MinhaFrequenciaView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    @extend_schema(responses=OpenApiTypes.OBJECT)
+    def get(self, request):
+        if request.user.papel != PapelUsuario.ALUNO:
+            raise PermissionDenied("Apenas alunos podem consultar esta frequencia.")
+        return Response(resumo_frequencia_aluno(request.user, request.query_params.get("periodo_letivo") or None))
+
+
+class MeuCalendarioAulasView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    @extend_schema(responses=OpenApiTypes.OBJECT)
+    def get(self, request):
+        if request.user.papel not in {PapelUsuario.ALUNO, PapelUsuario.PROFESSOR, PapelUsuario.ADMINISTRADOR}:
+            raise PermissionDenied("Voce nao tem acesso ao calendario de aulas.")
+        inicio = _parse_data_obrigatoria(request.query_params.get("inicio"), "inicio")
+        fim = _parse_data_obrigatoria(request.query_params.get("fim"), "fim")
+        if fim < inicio:
+            raise ValidationError({"fim": "A data final deve ser maior ou igual a inicial."})
+        return Response(calendario_aulas_usuario(request.user, inicio, fim))
+
+
 class MinhaBiometriaView(APIView):
     permission_classes = (IsAuthenticated,)
     throttle_scope = "biometria"
@@ -179,6 +219,52 @@ class ProfessorTurmasView(APIView):
             ).filter(ativo=True)
             return Response([payload_turma(turma) for turma in turmas])
         return Response(turmas_do_professor(request.user))
+
+
+class DashboardProfessorView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    @extend_schema(responses=OpenApiTypes.OBJECT)
+    def get(self, request):
+        _exigir_professor_ou_admin(request.user)
+        return Response(dashboard_professor(request.user))
+
+
+def _obter_turma_acessivel(usuario: Usuario, turma_id) -> Turma:
+    turma = get_object_or_404(
+        Turma.objects.select_related("disciplina", "disciplina__curso", "periodo_letivo").prefetch_related(
+            "professores",
+        ),
+        pk=turma_id,
+    )
+    if not usuario_pode_acessar_turma(usuario, turma):
+        raise PermissionDenied("Voce nao tem acesso a esta turma.")
+    return turma
+
+
+class TurmaAulaDetalheView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    @extend_schema(responses=OpenApiTypes.OBJECT)
+    def get(self, request, turma_id, aula_id=None):
+        turma = _obter_turma_acessivel(request.user, turma_id)
+        aula = None
+        if aula_id:
+            aula = get_object_or_404(
+                Aula.objects.select_related("turma", "turma__disciplina", "turma__periodo_letivo", "sala"),
+                pk=aula_id,
+                turma=turma,
+            )
+        return Response(detalhe_turma_aula(request.user, turma, aula))
+
+
+class ProfessorTurmaFrequenciaView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    @extend_schema(responses=OpenApiTypes.OBJECT)
+    def get(self, request, turma_id):
+        turma = _obter_turma_relatorio(request.user, turma_id)
+        return Response(resumo_frequencia_turma(turma))
 
 
 class RelatorioPresencasTurmaDataView(APIView):

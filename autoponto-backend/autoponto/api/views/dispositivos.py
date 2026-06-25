@@ -1,5 +1,6 @@
 ﻿from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.db import transaction
 from django.db.models import Prefetch
 
 from api.models import DispositivoEsp32, NoBorda, TokenNoBorda
@@ -31,11 +32,14 @@ class NoBordaViewSet(AdminReadableModelViewSet):
         no = self.get_object()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        token, token_bruto = no.tokens.model.emitir_token(
-            no=no,
-            nome=serializer.validated_data["nome"],
-            expira_em=serializer.validated_data.get("expira_em"),
-        )
+        nome = serializer.validated_data["nome"]
+        with transaction.atomic():
+            no.tokens.filter(nome=nome, ativo=True).delete()
+            token, token_bruto = no.tokens.model.emitir_token(
+                no=no,
+                nome=nome,
+                expira_em=serializer.validated_data.get("expira_em"),
+            )
         return Response(
             {
                 "token_id": str(token.id),

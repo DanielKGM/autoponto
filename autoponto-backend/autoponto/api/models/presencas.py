@@ -61,13 +61,9 @@ class Aula(BaseModel):
 class RegistroPresenca(BaseModel):
     STATUS_PRESENTE = "PRESENTE"
     STATUS_AUSENTE = "AUSENTE"
-    STATUS_ATRASO = "ATRASO"
-    STATUS_JUSTIFICADA = "JUSTIFICADA"
     STATUS_CHOICES = (
         (STATUS_PRESENTE, "Presente"),
         (STATUS_AUSENTE, "Ausente"),
-        (STATUS_ATRASO, "Atraso"),
-        (STATUS_JUSTIFICADA, "Justificada"),
     )
 
     aula = models.ForeignKey(Aula, on_delete=models.CASCADE, related_name="presencas")

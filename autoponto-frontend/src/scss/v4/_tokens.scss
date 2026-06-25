@@ -1,0 +1,90 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+
+:root {
+  --sidebar-bg: #1a2332;
+  --sidebar-hover: rgba(255, 255, 255, 0.04);
+  --sidebar-active: rgba(26, 187, 156, 0.08);
+  --sidebar-text: #7b8fa3;
+  --sidebar-text-hover: #c5d0dc;
+  --sidebar-text-active: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-w: 252px;
+  --primary: #1abb9c;
+  --primary-lt: rgba(26, 187, 156, 0.06);
+  --primary-dk: #169f85;
+  --body-bg: #f5f7fb;
+  --bg-surface: #ffffff;
+  --bg-surface-secondary: #f9fafb;
+  --border-color: #e6e7eb;
+  --border-color-light: #eff0f3;
+  --border-translucent: rgba(4, 32, 69, 0.08);
+  --text: #1e2633;
+  --text-secondary: #626d7d;
+  --text-muted: #7e8896;
+  --text-disabled: #c0c7cf;
+  --azure: #4299e1;
+  --blue: #4299e1;
+  --blue-lt: rgba(66, 153, 225, 0.1);
+  --green: #2fb344;
+  --green-lt: rgba(47, 179, 68, 0.08);
+  --yellow: #f59f00;
+  --yellow-lt: rgba(245, 159, 0, 0.12);
+  --purple: #7950f2;
+  --purple-lt: rgba(121, 80, 242, 0.1);
+  --orange: #f76707;
+  --red: #d63939;
+  --red-lt: rgba(214, 57, 57, 0.06);
+  --radius: 6px;
+  --radius-sm: 4px;
+  --radius-lg: 8px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --shadow: rgba(30, 38, 51, 0.04) 0 2px 4px 0;
+  --shadow-card:
+    0 0 0 1px var(--border-translucent), rgba(30, 38, 51, 0.04) 0 2px 4px 0;
+  --font:
+    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-size: 0.875rem;
+  --line-height: 1.4286;
+  --font-weight-medium: 500;
+  --font-weight-bold: 600;
+}
+
+[data-theme="dark"] {
+  --body-bg: #0f1623;
+  --bg-surface: #1a2332;
+  --bg-surface-secondary: #141d2b;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-color-light: rgba(255, 255, 255, 0.05);
+  --border-translucent: rgba(255, 255, 255, 0.08);
+  --text: #e6ebf2;
+  --text-secondary: #b3bccb;
+  --text-muted: #8a93a3;
+  --text-disabled: #5a6473;
+  --primary-lt: rgba(26, 187, 156, 0.14);
+  --blue-lt: rgba(66, 153, 225, 0.16);
+  --green-lt: rgba(47, 179, 68, 0.16);
+  --yellow-lt: rgba(245, 159, 0, 0.18);
+  --purple-lt: rgba(121, 80, 242, 0.16);
+  --red-lt: rgba(214, 57, 57, 0.16);
+  --shadow: rgba(0, 0, 0, 0.4) 0 2px 4px 0;
+  --shadow-card:
+    0 0 0 1px var(--border-translucent), rgba(0, 0, 0, 0.3) 0 2px 4px 0;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  min-width: 320px;
+  max-width: 100%;
+  overflow-x: hidden;
+}

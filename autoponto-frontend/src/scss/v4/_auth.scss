@@ -1,0 +1,137 @@
+.auth-page {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background:
+    radial-gradient(
+      ellipse 60% 80% at 20% 30%,
+      rgba(26, 187, 156, 0.06),
+      transparent
+    ),
+    radial-gradient(
+      ellipse 60% 80% at 80% 70%,
+      rgba(66, 153, 225, 0.05),
+      transparent
+    ),
+    var(--body-bg);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 32px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.auth-title {
+  margin-bottom: 4px;
+  color: var(--text);
+  font-size: 20px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.3px;
+}
+
+.auth-subtitle {
+  margin-bottom: 24px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.auth-theme {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.auth-footer {
+  margin-top: 18px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.auth-footer a {
+  color: var(--primary-dk);
+  font-weight: var(--font-weight-medium);
+}
+
+.auth-footer-secondary {
+  margin-top: 8px;
+}
+
+.error-page {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--body-bg);
+  text-align: center;
+}
+
+.error-content {
+  max-width: 500px;
+}
+
+.error-code {
+  margin-bottom: 8px;
+  background: linear-gradient(135deg, var(--primary), var(--azure));
+  background-clip: text;
+  color: transparent;
+  font-size: 96px;
+  font-weight: 700;
+  letter-spacing: -3px;
+  line-height: 1;
+  -webkit-background-clip: text;
+}
+
+.error-title {
+  margin-bottom: 8px;
+  color: var(--text);
+  font-size: 22px;
+  font-weight: var(--font-weight-bold);
+}
+
+.error-message {
+  margin-bottom: 24px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.error-actions {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.empty-card {
+  padding: 40px;
+  text-align: center;
+}
+
+.empty-card-title {
+  margin-bottom: 6px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: var(--font-weight-medium);
+}
+
+.empty-card-description {
+  color: var(--text-muted);
+  font-size: 12.5px;
+}

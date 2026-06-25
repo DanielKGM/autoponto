@@ -9,23 +9,44 @@ from django.db import transaction
 from api.models import EmbeddingFacial, PapelUsuario, Usuario
 from .errors import ConflictError, DomainValidationError
 
+FACE_MAX_CAPTURAS_PADRAO = 5
+FACE_MAX_IMAGE_BYTES_PADRAO = 5 * 1024 * 1024
+
+
+def _formato_imagem(bruto: bytes) -> str | None:
+    if bruto.startswith(b"\xff\xd8\xff"):
+        return "JPEG"
+    if bruto.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "PNG"
+    if len(bruto) >= 12 and bruto[:4] == b"RIFF" and bruto[8:12] == b"WEBP":
+        return "WebP"
+    return None
+
+
+def _limite_legivel(limite_bytes: int) -> str:
+    if limite_bytes % (1024 * 1024) == 0:
+        return f"{limite_bytes // (1024 * 1024)} MB"
+    return f"{limite_bytes} bytes"
+
 
 def validar_capturas_biometricas(capturas: list[str]) -> list[str]:
     if not capturas:
         raise DomainValidationError("Ao menos uma captura é necessária para cadastrar biometria.")
 
-    limite_capturas = int(getattr(settings, "FACE_MAX_CAPTURAS", 5))
+    limite_capturas = int(getattr(settings, "FACE_MAX_CAPTURAS", FACE_MAX_CAPTURAS_PADRAO))
     if len(capturas) > limite_capturas:
         raise DomainValidationError(f"Envie no máximo {limite_capturas} captura(s) para a biometria.")
 
-    limite_bytes = int(getattr(settings, "FACE_MAX_IMAGE_BYTES", 2 * 1024 * 1024))
+    limite_bytes = int(getattr(settings, "FACE_MAX_IMAGE_BYTES", FACE_MAX_IMAGE_BYTES_PADRAO))
     for indice, captura in enumerate(capturas, start=1):
         try:
             bruto = base64.b64decode(captura, validate=True)
         except (binascii.Error, ValueError) as exc:
             raise DomainValidationError(f"A captura {indice} não é um base64 válido.") from exc
         if len(bruto) > limite_bytes:
-            raise DomainValidationError(f"A captura {indice} excede o limite de {limite_bytes} bytes.")
+            raise DomainValidationError(f"A captura {indice} excede o limite de {_limite_legivel(limite_bytes)}.")
+        if _formato_imagem(bruto) is None:
+            raise DomainValidationError(f"A captura {indice} deve ser uma imagem JPEG, PNG ou WebP.")
     return capturas
 
 
@@ -37,9 +58,9 @@ def _resolver_caminho_modelo(valor: str, nome_variavel: str) -> str:
     if not caminho.is_absolute():
         caminho = Path(settings.BASE_DIR) / caminho
     if not caminho.exists():
-        raise DomainValidationError(f"Modelo ONNX nao encontrado em {caminho}. Verifique {nome_variavel}.")
+        raise DomainValidationError(f"Modelo ONNX não encontrado em {caminho}. Verifique {nome_variavel}.")
     if not caminho.is_file():
-        raise DomainValidationError(f"O caminho configurado em {nome_variavel} nao aponta para um arquivo ONNX.")
+        raise DomainValidationError(f"O caminho configurado em {nome_variavel} não aponta para um arquivo ONNX.")
     return str(caminho)
 
 
@@ -138,7 +159,7 @@ def validar_rosto_unico(*, aluno: Usuario, vetor: list[float]) -> None:
 
     if aluno_semelhante and melhor_similaridade >= limite:
         raise ConflictError(
-            "Este rosto parece ja estar cadastrado para outro aluno.",
+            "Este rosto parece já estar cadastrado para outro aluno.",
             code="rosto_duplicado",
             extra={
                 "similaridade": round(melhor_similaridade, 6),

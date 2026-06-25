@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router";
-import { carregarSessaoAutenticada } from "../api";
-import { LoadingDots } from "../components/common/LoadingDots";
-import type { MeResponse } from "../types";
+import { carregarSessaoAutenticada } from "../shared/api";
+import { LoadingDots } from "../shared/ui/LoadingDots";
+import type { MeResponse } from "../shared/types";
 import { destinoPadrao } from "./navigation";
 
 export function RootRedirect() {
