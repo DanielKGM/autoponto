@@ -16,7 +16,6 @@ from api.models import (
     TokenNoBorda,
     Turma,
 )
-from api.services.aulas import sincronizar_aulas_da_turma
 
 SLOTS_UFMA = {
     "M": {
@@ -61,11 +60,10 @@ class Command(BaseCommand):
         usar_horarios_dev_24h = options["dev"]
         campus = self._criar_topologia_academica()
         curso, disciplina, periodo, sala = self._criar_oferta_academica(campus)
-        turma = self._criar_turma(periodo, disciplina)
+        self._criar_turma(periodo, disciplina)
         self._criar_horarios_ufma()
         if usar_horarios_dev_24h:
             self._criar_horarios_dev_24h()
-        self._criar_horarios_aula(turma, sala, usar_horarios_dev_24h)
         no = self._criar_infraestrutura_iot(sala)
         self._emitir_token_no_borda(no)
         self.stdout.write(self.style.SUCCESS("Seed UFMA/TCC criado ou atualizado."))
@@ -142,19 +140,6 @@ class Command(BaseCommand):
                     "ativo": True,
                 },
             )
-
-    def _criar_horarios_aula(self, turma, sala, usar_horarios_dev_24h):
-        codigos = CODIGOS_DEV_24H if usar_horarios_dev_24h else ("2N34", "4N34")
-        sincronizar_aulas_da_turma(
-            turma,
-            [
-                {
-                    "sala": sala,
-                    "horario_padrao": HorarioPadraoUFMA.objects.get(codigo=codigo),
-                }
-                for codigo in codigos
-            ],
-        )
 
     def _criar_infraestrutura_iot(self, sala):
         no, _ = NoBorda.objects.update_or_create(
