@@ -18,6 +18,7 @@ from api.models import (
     Sala,
     Usuario,
 )
+from api.selectors.aulas import com_status_aula, status_aula
 
 
 def _iso(valor):
@@ -36,17 +37,21 @@ def _salas_do_no(no: NoBorda):
 
 
 def _aulas_disponiveis_do_no(no: NoBorda, data_sync):
-    return (
+    agora = timezone.now()
+    queryset = (
         Aula.objects.select_related("turma", "turma__disciplina", "sala")
         .filter(
             data=data_sync,
             sala__in=_salas_do_no(no).filter(ativo=True),
             turma__ativo=True,
+            fim__gt=agora,
+            cancelada_em__isnull=True,
+            fechada_em__isnull=True,
         )
-        .exclude(status__in=[Aula.STATUS_FECHADA, Aula.STATUS_CANCELADA])
         .order_by("inicio", "id")
         .distinct()
     )
+    return com_status_aula(queryset, agora=agora)
 
 
 def _matriculas_ativas_das_aulas(aulas):
@@ -117,7 +122,7 @@ def _cache_redis_snapshot(no: NoBorda, data_sync) -> dict:
             "sala_id": str(aula.sala_id),
             "inicio": _iso(aula.inicio),
             "fim": _iso(aula.fim),
-            "status": aula.status,
+            "status": status_aula(aula),
         }
         aulas_por_sala.setdefault(str(aula.sala_id), []).append(aula_payload)
         alunos_por_aula[str(aula.id)] = alunos_por_turma.get(str(aula.turma_id), [])
@@ -236,11 +241,11 @@ def _receber_evento_borda(no: NoBorda, evento: dict) -> str:
 
     reconhecido_em = _parsear_data_hora(evento["reconhecido_em"])
 
-    if aula.status in {Aula.STATUS_FECHADA, Aula.STATUS_CANCELADA}:
+    if aula.cancelada_em or aula.fechada_em:
         raise ValidationError(
             {"eventos": "A chamada da aula esta fechada ou cancelada."}
         )
-    if reconhecido_em < aula.inicio or reconhecido_em > aula.fim:
+    if reconhecido_em < aula.inicio or reconhecido_em >= aula.fim:
         raise ValidationError({"eventos": "Evento fora da duracao da aula."})
 
     try:
@@ -275,7 +280,4 @@ def _receber_evento_borda(no: NoBorda, evento: dict) -> str:
         reconhecido=True,
         ocorrido_em=reconhecido_em,
     )
-    if aula.status == Aula.STATUS_PLANEJADA:
-        aula.status = Aula.STATUS_ABERTA
-        aula.save(update_fields=["status", "atualizado_em"])
     return id_evento

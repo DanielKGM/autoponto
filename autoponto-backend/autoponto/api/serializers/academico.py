@@ -112,7 +112,7 @@ class TurmaSerializer(serializers.ModelSerializer):
         aulas = (
             Aula.objects.select_related("sala", "horario_padrao")
             .filter(turma=turma, data__gte=timezone.localdate())
-            .exclude(status=Aula.STATUS_CANCELADA)
+            .filter(cancelada_em__isnull=True)
             .order_by("horario_padrao__dia_semana", "horario_padrao__horario_inicio", "sala__codigo", "id")
         )
         vistos = set()

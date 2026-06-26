@@ -1,5 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 
 from .academico import HorarioPadraoUFMA, MatriculaTurma, Sala, Turma
@@ -27,7 +28,14 @@ class Aula(BaseModel):
     data = models.DateField()
     inicio = models.DateTimeField()
     fim = models.DateTimeField()
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PLANEJADA)
+    cancelada_em = models.DateTimeField(null=True, blank=True)
+    cancelada_por = models.ForeignKey(
+        Usuario,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="aulas_canceladas",
+    )
     fechada_em = models.DateTimeField(null=True, blank=True)
     fechada_por = models.ForeignKey(
         Usuario,
@@ -43,11 +51,17 @@ class Aula(BaseModel):
         verbose_name_plural = "Aulas"
         constraints = [
             models.UniqueConstraint(fields=("turma", "horario_padrao", "data"), name="uq_aula_turma_slot_data"),
+            models.CheckConstraint(
+                condition=Q(cancelada_em__isnull=True) | Q(fechada_em__isnull=True),
+                name="ck_aula_cancelada_fechada_exclusivas",
+            ),
         ]
 
     def clean(self):
         if self.fim <= self.inicio:
             raise ValidationError({"fim": "O fim da aula deve ser maior que o inicio."})
+        if self.cancelada_em and self.fechada_em:
+            raise ValidationError("Aula nao pode estar cancelada e fechada ao mesmo tempo.")
         if self.horario_padrao_id and self.data.weekday() != self.horario_padrao.weekday_python:
             raise ValidationError({"data": "A data da aula nao corresponde ao dia da semana do horario."})
         if self.turma_id:

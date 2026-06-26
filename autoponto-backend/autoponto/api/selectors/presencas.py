@@ -1,4 +1,5 @@
 from api.models import Aula, PapelUsuario
+from api.selectors.aulas import com_status_aula
 
 
 def obter_aulas_acessiveis(usuario):
@@ -9,7 +10,7 @@ def obter_aulas_acessiveis(usuario):
         "horario_padrao",
     )
     if usuario.papel == PapelUsuario.ADMINISTRADOR:
-        return queryset
+        return com_status_aula(queryset)
     if usuario.papel == PapelUsuario.PROFESSOR:
-        return queryset.filter(turma__professores=usuario)
-    return queryset.none()
+        return com_status_aula(queryset.filter(turma__professores=usuario))
+    return com_status_aula(queryset.none())

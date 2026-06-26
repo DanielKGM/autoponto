@@ -326,17 +326,15 @@ class Migration(migrations.Migration):
                 ("data", models.DateField()),
                 ("inicio", models.DateTimeField()),
                 ("fim", models.DateTimeField()),
+                ("cancelada_em", models.DateTimeField(blank=True, null=True)),
                 (
-                    "status",
-                    models.CharField(
-                        choices=[
-                            ("PLANEJADA", "Planejada"),
-                            ("ABERTA", "Aberta"),
-                            ("FECHADA", "Fechada"),
-                            ("CANCELADA", "Cancelada"),
-                        ],
-                        default="PLANEJADA",
-                        max_length=20,
+                    "cancelada_por",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="aulas_canceladas",
+                        to=settings.AUTH_USER_MODEL,
                     ),
                 ),
                 ("fechada_em", models.DateTimeField(blank=True, null=True)),
@@ -905,6 +903,13 @@ class Migration(migrations.Migration):
             constraint=models.UniqueConstraint(
                 fields=("turma", "horario_padrao", "data"),
                 name="uq_aula_turma_slot_data",
+            ),
+        ),
+        migrations.AddConstraint(
+            model_name="aula",
+            constraint=models.CheckConstraint(
+                condition=models.Q(("cancelada_em__isnull", True), ("fechada_em__isnull", True), _connector="OR"),
+                name="ck_aula_cancelada_fechada_exclusivas",
             ),
         ),
     ]

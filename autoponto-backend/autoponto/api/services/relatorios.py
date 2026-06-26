@@ -12,6 +12,7 @@ from api.models import (
     Turma,
     Usuario,
 )
+from api.selectors.aulas import com_status_aula, status_aula
 
 
 def usuario_pode_acessar_turma(usuario: Usuario, turma: Turma) -> bool:
@@ -26,9 +27,11 @@ def usuario_pode_acessar_turma(usuario: Usuario, turma: Turma) -> bool:
 
 def aulas_da_turma(turma: Turma, inicio, fim):
     return list(
-        Aula.objects.select_related("turma", "turma__disciplina", "sala", "horario_padrao")
+        com_status_aula(
+            Aula.objects.select_related("turma", "turma__disciplina", "sala", "horario_padrao")
+        )
         .filter(turma=turma, data__gte=inicio, data__lte=fim)
-        .exclude(status=Aula.STATUS_CANCELADA)
+        .filter(cancelada_em__isnull=True)
         .order_by("data", "inicio")
     )
 
@@ -97,11 +100,13 @@ def calendario_aulas_usuario(usuario: Usuario, inicio, fim) -> dict:
 
 def calendario_aulas_aluno(aluno: Usuario, inicio, fim) -> dict:
     aulas = list(
-        Aula.objects.select_related(
-            "turma",
-            "turma__disciplina",
-            "turma__periodo_letivo",
-            "sala",
+        com_status_aula(
+            Aula.objects.select_related(
+                "turma",
+                "turma__disciplina",
+                "turma__periodo_letivo",
+                "sala",
+            )
         )
         .filter(
             turma__matriculas__aluno=aluno,
@@ -129,15 +134,17 @@ def calendario_aulas_aluno(aluno: Usuario, inicio, fim) -> dict:
 
 
 def calendario_aulas_professor(usuario: Usuario, inicio, fim) -> dict:
-    aulas = Aula.objects.select_related(
-        "turma",
-        "turma__disciplina",
-        "turma__periodo_letivo",
-        "sala",
+    aulas = com_status_aula(
+        Aula.objects.select_related(
+            "turma",
+            "turma__disciplina",
+            "turma__periodo_letivo",
+            "sala",
+        )
     ).filter(
-        turma__ativo=True,
-        data__gte=inicio,
-        data__lte=fim,
+            turma__ativo=True,
+            data__gte=inicio,
+            data__lte=fim,
     )
     if usuario.papel == PapelUsuario.PROFESSOR:
         aulas = aulas.filter(turma__professores=usuario)
@@ -152,11 +159,12 @@ def calendario_aulas_professor(usuario: Usuario, inicio, fim) -> dict:
 
 
 def status_aluno_calendario(aula: Aula, registro: RegistroPresenca | None) -> str:
-    if aula.status == Aula.STATUS_CANCELADA:
+    estado = status_aula(aula)
+    if estado == Aula.STATUS_CANCELADA:
         return "NAO_APLICAVEL"
     if registro:
         return registro.status
-    if aula.status == Aula.STATUS_FECHADA:
+    if estado == Aula.STATUS_FECHADA:
         return RegistroPresenca.STATUS_AUSENTE
     return "PENDENTE"
 
@@ -173,7 +181,7 @@ def payload_aula_calendario_aluno(aula: Aula, registro: RegistroPresenca | None)
         "inicio": aula.inicio.isoformat(),
         "fim": aula.fim.isoformat(),
         "sala": aula.sala.nome,
-        "status_aula": aula.status,
+        "status_aula": status_aula(aula),
         "status_aluno": status_aluno_calendario(aula, registro),
         "presenca_id": str(registro.id) if registro else None,
         "registrado_em": registro.registrado_em.isoformat() if registro else None,
@@ -192,7 +200,7 @@ def payload_aula_calendario_professor(aula: Aula) -> dict:
         "inicio": aula.inicio.isoformat(),
         "fim": aula.fim.isoformat(),
         "sala": aula.sala.nome,
-        "status_aula": aula.status,
+        "status_aula": status_aula(aula),
         "status_aluno": None,
         "presenca_id": None,
         "registrado_em": None,
@@ -250,7 +258,7 @@ def relatorio_presencas_turma_data(turma: Turma, data):
                 "aula_id": str(aula.id),
                 "inicio": aula.inicio.isoformat(),
                 "fim": aula.fim.isoformat(),
-                "status": aula.status,
+                "status": status_aula(aula),
                 "fechada_em": aula.fechada_em.isoformat() if aula.fechada_em else None,
                 "fechada_por": str(aula.fechada_por_id) if aula.fechada_por_id else None,
                 "sala": aula.sala.nome,
@@ -269,7 +277,7 @@ def relatorio_presencas_turma_data(turma: Turma, data):
 def relatorio_resumo_turma(turma: Turma, inicio=None, fim=None):
     inicio = inicio or turma.periodo_letivo.data_inicio
     fim = fim or min(turma.periodo_letivo.data_fim, timezone.localdate())
-    aulas = [aula for aula in aulas_da_turma(turma, inicio, fim) if aula.status == Aula.STATUS_FECHADA]
+    aulas = _aulas_fechadas_da_turma(turma, inicio, fim)
     aula_ids = [aula.id for aula in aulas]
     total_aulas = len(aulas)
     matriculas = MatriculaTurma.objects.select_related("aluno").filter(turma=turma, ativo=True).order_by(
@@ -384,12 +392,14 @@ def _periodo_frequencia_aluno(aluno: Usuario, periodo_letivo_id=None):
 
 
 def _aulas_fechadas_da_turma(turma: Turma, inicio=None, fim=None):
-    queryset = Aula.objects.filter(turma=turma, status=Aula.STATUS_FECHADA).order_by("data", "inicio")
+    queryset = com_status_aula(
+        Aula.objects.select_related("turma", "turma__disciplina", "sala", "horario_padrao").filter(turma=turma)
+    )
     if inicio:
         queryset = queryset.filter(data__gte=inicio)
     if fim:
         queryset = queryset.filter(data__lte=fim)
-    return list(queryset)
+    return list(queryset.filter(status=Aula.STATUS_FECHADA).order_by("data", "inicio"))
 
 
 def _resumo_frequencia_turma_para_aluno(turma: Turma, aluno: Usuario) -> dict:
@@ -438,7 +448,10 @@ def resumo_frequencia_aluno(aluno: Usuario, periodo_letivo_id=None) -> dict:
 def _status_aluno_resumo(aula: Aula, registro: RegistroPresenca | None) -> str:
     if registro:
         return RegistroPresenca.STATUS_PRESENTE
-    if aula.status == Aula.STATUS_FECHADA:
+    estado = status_aula(aula)
+    if estado == Aula.STATUS_CANCELADA:
+        return "NAO_APLICAVEL"
+    if estado == Aula.STATUS_FECHADA:
         return RegistroPresenca.STATUS_AUSENTE
     return "PENDENTE"
 
@@ -452,7 +465,7 @@ def _payload_aula_resumo(aula: Aula, status_aluno=None) -> dict:
 def dashboard_aluno(aluno: Usuario) -> dict:
     hoje = timezone.localdate()
     turmas = _turmas_ativas_do_aluno(aluno)
-    aulas_base = (
+    aulas_base = com_status_aula(
         Aula.objects.select_related("turma", "turma__disciplina", "turma__periodo_letivo", "sala")
         .filter(turma__in=turmas)
         .distinct()
@@ -505,7 +518,7 @@ def dashboard_aluno(aluno: Usuario) -> dict:
 def dashboard_professor(usuario: Usuario) -> dict:
     hoje = timezone.localdate()
     turmas = _turmas_ativas_do_professor(usuario)
-    aulas = (
+    aulas = com_status_aula(
         Aula.objects.select_related("turma", "turma__disciplina", "turma__periodo_letivo", "sala")
         .filter(turma__in=turmas)
         .distinct()
@@ -673,15 +686,12 @@ def _payload_turma_detalhe(turma: Turma) -> dict:
 def _payload_aula_detalhe(aula: Aula, usuario: Usuario) -> dict:
     payload = _payload_aula_resumo(aula)
     agora = timezone.now()
+    estado = status_aula(aula, agora=agora)
     pode_gerenciar = usuario.papel in {PapelUsuario.PROFESSOR, PapelUsuario.ADMINISTRADOR}
-    payload["pode_abrir_chamada"] = (
-        pode_gerenciar
-        and aula.status == Aula.STATUS_PLANEJADA
-        and aula.inicio <= agora <= aula.fim
-    )
+    payload["pode_abrir_chamada"] = False
     payload["pode_fechar_chamada"] = (
         pode_gerenciar
-        and aula.status == Aula.STATUS_ABERTA
+        and estado == Aula.STATUS_ABERTA
         and agora >= aula.inicio
     )
     payload["fechada_em"] = aula.fechada_em.isoformat() if aula.fechada_em else None
@@ -691,7 +701,7 @@ def _payload_aula_detalhe(aula: Aula, usuario: Usuario) -> dict:
 
 def detalhe_turma_aula(usuario: Usuario, turma: Turma, aula: Aula | None = None) -> dict:
     proximas_aulas = (
-        Aula.objects.select_related("turma", "turma__disciplina", "turma__periodo_letivo", "sala")
+        com_status_aula(Aula.objects.select_related("turma", "turma__disciplina", "turma__periodo_letivo", "sala"))
         .filter(turma=turma, data__gte=timezone.localdate())
         .order_by("data", "inicio")[:6]
     )

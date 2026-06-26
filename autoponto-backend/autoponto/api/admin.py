@@ -19,6 +19,7 @@ from api.models import (
     Turma,
     Usuario,
 )
+from api.selectors.aulas import status_aula
 
 
 @admin.register(Usuario)
@@ -115,7 +116,11 @@ class DispositivoEsp32Admin(admin.ModelAdmin):
 @admin.register(Aula)
 class AulaAdmin(admin.ModelAdmin):
     list_display = ("turma", "sala", "horario_padrao", "data", "inicio", "fim", "status", "fechada_por")
-    list_filter = ("status", "data", "turma", "sala", "horario_padrao")
+    list_filter = ("data", "turma", "sala", "horario_padrao", "cancelada_em", "fechada_em")
+
+    @admin.display(description="Status")
+    def status(self, obj):
+        return status_aula(obj)
 
 
 @admin.register(RegistroPresenca)

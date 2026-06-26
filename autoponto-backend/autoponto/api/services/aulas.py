@@ -4,6 +4,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from api.models import Aula, HorarioPadraoUFMA, Sala, Turma
+from api.selectors.aulas import status_aula
 from .errors import ConflictError, DomainValidationError
 
 
@@ -48,7 +49,7 @@ def _validar_conflito_sala(turma: Turma, sala: Sala, horario_padrao: HorarioPadr
         horario_padrao__dia_semana=horario_padrao.dia_semana,
         horario_padrao__horario_inicio__lt=horario_padrao.horario_fim,
         horario_padrao__horario_fim__gt=horario_padrao.horario_inicio,
-    ).exclude(turma=turma).exclude(status=Aula.STATUS_CANCELADA)
+    ).exclude(turma=turma).filter(cancelada_em__isnull=True)
     if conflito.exists():
         raise DomainValidationError("Ja existe aula nessa sala no periodo, dia e horario informados.")
 
@@ -68,29 +69,36 @@ def _criar_ou_atualizar_aulas(turma: Turma, horarios: list[dict]) -> None:
                     "sala": sala,
                     "inicio": inicio,
                     "fim": fim,
-                    "status": Aula.STATUS_PLANEJADA,
                 },
             )
             if (
                 not criada
                 and aula.data >= timezone.localdate()
+                and aula.fim > timezone.now()
                 and not aula.presencas.exists()
                 and not aula.eventos_reconhecimento.exists()
-                and aula.status != Aula.STATUS_FECHADA
+                and not aula.fechada_em
             ):
                 aula.sala = sala
                 aula.inicio = inicio
                 aula.fim = fim
-                if aula.status == Aula.STATUS_CANCELADA:
-                    aula.status = Aula.STATUS_PLANEJADA
-                aula.save(update_fields=["sala", "inicio", "fim", "status", "atualizado_em"])
+                update_fields = ["sala", "inicio", "fim", "atualizado_em"]
+                if aula.cancelada_em:
+                    aula.cancelada_em = None
+                    aula.cancelada_por = None
+                    update_fields.extend(["cancelada_em", "cancelada_por"])
+                aula.save(update_fields=update_fields)
 
 
 def _cancelar_aulas_futuras_removidas(turma: Turma, pares_desejados: set[tuple[object, object]]) -> None:
     hoje = timezone.localdate()
-    aulas = (
-        Aula.objects.filter(turma=turma, data__gte=hoje)
-        .exclude(status__in=[Aula.STATUS_CANCELADA, Aula.STATUS_FECHADA])
+    agora = timezone.now()
+    aulas = Aula.objects.filter(
+        turma=turma,
+        data__gte=hoje,
+        fim__gt=agora,
+        cancelada_em__isnull=True,
+        fechada_em__isnull=True,
     )
     for aula in aulas:
         par = (aula.sala_id, aula.horario_padrao_id)
@@ -98,8 +106,9 @@ def _cancelar_aulas_futuras_removidas(turma: Turma, pares_desejados: set[tuple[o
             continue
         if aula.presencas.exists() or aula.eventos_reconhecimento.exists():
             continue
-        aula.status = Aula.STATUS_CANCELADA
-        aula.save(update_fields=["status", "atualizado_em"])
+        aula.cancelada_em = agora
+        aula.cancelada_por = None
+        aula.save(update_fields=["cancelada_em", "cancelada_por", "atualizado_em"])
 
 
 @transaction.atomic
@@ -112,65 +121,20 @@ def sincronizar_aulas_da_turma(turma: Turma, horarios: list[dict]) -> None:
 
 
 def fechar_chamada_aula(aula: Aula, usuario, agora=None) -> Aula:
-    if aula.status != Aula.STATUS_ABERTA:
+    agora = agora or timezone.now()
+    if aula.cancelada_em:
+        raise ConflictError("Aulas canceladas nao podem ser fechadas.")
+    if status_aula(aula, agora=agora) != Aula.STATUS_ABERTA:
         raise ConflictError("Apenas chamadas abertas podem ser fechadas.")
 
-    agora = agora or timezone.now()
-    if agora < aula.inicio:
-        raise ConflictError("A chamada so pode ser fechada depois do inicio da aula.")
-    aula.status = Aula.STATUS_FECHADA
     aula.fechada_em = agora
     aula.fechada_por = usuario
-    aula.save(update_fields=["status", "fechada_em", "fechada_por", "atualizado_em"])
+    aula.save(update_fields=["fechada_em", "fechada_por", "atualizado_em"])
     return aula
 
 
 def abrir_chamada_aula(aula: Aula, agora=None) -> Aula:
-    if aula.status != Aula.STATUS_PLANEJADA:
-        raise ConflictError("Apenas aulas planejadas podem ter chamada aberta.")
-
     agora = agora or timezone.now()
-    if agora < aula.inicio:
-        raise ConflictError("A chamada so pode ser aberta no horario da aula.")
-    if agora > aula.fim:
-        raise ConflictError("A chamada nao pode ser aberta depois do fim da aula.")
-
-    aula.status = Aula.STATUS_ABERTA
-    aula.save(update_fields=["status", "atualizado_em"])
+    if status_aula(aula, agora=agora) != Aula.STATUS_ABERTA:
+        raise ConflictError("A chamada so fica aberta durante o horario da aula.")
     return aula
-
-
-@transaction.atomic
-def atualizar_status_aulas(agora=None, dry_run: bool = False) -> dict:
-    agora = agora or timezone.now()
-    resultado = {
-        "planejadas_abertas": 0,
-        "planejadas_fechadas": 0,
-        "abertas_fechadas": 0,
-    }
-
-    planejadas_para_fechar = Aula.objects.select_for_update().filter(
-        status=Aula.STATUS_PLANEJADA,
-        fim__lte=agora,
-    )
-    abertas_para_fechar = Aula.objects.select_for_update().filter(
-        status=Aula.STATUS_ABERTA,
-        fim__lte=agora,
-    )
-    planejadas_para_abrir = Aula.objects.select_for_update().filter(
-        status=Aula.STATUS_PLANEJADA,
-        inicio__lte=agora,
-        fim__gt=agora,
-    )
-
-    resultado["planejadas_fechadas"] = planejadas_para_fechar.count()
-    resultado["abertas_fechadas"] = abertas_para_fechar.count()
-    resultado["planejadas_abertas"] = planejadas_para_abrir.count()
-
-    if dry_run:
-        return resultado
-
-    planejadas_para_fechar.update(status=Aula.STATUS_FECHADA, fechada_em=agora, atualizado_em=agora)
-    abertas_para_fechar.update(status=Aula.STATUS_FECHADA, fechada_em=agora, atualizado_em=agora)
-    planejadas_para_abrir.update(status=Aula.STATUS_ABERTA, atualizado_em=agora)
-    return resultado

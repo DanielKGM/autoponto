@@ -12,7 +12,11 @@ export class ApiError extends Error {
   data: unknown;
 
   constructor(status: number, data: unknown) {
-    super(typeof data === "object" && data && "detail" in data ? String((data as { detail: unknown }).detail) : "Erro na API");
+    super(
+      typeof data === "object" && data && "detail" in data
+        ? String((data as { detail: unknown }).detail)
+        : "Erro na API",
+    );
     this.status = status;
     this.data = data;
   }
@@ -23,12 +27,14 @@ type ApiOptions = RequestInit & {
   retryOnUnauthorized?: boolean;
 };
 
-export type ListaApi<T> = T[] | {
-  count?: number;
-  next?: string | null;
-  previous?: string | null;
-  results: T[];
-};
+export type ListaApi<T> =
+  | T[]
+  | {
+      count?: number;
+      next?: string | null;
+      previous?: string | null;
+      results: T[];
+    };
 
 export function getAccessToken(): string | null {
   return accessToken;
@@ -58,7 +64,10 @@ async function tentarRefresh(): Promise<boolean> {
   return true;
 }
 
-export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promise<T> {
+export async function apiFetch<T>(
+  path: string,
+  options: ApiOptions = {},
+): Promise<T> {
   const headers = new Headers(options.headers);
   const bodyIsFormData = options.body instanceof FormData;
   if (!headers.has("Content-Type") && options.body && !bodyIsFormData) {
@@ -79,7 +88,11 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
     credentials: "include",
   });
 
-  if (resposta.status === 401 && options.retryOnUnauthorized !== false && !options.skipAuth) {
+  if (
+    resposta.status === 401 &&
+    options.retryOnUnauthorized !== false &&
+    !options.skipAuth
+  ) {
     const atualizado = await tentarRefresh();
     if (atualizado) {
       return apiFetch<T>(path, { ...options, retryOnUnauthorized: false });
@@ -102,9 +115,12 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
   return (await resposta.json()) as T;
 }
 
-export function apiPathFromUrl(value: string | null | undefined): string | null {
+export function apiPathFromUrl(
+  value: string | null | undefined,
+): string | null {
   if (!value) return null;
-  const fallbackOrigin = typeof window === "undefined" ? "http://localhost" : window.location.origin;
+  const fallbackOrigin =
+    typeof window === "undefined" ? "http://localhost" : window.location.origin;
   const url = new URL(value, fallbackOrigin);
   let basePath = "";
   try {
@@ -112,13 +128,17 @@ export function apiPathFromUrl(value: string | null | undefined): string | null 
   } catch {
     basePath = API_URL.startsWith("/") ? API_URL.replace(/\/+$/, "") : "";
   }
-  const pathname = basePath && url.pathname.startsWith(`${basePath}/`)
-    ? url.pathname.slice(basePath.length)
-    : url.pathname;
+  const pathname =
+    basePath && url.pathname.startsWith(`${basePath}/`)
+      ? url.pathname.slice(basePath.length)
+      : url.pathname;
   return `${pathname}${url.search}`;
 }
 
-export async function login(username: string, password: string): Promise<MeResponse> {
+export async function login(
+  username: string,
+  password: string,
+): Promise<MeResponse> {
   const tokens = await apiFetch<{ access: string }>("/auth/token/", {
     method: "POST",
     skipAuth: true,
@@ -166,13 +186,16 @@ export function detalheErro(erro: unknown): string {
       return erro.message || "Conflito de dados.";
     }
     if (erro.status === 403) {
-      return "Acesso negado para esta operacao.";
+      return "Autenticação incorreta.";
     }
     if (erro.status === 401) {
       return "Sessao expirada. Entre novamente.";
     }
     if (erro.status === 400) {
-      return erro.message || "Dados invalidos. Revise as informacoes e tente novamente.";
+      return (
+        erro.message ||
+        "Dados invalidos. Revise as informacoes e tente novamente."
+      );
     }
     if (erro.status === 413) {
       return "Envio muito grande. Reduza a quantidade ou o tamanho das imagens e tente novamente.";

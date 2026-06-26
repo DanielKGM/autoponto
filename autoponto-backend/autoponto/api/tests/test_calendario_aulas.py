@@ -1,4 +1,4 @@
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 
 from django.utils import timezone
 from rest_framework import status
@@ -52,8 +52,8 @@ class CalendarioAulasTests(APITestCase):
         self.sala = Sala.objects.create(predio=predio, nome="Sala 101", codigo="101")
         self.periodo = PeriodoLetivo.objects.create(
             nome="2026.1",
-            data_inicio=date(2026, 6, 1),
-            data_fim=date(2026, 6, 30),
+            data_inicio=timezone.localdate() - timedelta(days=30),
+            data_fim=timezone.localdate() + timedelta(days=30),
             ativo=True,
         )
         curso = Curso.objects.create(campus=campus, nome="Computacao")
@@ -83,26 +83,45 @@ class CalendarioAulasTests(APITestCase):
         return turma
 
     def criar_aula(self, turma: Turma, value: date, status_aula: str):
+        agora = timezone.now()
+        inicio = aware_datetime(value, 8)
+        fim = aware_datetime(value, 10)
+        extras = {}
+        if status_aula == Aula.STATUS_PLANEJADA and inicio <= agora:
+            value = timezone.localdate() + timedelta(days=7)
+            inicio = aware_datetime(value, 8)
+            fim = aware_datetime(value, 10)
+        elif status_aula == Aula.STATUS_ABERTA:
+            value = timezone.localdate()
+            inicio = agora - timedelta(minutes=15)
+            fim = agora + timedelta(minutes=45)
+        elif status_aula == Aula.STATUS_FECHADA and fim > agora:
+            extras = {"fechada_em": agora, "fechada_por": self.professor}
+        elif status_aula == Aula.STATUS_CANCELADA:
+            extras = {"cancelada_em": agora, "cancelada_por": self.professor}
         return Aula.objects.create(
             turma=turma,
             sala=self.sala,
             horario_padrao=self.horario,
             data=value,
-            inicio=aware_datetime(value, 8),
-            fim=aware_datetime(value, 10),
-            status=status_aula,
+            inicio=inicio,
+            fim=fim,
+            **extras,
         )
 
     def get_calendario(self, usuario):
         self.client.force_authenticate(usuario)
-        return self.client.get("/api/me/calendario-aulas/?inicio=2026-06-01&fim=2026-06-30")
+        inicio = (timezone.localdate() - timedelta(days=14)).isoformat()
+        fim = (timezone.localdate() + timedelta(days=14)).isoformat()
+        return self.client.get(f"/api/me/calendario-aulas/?inicio={inicio}&fim={fim}")
 
     def test_aluno_ve_aulas_matriculadas_com_status_derivado(self):
-        planejada = self.criar_aula(self.turma, date(2026, 6, 1), Aula.STATUS_PLANEJADA)
-        aberta = self.criar_aula(self.turma, date(2026, 6, 8), Aula.STATUS_ABERTA)
-        fechada_ausente = self.criar_aula(self.turma, date(2026, 6, 15), Aula.STATUS_FECHADA)
-        cancelada = self.criar_aula(self.turma, date(2026, 6, 22), Aula.STATUS_CANCELADA)
-        fechada_presente = self.criar_aula(self.turma, date(2026, 6, 29), Aula.STATUS_FECHADA)
+        hoje = timezone.localdate()
+        planejada = self.criar_aula(self.turma, hoje + timedelta(days=7), Aula.STATUS_PLANEJADA)
+        aberta = self.criar_aula(self.turma, hoje, Aula.STATUS_ABERTA)
+        fechada_ausente = self.criar_aula(self.turma, hoje - timedelta(days=7), Aula.STATUS_FECHADA)
+        cancelada = self.criar_aula(self.turma, hoje - timedelta(days=5), Aula.STATUS_CANCELADA)
+        fechada_presente = self.criar_aula(self.turma, hoje - timedelta(days=3), Aula.STATUS_FECHADA)
         registro = RegistroPresenca.objects.create(
             aula=fechada_presente,
             aluno=self.aluno,
@@ -113,8 +132,8 @@ class CalendarioAulasTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["visualizacao"], "ALUNO")
-        self.assertEqual(response.data["inicio"], "2026-06-01")
-        self.assertEqual(response.data["fim"], "2026-06-30")
+        self.assertEqual(response.data["inicio"], (hoje - timedelta(days=14)).isoformat())
+        self.assertEqual(response.data["fim"], (hoje + timedelta(days=14)).isoformat())
         aulas = {item["aula_id"]: item for item in response.data["aulas"]}
         self.assertEqual(
             set(aulas),

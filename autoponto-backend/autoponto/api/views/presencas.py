@@ -1,3 +1,4 @@
+import django_filters
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -6,17 +7,29 @@ from rest_framework.response import Response
 
 from api.models import Aula, PapelUsuario, RegistroPresenca
 from api.permissions import IsProfessorOuAdministrador
+from api.selectors.aulas import filtrar_status_aula
 from api.selectors.presencas import obter_aulas_acessiveis
 from api.serializers.presencas import AulaSerializer, RegistroPresencaSerializer
 from api.services.aulas import abrir_chamada_aula, fechar_chamada_aula
 from api.services.errors import AppError
 
 
+class AulaFilter(django_filters.FilterSet):
+    status = django_filters.ChoiceFilter(choices=Aula.STATUS_CHOICES, method="filter_status")
+
+    class Meta:
+        model = Aula
+        fields = ("status", "turma", "sala", "horario_padrao", "data")
+
+    def filter_status(self, queryset, name, value):
+        return filtrar_status_aula(queryset, value)
+
+
 class AulaViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Aula.objects.none()
     serializer_class = AulaSerializer
     permission_classes = (IsProfessorOuAdministrador,)
-    filterset_fields = ("status", "turma", "sala", "horario_padrao", "data")
+    filterset_class = AulaFilter
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
