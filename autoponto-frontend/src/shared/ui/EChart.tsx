@@ -3,7 +3,9 @@ import { BarChart, LineChart, ScatterChart } from "echarts/charts";
 import {
   GridComponent,
   LegendComponent,
+  MarkLineComponent,
   TooltipComponent,
+  DataZoomComponent,
 } from "echarts/components";
 import * as echarts from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
@@ -20,7 +22,9 @@ echarts.use([
   GridComponent,
   LegendComponent,
   LineChart,
+  MarkLineComponent,
   ScatterChart,
+  DataZoomComponent,
   TooltipComponent,
 ]);
 
@@ -42,7 +46,9 @@ export function EChart({ option, className }: EChartProps) {
   }, []);
 
   useEffect(() => {
-    const chart = elementRef.current ? echarts.getInstanceByDom(elementRef.current) : null;
+    const chart = elementRef.current
+      ? echarts.getInstanceByDom(elementRef.current)
+      : null;
     chart?.setOption(option, true);
   }, [option]);
 

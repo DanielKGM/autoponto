@@ -2,6 +2,8 @@ from django.utils import timezone
 
 from api.models import (
     Aula,
+    DispositivoEsp32,
+    EmbeddingFacial,
     EventoReconhecimento,
     MatriculaTurma,
     PapelUsuario,
@@ -401,6 +403,7 @@ def _resumo_frequencia_turma_para_aluno(turma: Turma, aluno: Usuario) -> dict:
     faltas = max(total - presencas, 0)
     return {
         **payload_turma(turma),
+        **payload_ultimo_sync_turma(turma),
         "total_aulas_fechadas": total,
         "presencas": presencas,
         "faltas": faltas,
@@ -468,6 +471,11 @@ def dashboard_aluno(aluno: Usuario) -> dict:
     pendentes = aulas_base.exclude(status__in=[Aula.STATUS_FECHADA, Aula.STATUS_CANCELADA]).count()
     return {
         "gerado_em": timezone.now().isoformat(),
+        "biometria_cadastrada": EmbeddingFacial.objects.filter(
+            aluno=aluno,
+            ativo=True,
+            status=EmbeddingFacial.STATUS_ATIVO,
+        ).exists(),
         "aulas_hoje": [
             _payload_aula_resumo(aula, _status_aluno_resumo(aula, registros_por_aula.get(aula.id)))
             for aula in aulas_hoje
@@ -571,6 +579,90 @@ def resumo_frequencia_turma(turma: Turma) -> dict:
     }
 
 
+def payload_ultimo_sync_turma(turma: Turma) -> dict:
+    dispositivo_com_sync = (
+        DispositivoEsp32.objects.select_related("no")
+        .filter(
+            ativo=True,
+            no__isnull=False,
+            no__ultimo_sync_em__isnull=False,
+            sala__aulas__turma=turma,
+        )
+        .order_by("-no__ultimo_sync_em", "codigo")
+        .first()
+    )
+    dispositivo = dispositivo_com_sync or (
+        DispositivoEsp32.objects.select_related("no")
+        .filter(ativo=True, no__isnull=False, sala__aulas__turma=turma)
+        .order_by("codigo")
+        .first()
+    )
+    no = dispositivo.no if dispositivo else None
+    return {
+        "ultimo_sync_no_borda": no.ultimo_sync_em.isoformat() if no and no.ultimo_sync_em else None,
+        "no_borda_codigo": no.codigo if no else None,
+        "no_borda_nome": no.nome if no else None,
+    }
+
+
+def biometrias_do_aluno(aluno: Usuario) -> list[dict]:
+    embeddings = EmbeddingFacial.objects.filter(aluno=aluno).order_by("-criado_em")
+    return [
+        {
+            "id": str(embedding.id),
+            "versao_modelo": embedding.versao_modelo,
+            "status": embedding.status,
+            "ativo": embedding.ativo,
+            "possui_vetor": bool(embedding.vetor),
+            "criado_em": embedding.criado_em.isoformat(),
+            "atualizado_em": embedding.atualizado_em.isoformat(),
+            "revogado_em": embedding.revogado_em.isoformat() if embedding.revogado_em else None,
+        }
+        for embedding in embeddings
+    ]
+
+
+def eventos_reconhecimento_do_aluno(aluno: Usuario, limite: int = 20) -> list[dict]:
+    eventos = (
+        EventoReconhecimento.objects.select_related(
+            "dispositivo",
+            "aula",
+            "aula__turma",
+            "aula__turma__disciplina",
+            "aula__sala",
+            "embedding",
+        )
+        .filter(aluno_candidato=aluno)
+        .order_by("-ocorrido_em")[:limite]
+    )
+    payload = []
+    for evento in eventos:
+        aula = evento.aula
+        turma = aula.turma if aula else None
+        embedding = evento.embedding
+        payload.append(
+            {
+                "id": str(evento.id),
+                "aula_id": str(aula.id) if aula else None,
+                "turma_id": str(turma.id) if turma else None,
+                "disciplina": turma.disciplina.nome if turma else None,
+                "turma": turma.codigo if turma else None,
+                "data": aula.data.isoformat() if aula else None,
+                "inicio": aula.inicio.isoformat() if aula else None,
+                "fim": aula.fim.isoformat() if aula else None,
+                "sala": aula.sala.nome if aula else None,
+                "dispositivo": evento.dispositivo.codigo,
+                "confianca": float(evento.confianca),
+                "reconhecido": evento.reconhecido,
+                "ocorrido_em": evento.ocorrido_em.isoformat(),
+                "embedding_id": str(embedding.id) if embedding else None,
+                "embedding_status": embedding.status if embedding else None,
+                "embedding_criado_em": embedding.criado_em.isoformat() if embedding else None,
+            }
+        )
+    return payload
+
+
 def _payload_turma_detalhe(turma: Turma) -> dict:
     return {
         **payload_turma(turma),
@@ -580,8 +672,18 @@ def _payload_turma_detalhe(turma: Turma) -> dict:
 
 def _payload_aula_detalhe(aula: Aula, usuario: Usuario) -> dict:
     payload = _payload_aula_resumo(aula)
-    payload["pode_abrir_chamada"] = usuario.papel in {PapelUsuario.PROFESSOR, PapelUsuario.ADMINISTRADOR} and aula.status == Aula.STATUS_PLANEJADA
-    payload["pode_fechar_chamada"] = usuario.papel in {PapelUsuario.PROFESSOR, PapelUsuario.ADMINISTRADOR} and aula.status == Aula.STATUS_ABERTA
+    agora = timezone.now()
+    pode_gerenciar = usuario.papel in {PapelUsuario.PROFESSOR, PapelUsuario.ADMINISTRADOR}
+    payload["pode_abrir_chamada"] = (
+        pode_gerenciar
+        and aula.status == Aula.STATUS_PLANEJADA
+        and aula.inicio <= agora <= aula.fim
+    )
+    payload["pode_fechar_chamada"] = (
+        pode_gerenciar
+        and aula.status == Aula.STATUS_ABERTA
+        and agora >= aula.inicio
+    )
     payload["fechada_em"] = aula.fechada_em.isoformat() if aula.fechada_em else None
     payload["fechada_por"] = str(aula.fechada_por_id) if aula.fechada_por_id else None
     return payload
@@ -633,7 +735,7 @@ def detalhe_turma_aula(usuario: Usuario, turma: Turma, aula: Aula | None = None)
     }
     if usuario.papel in {PapelUsuario.PROFESSOR, PapelUsuario.ADMINISTRADOR}:
         eventos = (
-            EventoReconhecimento.objects.select_related("dispositivo", "aluno_candidato")
+            EventoReconhecimento.objects.select_related("dispositivo", "aluno_candidato", "embedding")
             .filter(aula=aula)
             .order_by("-ocorrido_em")
         )
@@ -646,6 +748,8 @@ def detalhe_turma_aula(usuario: Usuario, turma: Turma, aula: Aula | None = None)
                 "confianca": float(evento.confianca),
                 "reconhecido": evento.reconhecido,
                 "ocorrido_em": evento.ocorrido_em.isoformat(),
+                "embedding_id": str(evento.embedding_id) if evento.embedding_id else None,
+                "embedding_status": evento.embedding.status if evento.embedding else None,
             }
             for evento in eventos
         ]

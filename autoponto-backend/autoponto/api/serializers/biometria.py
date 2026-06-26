@@ -8,6 +8,7 @@ from api.services.errors import DomainValidationError
 class EmbeddingFacialSerializer(serializers.ModelSerializer):
     aluno_id = serializers.UUIDField(source="aluno.id", read_only=True)
     aluno_nome = serializers.CharField(source="aluno.nome_completo", read_only=True)
+    possui_vetor = serializers.SerializerMethodField()
 
     class Meta:
         model = EmbeddingFacial
@@ -19,10 +20,15 @@ class EmbeddingFacialSerializer(serializers.ModelSerializer):
             "versao_modelo",
             "status",
             "ativo",
+            "possui_vetor",
             "criado_em",
             "atualizado_em",
+            "revogado_em",
         )
-        read_only_fields = ("id", "criado_em", "atualizado_em")
+        read_only_fields = ("id", "criado_em", "atualizado_em", "revogado_em", "possui_vetor")
+
+    def get_possui_vetor(self, obj):
+        return bool(obj.vetor)
 
 
 class MatriculaBiometricaSerializer(serializers.Serializer):

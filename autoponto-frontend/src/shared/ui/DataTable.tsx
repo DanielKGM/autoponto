@@ -27,6 +27,7 @@ type DataTableProps<TItem, TContext = unknown> = {
   context: TContext;
   emptyState: ReactNode;
   actionsHeader?: string;
+  actionsWidth?: string;
   className?: string;
   pageSize?: number;
   rowActions?: (item: TItem) => ReactNode;
@@ -91,6 +92,7 @@ export function DataTable<TItem, TContext = unknown>({
   context,
   emptyState,
   actionsHeader = "Ações",
+  actionsWidth = "72px",
   className = "",
   pageSize = DEFAULT_PAGE_SIZE,
   rowActions,
@@ -191,7 +193,15 @@ export function DataTable<TItem, TContext = unknown>({
                   </th>
                 );
               })}
-              {rowActions && <th className="admin-cell-center" data-orderable="false">{actionsHeader}</th>}
+              {rowActions && (
+                <th
+                  className="admin-cell-center table-action-cell"
+                  data-orderable="false"
+                  style={{ width: actionsWidth }}
+                >
+                  {actionsHeader}
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -208,7 +218,7 @@ export function DataTable<TItem, TContext = unknown>({
                   </td>
                 ))}
                 {rowActions && (
-                  <td className="admin-cell-center">
+                  <td className="admin-cell-center table-action-cell" style={{ width: actionsWidth }}>
                     <div className="admin-row-actions">
                       {rowActions(row)}
                     </div>

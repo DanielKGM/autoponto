@@ -74,7 +74,9 @@ export type AdminResourceConfig = {
   defaults?: AnyRecord;
   deletable?: boolean | ((item: AnyRecord) => boolean);
   preparePayload?: (payload: AnyRecord, item: AnyRecord | null) => AnyRecord;
+  readOnly?: boolean;
   rowActions?: (item: AnyRecord, reload: () => void) => ReactNode;
+  rowActionCount?: number;
 };
 
 export type CollectionConfig = {
@@ -96,7 +98,7 @@ const MAX_COLLECTION_PAGES = 100;
 function fieldInitialValue(field: AdminField, item: AnyRecord | null, defaults: AnyRecord) {
   if (field.type === "checkbox") return Boolean(item?.[field.name] ?? defaults[field.name] ?? true);
   if (field.type === "multiselect") return item?.[field.name] ?? defaults[field.name] ?? [];
-  if (field.type === "schedule") return defaults[field.name] ?? [];
+  if (field.type === "schedule") return item?.[field.name] ?? defaults[field.name] ?? [];
   return item?.[field.name] ?? defaults[field.name] ?? "";
 }
 
@@ -140,7 +142,7 @@ function coercePayload(resource: AdminResourceConfig, formState: AnyRecord, item
       const horarios = Array.isArray(value)
         ? value.filter((row) => row.sala && row.horario_padrao)
         : [];
-      if (horarios.length > 0) payload[field.name] = horarios;
+      payload[field.name] = horarios;
       continue;
     }
     if (field.type === "checkbox") {
@@ -176,6 +178,13 @@ async function loadAllRows(endpoint: string) {
 function itemCanDelete(resource: AdminResourceConfig, item: AnyRecord) {
   if (typeof resource.deletable === "function") return resource.deletable(item);
   return Boolean(resource.deletable);
+}
+
+function actionColumnWidth(resource: AdminResourceConfig) {
+  let count = resource.readOnly ? 0 : 1;
+  if (resource.rowActions) count += resource.rowActionCount ?? 1;
+  if (!resource.readOnly && resource.deletable) count += 1;
+  return `${Math.max(72, count * 32 + 32)}px`;
 }
 
 function ScheduleField({
@@ -239,7 +248,6 @@ function ScheduleField({
             variant="danger"
             showTooltip={false}
             onClick={() => removeRow(index)}
-            disabled={rows.length === 1}
           />
         </div>
       ))}
@@ -285,6 +293,8 @@ export function AdminResourceManager({
   );
 
   const activeRows = collections[activeResource.key] || [];
+  const tableHasActions = !activeResource.readOnly || Boolean(activeResource.rowActions);
+  const tableActionsWidth = tableHasActions ? actionColumnWidth(activeResource) : undefined;
 
   const reload = async () => {
     setLoading(true);
@@ -512,12 +522,14 @@ export function AdminResourceManager({
               icon={<RefreshIcon />}
               onClick={() => void reload()}
             />
-            <IconButton
-              label={`Novo ${activeResource.singular}`}
-              icon={<PlusIcon />}
-              variant="primary"
-              onClick={openCreateModal}
-            />
+            {!activeResource.readOnly && (
+              <IconButton
+                label={`Novo ${activeResource.singular}`}
+                icon={<PlusIcon />}
+                variant="primary"
+                onClick={openCreateModal}
+              />
+            )}
           </div>
         </div>
         <div className="card-body p-0">
@@ -536,15 +548,17 @@ export function AdminResourceManager({
                   text="Use o botão de adicionar para criar o primeiro item desta seção."
                 />
               }
-              rowActions={(row) => (
+              rowActions={tableHasActions ? (row) => (
                 <>
-                  <IconButton
-                    label="Editar"
-                    icon={<EditIcon />}
-                    onClick={() => openEditModal(row)}
-                  />
+                  {!activeResource.readOnly && (
+                    <IconButton
+                      label="Editar"
+                      icon={<EditIcon />}
+                      onClick={() => openEditModal(row)}
+                    />
+                  )}
                   {activeResource.rowActions?.(row, reload)}
-                  {itemCanDelete(activeResource, row) && (
+                  {!activeResource.readOnly && itemCanDelete(activeResource, row) && (
                     <IconButton
                       label="Excluir"
                       icon={<TrashIcon />}
@@ -553,7 +567,8 @@ export function AdminResourceManager({
                     />
                   )}
                 </>
-              )}
+              ) : undefined}
+              actionsWidth={tableActionsWidth}
               rows={activeRows}
               search={search}
             />

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { apiFetch, detalheErro } from "../../../shared/api";
 import { useSession } from "../../../shared/session";
+import { ConfirmModal } from "../../../shared/ui/ConfirmModal";
 import { EmptyState } from "../../../shared/ui/EmptyState";
+import { IconButton } from "../../../shared/ui/IconButton";
 import { PageMeta } from "../../../shared/ui/PageMeta";
 import { ProgressBar } from "../../../shared/ui/ProgressBar";
 import {
@@ -9,10 +11,18 @@ import {
   type SimpleTableColumn,
 } from "../../../shared/ui/SimpleTable";
 import type {
+  BiometriaAluno,
+  BiometriasAlunoResponse,
+  EventoReconhecimentoAluno,
+  EventosReconhecimentoAlunoResponse,
   FrequenciaTurmaAluno,
   ResumoFrequenciaAlunoResponse,
 } from "../../../shared/types";
-import { percentText } from "../../../shared/domain/academicUtils";
+import {
+  formatDateTime,
+  percentText,
+} from "../../../shared/domain/academicUtils";
+import { TrashIcon } from "../../../shared/ui/icons";
 
 const frequencyColumns: SimpleTableColumn<FrequenciaTurmaAluno>[] = [
   {
@@ -44,7 +54,35 @@ const frequencyColumns: SimpleTableColumn<FrequenciaTurmaAluno>[] = [
       </div>
     ),
   },
+  {
+    key: "ultimo_sync_no_borda",
+    label: "Última sincronização",
+    align: "center",
+    render: (row) => (
+      <div>
+        <span>{formatDateTime(row.ultimo_sync_no_borda)}</span>
+        <div className="lesson-table-subtext">
+          {row.no_borda_codigo || "Sem nó vinculado"}
+        </div>
+      </div>
+    ),
+  },
 ];
+
+function biometricStatusClass(status: BiometriaAluno["status"]) {
+  if (status === "ATIVO") return "status status-green";
+  if (status === "REVOGADO") return "status status-muted";
+  return "status status-yellow";
+}
+
+function biometricStatusLabel(status: BiometriaAluno["status"]) {
+  const labels = {
+    ATIVO: "Ativa",
+    INATIVO: "Inativa",
+    REVOGADO: "Revogada",
+  };
+  return labels[status] || status;
+}
 
 function initials(name: string) {
   return (
@@ -61,9 +99,17 @@ export function ProfilePage() {
   const { me } = useSession();
   const [frequency, setFrequency] =
     useState<ResumoFrequenciaAlunoResponse | null>(null);
+  const [biometrics, setBiometrics] = useState<BiometriaAluno[]>([]);
+  const [recognitionEvents, setRecognitionEvents] = useState<
+    EventoReconhecimentoAluno[]
+  >([]);
   const [periodoId, setPeriodoId] = useState("");
   const [loading, setLoading] = useState(false);
+  const [biometricsLoading, setBiometricsLoading] = useState(false);
+  const [deletingBiometric, setDeletingBiometric] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<BiometriaAluno | null>(null);
   const [error, setError] = useState("");
+  const [biometricsError, setBiometricsError] = useState("");
   const isAluno = me.usuario.papel === "ALUNO";
   const nome = me.usuario.nome_completo || me.usuario.username;
   const detailFields = [
@@ -100,6 +146,145 @@ export function ProfilePage() {
     };
   }, [isAluno, periodoId]);
 
+  function loadBiometricInfo() {
+    if (!isAluno) return;
+    setBiometricsLoading(true);
+    setBiometricsError("");
+    Promise.all([
+      apiFetch<BiometriasAlunoResponse>("/me/biometrias/"),
+      apiFetch<EventosReconhecimentoAlunoResponse>(
+        "/me/eventos-reconhecimento/?limite=8",
+      ),
+    ])
+      .then(([biometricResponse, eventResponse]) => {
+        setBiometrics(biometricResponse.biometrias);
+        setRecognitionEvents(eventResponse.eventos);
+      })
+      .catch((err) => setBiometricsError(detalheErro(err)))
+      .finally(() => setBiometricsLoading(false));
+  }
+
+  useEffect(() => {
+    loadBiometricInfo();
+  }, [isAluno]);
+
+  async function confirmDeleteBiometric() {
+    if (!deleteTarget) return;
+    setDeletingBiometric(true);
+    setBiometricsError("");
+    try {
+      await apiFetch<void>(`/me/biometrias/${deleteTarget.id}/`, {
+        method: "DELETE",
+      });
+      setDeleteTarget(null);
+      loadBiometricInfo();
+    } catch (err) {
+      setBiometricsError(detalheErro(err));
+    } finally {
+      setDeletingBiometric(false);
+    }
+  }
+
+  const biometricColumns: SimpleTableColumn<BiometriaAluno>[] = [
+    {
+      key: "versao_modelo",
+      label: "Modelo",
+      render: (row) => (
+        <div>
+          <span className="cell-strong">{row.versao_modelo}</span>
+          <div className="lesson-table-subtext">
+            Cadastro em {formatDateTime(row.criado_em)}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "status",
+      label: "Status",
+      align: "center",
+      render: (row) => (
+        <span className={biometricStatusClass(row.status)}>
+          {biometricStatusLabel(row.status)}
+        </span>
+      ),
+    },
+    {
+      key: "revogado_em",
+      label: "Revogação",
+      align: "center",
+      render: (row) => formatDateTime(row.revogado_em),
+    },
+    {
+      key: "acao",
+      label: "Ações",
+      align: "center",
+      className: "table-action-cell",
+      width: "64px",
+      render: (row) =>
+        row.ativo ? (
+          <div className="admin-row-actions">
+            <IconButton
+              label="Revogar biometria"
+              icon={<TrashIcon />}
+              variant="danger"
+              onClick={() => setDeleteTarget(row)}
+            />
+          </div>
+        ) : (
+          "-"
+        ),
+    },
+  ];
+
+  const recognitionColumns: SimpleTableColumn<EventoReconhecimentoAluno>[] = [
+    {
+      key: "disciplina",
+      label: "Evento",
+      render: (row) => (
+        <div>
+          <span className="cell-strong">
+            {row.disciplina || "Aula não vinculada"}
+          </span>
+          <div className="lesson-table-subtext">
+            {row.turma || "-"} · {row.dispositivo}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "confianca",
+      label: "Score",
+      align: "center",
+      render: (row) => `${Math.round(row.confianca * 100)}%`,
+    },
+    {
+      key: "reconhecido",
+      label: "Resultado",
+      align: "center",
+      render: (row) => (
+        <span
+          className={
+            row.reconhecido ? "status status-green" : "status status-red"
+          }
+        >
+          {row.reconhecido ? "Reconhecido" : "Não reconhecido"}
+        </span>
+      ),
+    },
+    {
+      key: "embedding_status",
+      label: "Biometria",
+      align: "center",
+      render: (row) => row.embedding_status || "Removida",
+    },
+    {
+      key: "ocorrido_em",
+      label: "Data",
+      align: "center",
+      render: (row) => formatDateTime(row.ocorrido_em),
+    },
+  ];
+
   return (
     <>
       <PageMeta
@@ -108,16 +293,10 @@ export function ProfilePage() {
       />
       <div className="page-header">
         <div className="page-pretitle">Conta</div>
-        <h1 className="page-title">Perfil</h1>
+        <h1 className="page-title">Informações Pessoais</h1>
       </div>
 
-      <section className="card profile-overview-card">
-        <div className="card-header">
-          <div>
-            <div className="card-title">Dados do usuário</div>
-            <div className="card-subtitle">Resumo da sessão autenticada.</div>
-          </div>
-        </div>
+      <section className="card">
         <div className="card-body profile-overview">
           <div className="profile-main">
             <div
@@ -151,9 +330,6 @@ export function ProfilePage() {
           <div className="card-header profile-frequency-header">
             <div>
               <div className="card-title">Frequência detalhada</div>
-              <div className="card-subtitle">
-                Resumo por turma e disciplina, calculado com aulas fechadas.
-              </div>
             </div>
             <select
               className="form-control profile-period-select"
@@ -214,6 +390,80 @@ export function ProfilePage() {
           </div>
         </section>
       )}
+
+      {isAluno && (
+        <>
+          <section className="card">
+            <div className="card-header">
+              <div>
+                <div className="card-title">Biometrias cadastradas</div>
+                <div className="card-subtitle">
+                  Metadados do cadastro biométrico. As imagens enviadas não
+                  ficam armazenadas.
+                </div>
+              </div>
+            </div>
+            <div className="card-body">
+              {biometricsLoading && (
+                <div className="alert alert-info">Carregando biometrias...</div>
+              )}
+              {biometricsError && (
+                <div className="alert alert-error">{biometricsError}</div>
+              )}
+              <SimpleTable
+                columns={biometricColumns}
+                rows={biometrics}
+                rowKey={(row) => row.id}
+                emptyState={
+                  <EmptyState
+                    title="Sem biometria cadastrada"
+                    text="Cadastre sua biometria para usar reconhecimento nas chamadas."
+                  />
+                }
+              />
+            </div>
+          </section>
+
+          <section className="card">
+            <div className="card-header">
+              <div>
+                <div className="card-title">Eventos de reconhecimento</div>
+                <div className="card-subtitle">
+                  Histórico recente de reconhecimentos associados à sua conta.
+                </div>
+              </div>
+            </div>
+            <div className="card-body">
+              <SimpleTable
+                columns={recognitionColumns}
+                rows={recognitionEvents}
+                rowKey={(row) => row.id}
+                emptyState={
+                  <EmptyState
+                    title="Sem eventos"
+                    text="Os eventos aparecerão após reconhecimentos enviados pelos dispositivos."
+                  />
+                }
+              />
+            </div>
+          </section>
+        </>
+      )}
+
+      <ConfirmModal
+        open={deleteTarget !== null}
+        title="Revogar biometria"
+        confirmLabel="Revogar"
+        variant="danger"
+        loading={deletingBiometric}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => void confirmDeleteBiometric()}
+      >
+        <p className="modal-confirm-text">
+          O vetor biométrico será removido e esta biometria deixará de ser usada
+          no reconhecimento.
+        </p>
+      </ConfirmModal>
     </>
   );
 }

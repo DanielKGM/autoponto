@@ -205,6 +205,13 @@ export function StudentDashboardPage() {
 
       {data && (
         <>
+          {!data.biometria_cadastrada && (
+            <div className="alert alert-warning">
+              Você ainda não cadastrou sua biometria.{" "}
+              <Link to="/app/aluno/biometria">Cadastrar biometria</Link>
+            </div>
+          )}
+
           <div className="dashboard-kpi-grid academic-kpi-grid">
             <StatCard
               label="Frequência geral"
@@ -319,7 +326,7 @@ export function StudentDashboardPage() {
                 </div>
               </div>
               <Link className="btn btn-outline btn-sm" to="/app/perfil">
-                Ver detalhe
+                Mais detalhes
               </Link>
             </div>
             <div className="card-body">

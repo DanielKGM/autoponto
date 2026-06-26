@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router";
 import { apiFetch, detalheErro } from "../../../shared/api";
 import { DataTable, type DataTableColumn } from "../../../shared/ui/DataTable";
 import { EmptyState } from "../../../shared/ui/EmptyState";
+import { IconButton } from "../../../shared/ui/IconButton";
 import { PageMeta } from "../../../shared/ui/PageMeta";
 import { SimpleTable, type SimpleTableColumn } from "../../../shared/ui/SimpleTable";
 import { StatCard } from "../../../shared/ui/StatCard";
-import { CalendarIcon, ClockIcon, UnlockIcon, UsersIcon } from "../../../shared/ui/icons";
+import { CalendarIcon, ClockIcon, EyeIcon, UnlockIcon, UsersIcon } from "../../../shared/ui/icons";
 import type { AulaResumo, DashboardProfessorResponse, PresencaRecenteProfessor, TurmaResumo } from "../../../shared/types";
 import {
   formatDate,
@@ -18,7 +19,8 @@ import {
 } from "../../../shared/domain/academicUtils";
 import { formatTimeRange, lessonDetailPath, turmaPath } from "../../../shared/domain/studentCalendarUtils";
 
-const lessonColumns: SimpleTableColumn<AulaResumo>[] = [
+function lessonColumns(openDetails: (path: string) => void): SimpleTableColumn<AulaResumo>[] {
+  return [
   {
     key: "disciplina",
     label: "Aula",
@@ -43,16 +45,22 @@ const lessonColumns: SimpleTableColumn<AulaResumo>[] = [
   },
   {
     key: "acao",
-    label: "",
+    label: "Ações",
     align: "center",
-    width: "92px",
+    className: "table-action-cell",
+    width: "64px",
     render: (row) => (
-      <Link className="btn btn-outline btn-sm" to={lessonDetailPath(row.turma_id, row.aula_id)}>
-        Abrir
-      </Link>
+      <div className="admin-row-actions">
+        <IconButton
+          label="Detalhes"
+          icon={<EyeIcon />}
+          onClick={() => openDetails(lessonDetailPath(row.turma_id, row.aula_id))}
+        />
+      </div>
     ),
   },
-];
+  ];
+}
 
 const turmaColumns: DataTableColumn<TurmaResumo>[] = [
   {
@@ -95,6 +103,7 @@ const presencaColumns: SimpleTableColumn<PresencaRecenteProfessor>[] = [
 ];
 
 export function TeacherDashboardPage() {
+  const navigate = useNavigate();
   const [data, setData] = useState<DashboardProfessorResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -117,6 +126,11 @@ export function TeacherDashboardPage() {
       active = false;
     };
   }, []);
+
+  const lessonTableColumns = useMemo(
+    () => lessonColumns((path) => navigate(path)),
+    [navigate],
+  );
 
   return (
     <>
@@ -153,7 +167,7 @@ export function TeacherDashboardPage() {
               </div>
               <div className="card-body">
                 <SimpleTable
-                  columns={lessonColumns}
+                  columns={lessonTableColumns}
                   rows={data.aulas_hoje}
                   rowKey={(row) => row.aula_id}
                   emptyState={<EmptyState title="Nenhuma aula hoje" text="As aulas do dia aparecerão aqui." />}
@@ -170,7 +184,7 @@ export function TeacherDashboardPage() {
               </div>
               <div className="card-body">
                 <SimpleTable
-                  columns={lessonColumns}
+                  columns={lessonTableColumns}
                   rows={data.chamadas_abertas}
                   rowKey={(row) => row.aula_id}
                   emptyState={<EmptyState title="Nenhuma chamada aberta" text="Chamadas abertas aparecerão nesta lista." />}
@@ -188,7 +202,7 @@ export function TeacherDashboardPage() {
             </div>
             <div className="card-body">
               <SimpleTable
-                columns={lessonColumns}
+                columns={lessonTableColumns}
                 rows={data.chamadas_pendentes}
                 rowKey={(row) => row.aula_id}
                 emptyState={<EmptyState title="Sem chamadas pendentes" text="Não há aulas planejadas pendentes até hoje." />}
@@ -209,7 +223,13 @@ export function TeacherDashboardPage() {
                 rows={data.turmas}
                 context={undefined}
                 rowKey={(row) => row.turma_id}
-                rowActions={(row) => <Link className="btn btn-outline btn-sm" to={turmaPath(row.turma_id)}>Abrir</Link>}
+                rowActions={(row) => (
+                  <IconButton
+                    label="Detalhes"
+                    icon={<EyeIcon />}
+                    onClick={() => navigate(turmaPath(row.turma_id))}
+                  />
+                )}
                 emptyState={<EmptyState title="Nenhuma turma" text="Turmas ministradas aparecerão aqui." />}
               />
             </div>

@@ -134,6 +134,9 @@ export type AulaResumo = {
 };
 
 export type FrequenciaTurmaAluno = TurmaResumo & {
+  ultimo_sync_no_borda: string | null;
+  no_borda_codigo: string | null;
+  no_borda_nome: string | null;
   total_aulas_fechadas: number;
   presencas: number;
   faltas: number;
@@ -156,6 +159,7 @@ export type ResumoFrequenciaAlunoResponse = {
 
 export type DashboardAlunoResponse = {
   gerado_em: string;
+  biometria_cadastrada: boolean;
   aulas_hoje: AulaResumo[];
   proximas_aulas: AulaResumo[];
   resumo: {
@@ -167,6 +171,44 @@ export type DashboardAlunoResponse = {
   };
   frequencia_por_turma: FrequenciaTurmaAluno[];
   ultimas_presencas: Array<AulaResumo & { status: StatusAlunoResumo }>;
+};
+
+export type BiometriaAluno = {
+  id: string;
+  versao_modelo: string;
+  status: "ATIVO" | "INATIVO" | "REVOGADO";
+  ativo: boolean;
+  possui_vetor: boolean;
+  criado_em: string;
+  atualizado_em: string;
+  revogado_em: string | null;
+};
+
+export type BiometriasAlunoResponse = {
+  biometrias: BiometriaAluno[];
+};
+
+export type EventoReconhecimentoAluno = {
+  id: string;
+  aula_id: string | null;
+  turma_id: string | null;
+  disciplina: string | null;
+  turma: string | null;
+  data: string | null;
+  inicio: string | null;
+  fim: string | null;
+  sala: string | null;
+  dispositivo: string;
+  confianca: number;
+  reconhecido: boolean;
+  ocorrido_em: string;
+  embedding_id: string | null;
+  embedding_status: string | null;
+  embedding_criado_em: string | null;
+};
+
+export type EventosReconhecimentoAlunoResponse = {
+  eventos: EventoReconhecimentoAluno[];
 };
 
 export type PresencaRecenteProfessor = PresencaAluno & {
@@ -214,6 +256,8 @@ export type TurmaAulaDetalheResponse = {
     confianca: number;
     reconhecido: boolean;
     ocorrido_em: string;
+    embedding_id: string | null;
+    embedding_status: string | null;
   }>;
   resumo: {
     presentes: number;
@@ -300,7 +344,7 @@ export type DispositivoHistorico = {
   periodo?: string;
   historico: Record<string, Array<Record<string, unknown>>>;
   pir?: {
-    tipo: "linha_tempo" | "histograma";
+    tipo: "histograma";
     balde_minutos?: number;
     eventos: Array<{ timestamp: string; valor: boolean; nivel: number }>;
     baldes: Array<{ inicio: string; fim: string; quantidade: number }>;

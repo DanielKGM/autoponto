@@ -21,7 +21,7 @@ class Campus(BaseModel):
 
 
 class Predio(BaseModel):
-    campus = models.ForeignKey(Campus, on_delete=models.CASCADE, related_name="predios")
+    campus = models.ForeignKey(Campus, on_delete=models.PROTECT, related_name="predios")
     nome = models.CharField(max_length=255)
     ativo = models.BooleanField(default=True)
 
@@ -38,7 +38,7 @@ class Predio(BaseModel):
 
 
 class Sala(BaseModel):
-    predio = models.ForeignKey(Predio, on_delete=models.CASCADE, related_name="salas")
+    predio = models.ForeignKey(Predio, on_delete=models.PROTECT, related_name="salas")
     nome = models.CharField(max_length=255)
     codigo = models.CharField(max_length=20)
     ativo = models.BooleanField(default=True)
@@ -140,8 +140,8 @@ class Turma(BaseModel):
 
 
 class MatriculaTurma(BaseModel):
-    turma = models.ForeignKey(Turma, on_delete=models.CASCADE, related_name="matriculas")
-    aluno = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name="matriculas_turma")
+    turma = models.ForeignKey(Turma, on_delete=models.PROTECT, related_name="matriculas")
+    aluno = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name="matriculas_turma")
     ativo = models.BooleanField(default=True)
 
     class Meta:

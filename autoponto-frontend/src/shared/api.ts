@@ -174,6 +174,9 @@ export function detalheErro(erro: unknown): string {
     if (erro.status === 400) {
       return erro.message || "Dados invalidos. Revise as informacoes e tente novamente.";
     }
+    if (erro.status === 413) {
+      return "Envio muito grande. Reduza a quantidade ou o tamanho das imagens e tente novamente.";
+    }
     return erro.message || "Falha ao processar a solicitacao.";
   }
   return erro instanceof Error ? erro.message : "Erro inesperado.";

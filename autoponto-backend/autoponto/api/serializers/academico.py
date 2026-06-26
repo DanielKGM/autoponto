@@ -1,7 +1,9 @@
 from django.db import transaction
+from django.utils import timezone
 from rest_framework import serializers
 
 from api.models import (
+    Aula,
     Campus,
     Curso,
     Disciplina,
@@ -70,7 +72,7 @@ class TurmaSerializer(serializers.ModelSerializer):
         child=serializers.DictField(),
         write_only=True,
         required=False,
-        allow_empty=False,
+        allow_empty=True,
     )
 
     class Meta:
@@ -99,6 +101,28 @@ class TurmaSerializer(serializers.ModelSerializer):
             horarios.append({"sala": sala, "horario_padrao": horario_padrao})
         if erros:
             raise serializers.ValidationError(erros)
+        return horarios
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["horarios"] = self.horarios_futuros_da_turma(instance)
+        return data
+
+    def horarios_futuros_da_turma(self, turma):
+        aulas = (
+            Aula.objects.select_related("sala", "horario_padrao")
+            .filter(turma=turma, data__gte=timezone.localdate())
+            .exclude(status=Aula.STATUS_CANCELADA)
+            .order_by("horario_padrao__dia_semana", "horario_padrao__horario_inicio", "sala__codigo", "id")
+        )
+        vistos = set()
+        horarios = []
+        for aula in aulas:
+            par = (aula.sala_id, aula.horario_padrao_id)
+            if par in vistos:
+                continue
+            vistos.add(par)
+            horarios.append({"sala": str(aula.sala_id), "horario_padrao": str(aula.horario_padrao_id)})
         return horarios
 
     def validate(self, attrs):

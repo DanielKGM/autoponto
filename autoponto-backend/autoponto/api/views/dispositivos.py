@@ -2,6 +2,7 @@
 from rest_framework.response import Response
 from django.db import transaction
 from django.db.models import Prefetch
+from django.utils import timezone
 
 from api.models import DispositivoEsp32, NoBorda, TokenNoBorda
 from api.permissions import IsAdministrador
@@ -21,6 +22,12 @@ class NoBordaViewSet(AdminReadableModelViewSet):
     filterset_fields = ("ativo",)
     search_fields = ("codigo", "nome")
 
+    def perform_destroy(self, instance):
+        with transaction.atomic():
+            instance.ativo = False
+            instance.save(update_fields=["ativo", "atualizado_em"])
+            instance.tokens.filter(ativo=True).update(ativo=False, atualizado_em=timezone.now())
+
     @action(
         detail=True,
         methods=["post"],
@@ -34,7 +41,6 @@ class NoBordaViewSet(AdminReadableModelViewSet):
         serializer.is_valid(raise_exception=True)
         nome = serializer.validated_data["nome"]
         with transaction.atomic():
-            no.tokens.filter(nome=nome, ativo=True).delete()
             token, token_bruto = no.tokens.model.emitir_token(
                 no=no,
                 nome=nome,
@@ -55,3 +61,7 @@ class DispositivoEsp32ViewSet(AdminReadableModelViewSet):
     serializer_class = DispositivoEsp32Serializer
     filterset_fields = ("no", "sala", "ativo")
     search_fields = ("codigo", "nome", "interscity_uuid")
+
+    def perform_destroy(self, instance):
+        instance.ativo = False
+        instance.save(update_fields=["ativo", "atualizado_em"])

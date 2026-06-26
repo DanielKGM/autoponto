@@ -1,6 +1,9 @@
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
+from io import StringIO
 
+from django.core.management import call_command
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -10,6 +13,7 @@ from api.models import (
     Curso,
     Disciplina,
     DispositivoEsp32,
+    EmbeddingFacial,
     EventoReconhecimento,
     HorarioPadraoUFMA,
     MatriculaTurma,
@@ -23,6 +27,8 @@ from api.models import (
     Turma,
     Usuario,
 )
+from api.services.aulas import sincronizar_aulas_da_turma
+from api.services.errors import DomainValidationError
 
 
 def aware_datetime(value: date, hour: int, minute: int = 0):
@@ -128,6 +134,29 @@ class DashboardsAcademicosTests(APITestCase):
     def autenticar(self, usuario):
         self.client.force_authenticate(usuario)
 
+    def proxima_data_com_dia_semana(self, dia_semana):
+        hoje = timezone.localdate()
+        dias_ate_data = (int(dia_semana) - 2 - hoje.weekday()) % 7
+        if dias_ate_data == 0:
+            dias_ate_data = 7
+        return hoje + timedelta(days=dias_ate_data)
+
+    def data_anterior_com_dia_semana(self, dia_semana):
+        hoje = timezone.localdate()
+        dias_desde_data = (hoje.weekday() - (int(dia_semana) - 2)) % 7
+        if dias_desde_data == 0:
+            dias_desde_data = 7
+        return hoje - timedelta(days=dias_desde_data)
+
+    def criar_horario_padrao(self, codigo, hour):
+        dia_semana = int(codigo[0])
+        return HorarioPadraoUFMA.objects.create(
+            codigo=codigo,
+            dia_semana=dia_semana,
+            horario_inicio=time(hour, 0),
+            horario_fim=time(hour + 2, 0),
+        )
+
     def test_status_de_presenca_tem_apenas_presente_e_ausente(self):
         self.assertEqual(
             RegistroPresenca.STATUS_CHOICES,
@@ -138,6 +167,138 @@ class DashboardsAcademicosTests(APITestCase):
         )
         self.assertFalse(hasattr(RegistroPresenca, "STATUS_ATRASO"))
         self.assertFalse(hasattr(RegistroPresenca, "STATUS_JUSTIFICADA"))
+
+    def test_admin_cria_professor_sem_matricula_mas_exige_para_aluno(self):
+        self.autenticar(self.admin)
+
+        professor_response = self.client.post(
+            "/api/usuarios/",
+            {
+                "username": "professor-sem-matricula",
+                "password": "senha",
+                "papel": PapelUsuario.PROFESSOR,
+                "nome_completo": "Professor Sem Matricula",
+            },
+            format="json",
+        )
+        aluno_response = self.client.post(
+            "/api/usuarios/",
+            {
+                "username": "aluno-sem-matricula",
+                "password": "senha",
+                "papel": PapelUsuario.ALUNO,
+                "nome_completo": "Aluno Sem Matricula",
+            },
+            format="json",
+        )
+
+        self.assertEqual(professor_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(professor_response.data["matricula"], "")
+        self.assertEqual(aluno_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("matricula", aluno_response.data)
+
+    def test_turma_retorna_horarios_de_aulas_futuras_nao_canceladas(self):
+        hoje = timezone.localdate()
+        periodo = PeriodoLetivo.objects.create(
+            nome="Periodo horarios response",
+            data_inicio=hoje - timedelta(days=7),
+            data_fim=hoje + timedelta(days=21),
+            ativo=True,
+        )
+        turma = self.criar_turma("HOR", periodo, self.disciplina, self.professor)
+        horario_ativo = self.criar_horario_padrao("2M12", 8)
+        horario_cancelado = self.criar_horario_padrao("3M34", 10)
+        data_passada = self.data_anterior_com_dia_semana(horario_ativo.dia_semana)
+        data_futura_ativa = self.proxima_data_com_dia_semana(horario_ativo.dia_semana)
+        data_futura_cancelada = self.proxima_data_com_dia_semana(horario_cancelado.dia_semana)
+
+        Aula.objects.create(
+            turma=turma,
+            sala=self.sala,
+            horario_padrao=horario_ativo,
+            data=data_passada,
+            inicio=aware_datetime(data_passada, 8),
+            fim=aware_datetime(data_passada, 10),
+            status=Aula.STATUS_FECHADA,
+        )
+        Aula.objects.create(
+            turma=turma,
+            sala=self.sala,
+            horario_padrao=horario_ativo,
+            data=data_futura_ativa,
+            inicio=aware_datetime(data_futura_ativa, 8),
+            fim=aware_datetime(data_futura_ativa, 10),
+            status=Aula.STATUS_PLANEJADA,
+        )
+        Aula.objects.create(
+            turma=turma,
+            sala=self.sala,
+            horario_padrao=horario_cancelado,
+            data=data_futura_cancelada,
+            inicio=aware_datetime(data_futura_cancelada, 10),
+            fim=aware_datetime(data_futura_cancelada, 12),
+            status=Aula.STATUS_CANCELADA,
+        )
+
+        self.autenticar(self.admin)
+        response = self.client.get(f"/api/turmas/{turma.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["horarios"],
+            [{"sala": str(self.sala.id), "horario_padrao": str(horario_ativo.id)}],
+        )
+
+    def test_editar_turma_remove_horario_futuro_e_recusa_turma_ativa_sem_horarios(self):
+        hoje = timezone.localdate()
+        periodo = PeriodoLetivo.objects.create(
+            nome="Periodo horarios edit",
+            data_inicio=hoje - timedelta(days=7),
+            data_fim=hoje + timedelta(days=21),
+            ativo=True,
+        )
+        turma = self.criar_turma("EDT", periodo, self.disciplina, self.professor)
+        horario_mantido = self.criar_horario_padrao("2T12", 14)
+        horario_removido = self.criar_horario_padrao("3T34", 16)
+        data_mantida = self.proxima_data_com_dia_semana(horario_mantido.dia_semana)
+        data_removida = self.proxima_data_com_dia_semana(horario_removido.dia_semana)
+        aula_mantida = Aula.objects.create(
+            turma=turma,
+            sala=self.sala,
+            horario_padrao=horario_mantido,
+            data=data_mantida,
+            inicio=aware_datetime(data_mantida, 14),
+            fim=aware_datetime(data_mantida, 16),
+            status=Aula.STATUS_PLANEJADA,
+        )
+        aula_removida = Aula.objects.create(
+            turma=turma,
+            sala=self.sala,
+            horario_padrao=horario_removido,
+            data=data_removida,
+            inicio=aware_datetime(data_removida, 16),
+            fim=aware_datetime(data_removida, 18),
+            status=Aula.STATUS_PLANEJADA,
+        )
+
+        self.autenticar(self.admin)
+        update_response = self.client.patch(
+            f"/api/turmas/{turma.id}/",
+            {"horarios": [{"sala": str(self.sala.id), "horario_padrao": str(horario_mantido.id)}]},
+            format="json",
+        )
+        empty_response = self.client.patch(
+            f"/api/turmas/{turma.id}/",
+            {"horarios": []},
+            format="json",
+        )
+
+        self.assertEqual(update_response.status_code, status.HTTP_200_OK)
+        aula_mantida.refresh_from_db()
+        aula_removida.refresh_from_db()
+        self.assertEqual(aula_mantida.status, Aula.STATUS_PLANEJADA)
+        self.assertEqual(aula_removida.status, Aula.STATUS_CANCELADA)
+        self.assertEqual(empty_response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_dashboard_aluno_mostra_aulas_frequencia_e_ultimas_presencas(self):
         hoje = timezone.localdate()
@@ -194,6 +355,12 @@ class DashboardsAcademicosTests(APITestCase):
         MatriculaTurma.objects.create(turma=turma_outro_periodo, aluno=self.aluno, ativo=True)
         self.criar_aula(turma_outro_periodo, date(2026, 7, 6), Aula.STATUS_FECHADA)
         RegistroPresenca.objects.create(aula=aula_presente, aluno=self.aluno)
+        no = NoBorda.objects.create(
+            codigo="NO-SYNC",
+            nome="No Sync",
+            ultimo_sync_em=aware_datetime(date(2026, 6, 20), 9),
+        )
+        DispositivoEsp32.objects.create(no=no, sala=self.sala, codigo="ESP-SYNC", nome="ESP Sync")
 
         self.autenticar(self.aluno)
         response = self.client.get(f"/api/me/frequencia/?periodo_letivo={self.periodo.id}")
@@ -204,6 +371,11 @@ class DashboardsAcademicosTests(APITestCase):
         self.assertEqual(response.data["resumo"]["presencas"], 1)
         self.assertEqual(response.data["resumo"]["faltas"], 1)
         self.assertEqual(response.data["turmas"][0]["percentual"], 50.0)
+        self.assertEqual(response.data["turmas"][0]["no_borda_codigo"], "NO-SYNC")
+        self.assertEqual(
+            parse_datetime(response.data["turmas"][0]["ultimo_sync_no_borda"]),
+            aware_datetime(date(2026, 6, 20), 9),
+        )
 
     def test_frequencia_turma_conta_falta_sem_registro(self):
         aula = self.criar_aula(self.turma, date(2026, 6, 8), Aula.STATUS_FECHADA)
@@ -264,8 +436,39 @@ class DashboardsAcademicosTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_abrir_chamada_manual_e_fechar_apenas_aberta(self):
-        planejada = self.criar_aula(self.turma, date(2026, 6, 8), Aula.STATUS_PLANEJADA)
-        fechada = self.criar_aula(self.turma, date(2026, 6, 15), Aula.STATUS_FECHADA)
+        agora = timezone.localtime()
+        data_atual = agora.date()
+        dia_semana = data_atual.weekday() + 2
+        horario_abertura = HorarioPadraoUFMA.objects.create(
+            codigo=f"{dia_semana}M12",
+            dia_semana=dia_semana,
+            horario_inicio=(agora - timedelta(minutes=15)).time(),
+            horario_fim=(agora + timedelta(minutes=45)).time(),
+        )
+        horario_fechada = HorarioPadraoUFMA.objects.create(
+            codigo=f"{dia_semana}M34",
+            dia_semana=dia_semana,
+            horario_inicio=(agora - timedelta(minutes=20)).time(),
+            horario_fim=(agora + timedelta(minutes=40)).time(),
+        )
+        planejada = Aula.objects.create(
+            turma=self.turma,
+            sala=self.sala,
+            horario_padrao=horario_abertura,
+            data=data_atual,
+            inicio=agora - timedelta(minutes=15),
+            fim=agora + timedelta(minutes=45),
+            status=Aula.STATUS_PLANEJADA,
+        )
+        fechada = Aula.objects.create(
+            turma=self.turma,
+            sala=self.sala,
+            horario_padrao=horario_fechada,
+            data=data_atual,
+            inicio=agora - timedelta(minutes=20),
+            fim=agora + timedelta(minutes=40),
+            status=Aula.STATUS_FECHADA,
+        )
 
         self.autenticar(self.professor)
         abrir_response = self.client.post(f"/api/aulas/{planejada.id}/abrir-chamada/")
@@ -279,6 +482,66 @@ class DashboardsAcademicosTests(APITestCase):
         self.assertEqual(fechar_aberta_response.status_code, status.HTTP_200_OK)
         planejada.refresh_from_db()
         self.assertEqual(planejada.status, Aula.STATUS_FECHADA)
+
+    def test_abrir_chamada_manual_bloqueia_aula_fora_da_janela(self):
+        futura = self.criar_aula(self.turma, timezone.localdate() + timedelta(days=1), Aula.STATUS_PLANEJADA)
+        passada = self.criar_aula(self.turma, timezone.localdate() - timedelta(days=1), Aula.STATUS_PLANEJADA)
+
+        self.autenticar(self.professor)
+        futura_response = self.client.post(f"/api/aulas/{futura.id}/abrir-chamada/")
+        passada_response = self.client.post(f"/api/aulas/{passada.id}/abrir-chamada/")
+
+        self.assertEqual(futura_response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(passada_response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_job_atualiza_status_das_aulas_de_forma_idempotente(self):
+        base = timezone.make_aware(datetime(2026, 6, 25, 9, 0))
+        aula_para_abrir = self.criar_aula(self.turma, date(2026, 6, 25), Aula.STATUS_PLANEJADA, hour=8)
+        aula_para_fechar = self.criar_aula(self.outra_turma, date(2026, 6, 25), Aula.STATUS_ABERTA, hour=6)
+        aula_planejada_passada = self.criar_aula(self.turma, date(2026, 6, 24), Aula.STATUS_PLANEJADA, hour=6)
+
+        stdout = StringIO()
+        call_command("atualizar_status_aulas", "--now", base.isoformat(), stdout=stdout)
+        call_command("atualizar_status_aulas", "--now", base.isoformat(), stdout=StringIO())
+
+        aula_para_abrir.refresh_from_db()
+        aula_para_fechar.refresh_from_db()
+        aula_planejada_passada.refresh_from_db()
+        self.assertEqual(aula_para_abrir.status, Aula.STATUS_ABERTA)
+        self.assertEqual(aula_para_fechar.status, Aula.STATUS_FECHADA)
+        self.assertEqual(aula_planejada_passada.status, Aula.STATUS_FECHADA)
+        self.assertIn("planejadas_abertas=1", stdout.getvalue())
+
+    def test_sincronizacao_de_aulas_ignora_datas_passadas_e_recusa_periodo_encerrado(self):
+        hoje = timezone.localdate()
+        periodo = PeriodoLetivo.objects.create(
+            nome="Periodo atual",
+            data_inicio=hoje - timedelta(days=14),
+            data_fim=hoje + timedelta(days=14),
+            ativo=True,
+        )
+        turma = self.criar_turma("SYNC", periodo, self.disciplina, self.professor)
+        horario = HorarioPadraoUFMA.objects.create(
+            codigo=f"{hoje.weekday() + 2}N12",
+            dia_semana=hoje.weekday() + 2,
+            horario_inicio=time(18, 0),
+            horario_fim=time(20, 0),
+        )
+
+        sincronizar_aulas_da_turma(turma, [{"sala": self.sala, "horario_padrao": horario}])
+
+        self.assertTrue(Aula.objects.filter(turma=turma).exists())
+        self.assertTrue(all(aula.data >= hoje for aula in Aula.objects.filter(turma=turma)))
+
+        periodo_encerrado = PeriodoLetivo.objects.create(
+            nome="Periodo encerrado",
+            data_inicio=hoje - timedelta(days=30),
+            data_fim=hoje - timedelta(days=1),
+            ativo=True,
+        )
+        turma_encerrada = self.criar_turma("OLD", periodo_encerrado, self.disciplina, self.professor)
+        with self.assertRaises(DomainValidationError):
+            sincronizar_aulas_da_turma(turma_encerrada, [{"sala": self.sala, "horario_padrao": horario}])
 
     def test_edge_node_continua_abrindo_chamada_automaticamente(self):
         aula = self.criar_aula(self.turma, date(2026, 6, 8), Aula.STATUS_PLANEJADA)
@@ -322,7 +585,52 @@ class DashboardsAcademicosTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(TokenNoBorda.objects.filter(id=token_antigo.id).exists())
+        token_antigo.refresh_from_db()
+        self.assertFalse(token_antigo.ativo)
         self.assertTrue(TokenNoBorda.objects.filter(id=token_integracao.id).exists())
         self.assertEqual(TokenNoBorda.objects.filter(no=no, nome="visualizacao-unica", ativo=True).count(), 1)
-        self.assertEqual(TokenNoBorda.objects.get(no=no, nome="visualizacao-unica").prefixo_token, response.data["prefixo_token"])
+        self.assertEqual(TokenNoBorda.objects.get(no=no, nome="visualizacao-unica", ativo=True).prefixo_token, response.data["prefixo_token"])
+
+    def test_delete_academico_desativa_sem_apagar_historico(self):
+        aula = self.criar_aula(self.turma, timezone.localdate() + timedelta(days=1), Aula.STATUS_PLANEJADA)
+        matricula = MatriculaTurma.objects.get(turma=self.turma, aluno=self.aluno)
+
+        self.autenticar(self.admin)
+        turma_response = self.client.delete(f"/api/turmas/{self.turma.id}/")
+        matricula_response = self.client.delete(f"/api/matriculas-turma/{matricula.id}/")
+        usuario_response = self.client.delete(f"/api/usuarios/{self.outro_aluno.id}/")
+
+        self.assertEqual(turma_response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(matricula_response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(usuario_response.status_code, status.HTTP_204_NO_CONTENT)
+        self.turma.refresh_from_db()
+        matricula.refresh_from_db()
+        self.outro_aluno.refresh_from_db()
+        aula.refresh_from_db()
+        self.assertFalse(self.turma.ativo)
+        self.assertFalse(matricula.ativo)
+        self.assertFalse(self.outro_aluno.is_active)
+        self.assertEqual(aula.status, Aula.STATUS_CANCELADA)
+
+    def test_biometria_lista_e_revoga_sem_consentimento_explicito(self):
+        embedding = EmbeddingFacial.objects.create(
+            aluno=self.aluno,
+            versao_modelo="sface",
+            vetor=[0.1, 0.2],
+            status=EmbeddingFacial.STATUS_ATIVO,
+            ativo=True,
+        )
+
+        self.autenticar(self.aluno)
+        list_response = self.client.get("/api/me/biometrias/")
+        delete_response = self.client.delete(f"/api/me/biometrias/{embedding.id}/")
+        after_response = self.client.get("/api/me/biometrias/")
+
+        self.assertEqual(list_response.status_code, status.HTTP_200_OK)
+        self.assertTrue(list_response.data["biometrias"][0]["possui_vetor"])
+        self.assertEqual(delete_response.status_code, status.HTTP_204_NO_CONTENT)
+        embedding.refresh_from_db()
+        self.assertFalse(embedding.ativo)
+        self.assertEqual(embedding.status, EmbeddingFacial.STATUS_REVOGADO)
+        self.assertEqual(embedding.vetor, [])
+        self.assertFalse(after_response.data["biometrias"][0]["possui_vetor"])

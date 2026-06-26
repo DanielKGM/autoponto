@@ -65,10 +65,15 @@ class TokenNoBorda(BaseModel):
 
     @classmethod
     def emitir_token(cls, no: NoBorda, nome: str = "default", expira_em=None):
+        agora = timezone.now()
         if expira_em is None:
-            expira_em = timezone.now() + timedelta(
+            expira_em = agora + timedelta(
                 days=settings.NODE_TOKEN_EXPIRATION_DAYS
             )
+        cls.objects.filter(no=no, nome=nome, ativo=True).update(
+            ativo=False,
+            atualizado_em=agora,
+        )
         token_bruto = secrets.token_urlsafe(32)
         token = cls.objects.create(
             no=no,

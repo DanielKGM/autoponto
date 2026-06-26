@@ -94,6 +94,12 @@ const eventoColumns: SimpleTableColumn<EventoReconhecimento>[] = [
     ),
   },
   {
+    key: "embedding_status",
+    label: "Biometria",
+    align: "center",
+    render: (row) => row.embedding_status || "Removida",
+  },
+  {
     key: "ocorrido_em",
     label: "Ocorrido",
     align: "center",

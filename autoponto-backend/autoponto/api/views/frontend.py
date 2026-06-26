@@ -11,13 +11,15 @@ from rest_framework.views import APIView
 
 from api.models import Aula, PapelUsuario, Turma, Usuario
 from api.serializers.frontend import MatriculaBiometricaPropriaSerializer
-from api.services.biometria import matricular_biometria_aluno
+from api.services.biometria import matricular_biometria_aluno, revogar_biometria_aluno
 from api.services.errors import AppError
 from api.services.relatorios import (
+    biometrias_do_aluno,
     calendario_aulas_usuario,
     dashboard_aluno,
     dashboard_professor,
     detalhe_turma_aula,
+    eventos_reconhecimento_do_aluno,
     historico_presencas_aluno,
     payload_turma,
     presencas_do_aluno,
@@ -205,6 +207,44 @@ class MinhaBiometriaView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+class MinhasBiometriasView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    @extend_schema(responses=OpenApiTypes.OBJECT)
+    def get(self, request):
+        if request.user.papel != PapelUsuario.ALUNO:
+            raise PermissionDenied("Apenas alunos podem consultar suas biometrias.")
+        return Response({"biometrias": biometrias_do_aluno(request.user)})
+
+
+class MinhaBiometriaDetalheView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def delete(self, request, embedding_id):
+        if request.user.papel != PapelUsuario.ALUNO:
+            raise PermissionDenied("Apenas alunos podem revogar a propria biometria.")
+        try:
+            revogar_biometria_aluno(aluno=request.user, embedding_id=embedding_id)
+        except AppError as erro:
+            return _resposta_erro_app(erro)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class MeusEventosReconhecimentoView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    @extend_schema(responses=OpenApiTypes.OBJECT)
+    def get(self, request):
+        if request.user.papel != PapelUsuario.ALUNO:
+            raise PermissionDenied("Apenas alunos podem consultar seus eventos de reconhecimento.")
+        try:
+            limite = int(request.query_params.get("limite") or 20)
+        except ValueError as exc:
+            raise ValidationError({"limite": "Informe um numero inteiro."}) from exc
+        limite = max(1, min(limite, 100))
+        return Response({"eventos": eventos_reconhecimento_do_aluno(request.user, limite=limite)})
 
 
 class ProfessorTurmasView(APIView):

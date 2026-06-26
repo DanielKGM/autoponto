@@ -283,13 +283,93 @@ function latestSample(
 
 function numericSeries(history: DispositivoHistorico | null, key: string) {
   const values = history?.historico?.[key] || [];
-  return values.flatMap((sample) => {
-    const numberValue = toFiniteNumber(sampleValue(sample));
-    const dateValue = sampleDate(sample);
-    const timeValue = dateValue ? Date.parse(dateValue) : Number.NaN;
-    if (numberValue === null || !Number.isFinite(timeValue)) return [];
-    return [[timeValue, numberValue] as [number, number]];
+  return values
+    .flatMap((sample) => {
+      const numberValue = toFiniteNumber(sampleValue(sample));
+      const dateValue = sampleDate(sample);
+      const timeValue = dateValue ? Date.parse(dateValue) : Number.NaN;
+      if (numberValue === null || !Number.isFinite(timeValue)) return [];
+      return [[timeValue, numberValue] as [number, number]];
+    })
+    .sort((left, right) => left[0] - right[0]);
+}
+
+function breakGapMs(period: TelemetryPeriod) {
+  if (period === "2h") return 10 * 60 * 1000;
+  if (period === "1d") return 2 * 60 * 60 * 1000;
+  return Number.POSITIVE_INFINITY;
+}
+
+function seriesWithTimeBreaks(
+  data: Array<[number, number]>,
+  period: TelemetryPeriod,
+): Array<[number, number | null]> {
+  const gapMs = breakGapMs(period);
+  if (!Number.isFinite(gapMs) || data.length < 2) return data;
+
+  const points: Array<[number, number | null]> = [];
+  data.forEach((point, index) => {
+    points.push(point);
+    const nextPoint = data[index + 1];
+    if (!nextPoint || nextPoint[0] - point[0] <= gapMs) return;
+
+    const breakStart = point[0] + 1;
+    const breakEnd = nextPoint[0] - 1;
+    if (breakEnd > breakStart) {
+      points.push([breakStart, null], [breakEnd, null]);
+    }
   });
+
+  return points;
+}
+
+function bucketMinutesLabel(minutes: number | undefined) {
+  if (!minutes) return "baldes";
+  if (minutes >= 60) {
+    const hours = minutes / 60;
+    return hours === 1 ? "baldes de 1 hora" : `baldes de ${hours} horas`;
+  }
+  return `baldes de ${minutes} min`;
+}
+
+function localPirBuckets(
+  history: DispositivoHistorico | null,
+  period: TelemetryPeriod,
+) {
+  const serverBuckets = history?.pir?.baldes || [];
+  if (serverBuckets.length > 0) return serverBuckets;
+
+  const events = history?.pir?.eventos || [];
+  const parsedEvents = events
+    .flatMap((event) => {
+      const timestamp = Date.parse(event.timestamp);
+      if (!Number.isFinite(timestamp)) return [];
+      return [{ timestamp, active: Boolean(event.valor) }];
+    })
+    .sort((left, right) => left.timestamp - right.timestamp);
+
+  if (parsedEvents.length === 0) return [];
+
+  const bucketMs = (period === "1d" ? 60 : 10) * 60 * 1000;
+  const start = Math.floor(parsedEvents[0].timestamp / bucketMs) * bucketMs;
+  const end =
+    Math.floor(parsedEvents[parsedEvents.length - 1].timestamp / bucketMs) *
+    bucketMs;
+  const buckets = [];
+
+  for (let cursor = start; cursor <= end; cursor += bucketMs) {
+    const next = cursor + bucketMs;
+    buckets.push({
+      inicio: new Date(cursor).toISOString(),
+      fim: new Date(next).toISOString(),
+      quantidade: parsedEvents.filter(
+        (event) =>
+          event.active && event.timestamp >= cursor && event.timestamp < next,
+      ).length,
+    });
+  }
+
+  return buckets;
 }
 
 function latestDate(history: DispositivoHistorico | null) {
@@ -320,9 +400,32 @@ function hasSeriesData(series: ChartSeries[]) {
   return series.some((item) => item.data.length > 0);
 }
 
+function telemetryDataZoom(): EChartsOption["dataZoom"] {
+  return [
+    {
+      type: "inside",
+      xAxisIndex: 0,
+      filterMode: "none",
+      zoomOnMouseWheel: true,
+      moveOnMouseMove: true,
+      moveOnMouseWheel: false,
+    },
+    {
+      type: "slider",
+      xAxisIndex: 0,
+      filterMode: "none",
+      height: 18,
+      bottom: 8,
+      showDetail: false,
+      brushSelect: false,
+    },
+  ];
+}
+
 function lineChartOption(
   series: ChartSeries[],
   formatter: (value: unknown) => string,
+  period: TelemetryPeriod,
   axisLabelFormatter?: (value: number) => string,
 ): EChartsOption {
   return {
@@ -338,9 +441,10 @@ function lineChartOption(
     grid: {
       top: 38,
       right: 16,
-      bottom: 24,
+      bottom: 52,
       left: 46,
     },
+    dataZoom: telemetryDataZoom(),
     xAxis: {
       type: "time",
       axisLabel: { color: "#7e8896" },
@@ -357,103 +461,170 @@ function lineChartOption(
       name: item.name,
       type: "line",
       smooth: true,
+      connectNulls: false,
       showSymbol: item.data.length <= 8,
       symbolSize: 6,
       areaStyle: { opacity: 0.06 },
       lineStyle: { width: 2 },
-      data: item.data,
+      data: seriesWithTimeBreaks(item.data, period),
     })),
   };
 }
 
-function pirChartOption(
-  history: DispositivoHistorico | null,
+function networkRainfallChartOption(
+  postMaxSeries: Array<[number, number]>,
+  rssiSeries: Array<[number, number]>,
   period: TelemetryPeriod,
 ): EChartsOption {
-  const pir = history?.pir;
-  const isHistogram = period === "1d" || pir?.tipo === "histograma";
+  const postData = seriesWithTimeBreaks(postMaxSeries, period);
+  const rssiData = seriesWithTimeBreaks(rssiSeries, period);
 
-  if (isHistogram) {
-    const buckets = pir?.baldes || [];
-    return {
-      color: ["#1abb9c"],
-      tooltip: {
-        trigger: "axis",
-        axisPointer: { type: "shadow" },
-        formatter: (params: any) => {
-          const item = Array.isArray(params) ? params[0] : params;
-          const bucket = buckets[item.dataIndex];
-          return `${formatShortDate(bucket?.inicio)}<br/>Detecções: ${item.value}`;
-        },
-      },
-      grid: { top: 18, right: 16, bottom: 34, left: 38 },
-      xAxis: {
-        type: "category",
-        data: buckets.map((bucket) => formatShortDate(bucket.inicio)),
-        axisLabel: { color: "#7e8896", fontSize: 10 },
-        axisLine: { lineStyle: { color: "#e6e7eb" } },
-        axisTick: { show: false },
-      },
-      yAxis: {
-        type: "value",
-        minInterval: 1,
-        axisLabel: { color: "#7e8896" },
-        axisLine: { show: false },
-        splitLine: { lineStyle: { color: "#eff0f3", type: "dashed" } },
-      },
-      series: [
-        {
-          name: "Detecções",
-          type: "bar",
-          barWidth: "52%",
-          data: buckets.map((bucket) => ({
-            value: bucket.quantidade,
-            itemStyle: { borderRadius: [4, 4, 0, 0] },
-          })),
-        },
-      ],
-    };
-  }
-
-  const events = pir?.eventos || [];
   return {
-    color: ["#1abb9c"],
+    color: ["#d63939", "#4299e1"],
     tooltip: {
-      trigger: "item",
+      trigger: "axis",
+      axisPointer: { type: "cross" },
       formatter: (params: any) => {
-        const value = params.value as [number, number, string];
-        return `${formatShortDate(new Date(value[0]).toISOString())}<br/>${value[2]}`;
+        const items = Array.isArray(params) ? params : [params];
+        const first = items[0];
+        const timestamp = Array.isArray(first?.value)
+          ? first.value[0]
+          : first?.axisValue;
+
+        const numericTimestamp = Number(timestamp);
+        const title = Number.isFinite(numericTimestamp)
+          ? formatShortDate(new Date(numericTimestamp).toISOString())
+          : "-";
+
+        const lines = items
+          .map((item) => {
+            const value = Array.isArray(item.value)
+              ? item.value[1]
+              : item.value;
+
+            const numericValue = toFiniteNumber(value);
+            if (numericValue === null) return null;
+
+            if (item.seriesName === "RSSI") {
+              return `${item.marker || ""}RSSI: ${formatRssi(numericValue)}`;
+            }
+
+            return `${item.marker || ""}Tempo máximo de POST: ${formatMs(
+              numericValue,
+            )}`;
+          })
+          .filter(Boolean);
+
+        return [title, ...lines].join("<br/>");
       },
     },
-    grid: { top: 18, right: 16, bottom: 34, left: 42 },
+    legend: {
+      top: 0,
+      textStyle: { color: "#7e8896", fontSize: 11 },
+    },
+    grid: {
+      top: 42,
+      right: 58,
+      bottom: 58,
+      left: 56,
+    },
+    dataZoom: telemetryDataZoom(),
     xAxis: {
       type: "time",
       axisLabel: { color: "#7e8896" },
       axisLine: { lineStyle: { color: "#e6e7eb" } },
       splitLine: { show: false },
     },
+    yAxis: [
+      {
+        type: "value",
+        name: "POST máx.",
+        min: 0,
+        axisLabel: {
+          color: "#7e8896",
+          formatter: (value: number) => `${value} ms`,
+        },
+        axisLine: { show: false },
+        splitLine: { lineStyle: { color: "#eff0f3", type: "dashed" } },
+      },
+      {
+        type: "value",
+        name: "RSSI",
+        scale: true,
+        axisLabel: {
+          color: "#7e8896",
+          formatter: (value: number) => `${value} dBm`,
+        },
+        axisLine: { show: false },
+        splitLine: { show: false },
+      },
+    ],
+    series: [
+      {
+        name: "Tempo máximo de POST",
+        type: "bar",
+        yAxisIndex: 0,
+        barMaxWidth: 22,
+        data: postData,
+        itemStyle: {
+          borderRadius: [4, 4, 0, 0],
+        },
+      },
+      {
+        name: "RSSI",
+        type: "line",
+        yAxisIndex: 1,
+        smooth: true,
+        connectNulls: false,
+        showSymbol: rssiSeries.length <= 12,
+        symbolSize: 6,
+        lineStyle: { width: 2 },
+        data: rssiData,
+      },
+    ],
+  };
+}
+
+function pirHistogramChartOption(
+  history: DispositivoHistorico | null,
+  period: TelemetryPeriod,
+): EChartsOption {
+  const buckets = localPirBuckets(history, period);
+  return {
+    color: ["#1abb9c"],
+    tooltip: {
+      trigger: "axis",
+      axisPointer: { type: "shadow" },
+      formatter: (params: any) => {
+        const item = Array.isArray(params) ? params[0] : params;
+        const bucket = buckets[item.dataIndex];
+        return `${formatShortDate(bucket?.inicio)}<br/>Detecções: ${item.value}`;
+      },
+    },
+    grid: { top: 18, right: 16, bottom: 34, left: 38 },
+    xAxis: {
+      type: "category",
+      data: buckets.map((bucket) => formatShortDate(bucket.inicio)),
+      axisLabel: { color: "#7e8896", fontSize: 10 },
+      axisLine: { lineStyle: { color: "#e6e7eb" } },
+      axisTick: { show: false },
+    },
     yAxis: {
       type: "value",
-      min: -0.2,
-      max: 1.2,
-      interval: 1,
-      axisLabel: {
-        color: "#7e8896",
-        formatter: (value: number) => (value >= 1 ? "PIR" : "Sem"),
-      },
+      minInterval: 1,
+      axisLabel: { color: "#7e8896" },
       axisLine: { show: false },
       splitLine: { lineStyle: { color: "#eff0f3", type: "dashed" } },
     },
     series: [
       {
-        name: "PIR",
-        type: "scatter",
-        symbolSize: (value: unknown[]) => (Number(value[1]) >= 1 ? 12 : 7),
-        data: events.map((event) => [
-          Date.parse(event.timestamp),
-          event.nivel,
-          event.valor ? "Movimento detectado" : "Sem movimento",
-        ]),
+        name: "Detecções",
+        type: "bar",
+        barWidth: "52%",
+        data: buckets.map((bucket) => ({
+          value: bucket.quantidade,
+          itemStyle: { borderRadius: [4, 4, 0, 0] },
+        })),
       },
     ],
   };
@@ -724,39 +895,44 @@ export function PublicMapPage({ embedded = false }: PublicMapPageProps) {
     [deviceHistory],
   );
 
-  const networkSeries = useMemo<ChartSeries[]>(
-    () => [
-      {
-        name: "Sinal Wi-Fi",
-        color: "#4299e1",
-        data: numericSeries(deviceHistory, "rssi"),
-      },
-      {
-        name: "Pico envio",
-        color: "#d63939",
-        data: numericSeries(deviceHistory, "post_max_ms"),
-      },
-    ],
+  const networkPostSeries = useMemo(
+    () => numericSeries(deviceHistory, "post_max_ms"),
+    [deviceHistory],
+  );
+
+  const networkRssiSeries = useMemo(
+    () => numericSeries(deviceHistory, "rssi"),
     [deviceHistory],
   );
 
   const heapChart = useMemo(
-    () => lineChartOption(heapSeries, formatBytes),
-    [heapSeries],
+    () =>
+      lineChartOption(heapSeries, formatBytes, selectedPeriod, (value) =>
+        formatBytes(value),
+      ),
+    [heapSeries, selectedPeriod],
   );
 
   const psramChart = useMemo(
-    () => lineChartOption(psramSeries, formatBytes),
-    [psramSeries],
+    () =>
+      lineChartOption(psramSeries, formatBytes, selectedPeriod, (value) =>
+        formatBytes(value),
+      ),
+    [psramSeries, selectedPeriod],
   );
 
   const signalChart = useMemo(
-    () => lineChartOption(networkSeries, formatMetric),
-    [networkSeries],
+    () =>
+      networkRainfallChartOption(
+        networkPostSeries,
+        networkRssiSeries,
+        selectedPeriod,
+      ),
+    [networkPostSeries, networkRssiSeries, selectedPeriod],
   );
 
   const pirChart = useMemo(
-    () => pirChartOption(deviceHistory, selectedPeriod),
+    () => pirHistogramChartOption(deviceHistory, selectedPeriod),
     [deviceHistory, selectedPeriod],
   );
 
@@ -781,11 +957,12 @@ export function PublicMapPage({ embedded = false }: PublicMapPageProps) {
   const hasRecentData = recentStats.length > 0;
   const hasHeapData = hasSeriesData(heapSeries);
   const hasPsramData = hasSeriesData(psramSeries);
-  const hasNetworkData = hasSeriesData(networkSeries);
-  const hasPirData =
-    selectedPeriod === "1d"
-      ? Boolean(deviceHistory?.pir?.baldes?.length)
-      : Boolean(deviceHistory?.pir?.eventos?.length);
+  const hasNetworkData =
+    networkPostSeries.length > 0 || networkRssiSeries.length > 0;
+  const hasPirData = localPirBuckets(deviceHistory, selectedPeriod).length > 0;
+  const pirBucketMinutes =
+    deviceHistory?.pir?.balde_minutos ?? (selectedPeriod === "1d" ? 60 : 10);
+  const pirBucketLabel = bucketMinutesLabel(pirBucketMinutes);
   const isRecentPeriod = selectedPeriod === "recentes";
   const selectedPeriodLabel =
     PERIOD_OPTIONS.find((option) => option.value === selectedPeriod)?.label ||
@@ -879,7 +1056,7 @@ export function PublicMapPage({ embedded = false }: PublicMapPageProps) {
                 <div className="map-empty-state">
                   <EmptyState
                     title="Nenhum nó de borda no mapa"
-                    text="Cadastre latitude e longitude para que os nós apareçam aqui."
+                    text="Não há nós de borda com coordenadas geográficas para exibir no mapa."
                   />
                 </div>
               )}
@@ -965,11 +1142,11 @@ export function PublicMapPage({ embedded = false }: PublicMapPageProps) {
       >
         <div className="card-header dashboard-card-header">
           <div>
-            <div className="card-title">Dashboard do dispositivo</div>
+            <div className="card-title">Métricas do dispositivo</div>
             <div className="card-subtitle">
               {selectedDevice
                 ? `${selectedDevice.nome || selectedDevice.codigo}`
-                : "Selecione um dispositivo do nó"}
+                : "Nenhum dispositivo selecionado"}
             </div>
           </div>
           <div className="dashboard-header-actions">
@@ -1018,7 +1195,7 @@ export function PublicMapPage({ embedded = false }: PublicMapPageProps) {
             {!selectedDevice && (
               <EmptyState
                 title="Nenhum dispositivo selecionado"
-                text="Selecione um dispositivo na lista de nós de borda para abrir os gráficos."
+                text="Selecione um dispositivo no mapa para ver as métricas de telemetria."
               />
             )}
             {selectedDevice && !selectedDevice.interscity_uuid && (
@@ -1110,7 +1287,7 @@ export function PublicMapPage({ embedded = false }: PublicMapPageProps) {
                           <div>
                             <div className="card-title">Heap</div>
                             <div className="card-subtitle">
-                              Livre, piso e maior bloco no período.
+                              Livre, piso e maior bloco.
                             </div>
                           </div>
                         </div>
@@ -1131,7 +1308,7 @@ export function PublicMapPage({ embedded = false }: PublicMapPageProps) {
                           <div>
                             <div className="card-title">PSRAM</div>
                             <div className="card-subtitle">
-                              Livre, piso e maior bloco no período.
+                              Livre, piso e maior bloco.
                             </div>
                           </div>
                         </div>
@@ -1152,7 +1329,7 @@ export function PublicMapPage({ embedded = false }: PublicMapPageProps) {
                           <div>
                             <div className="card-title">Rede e envio</div>
                             <div className="card-subtitle">
-                              Sinal Wi-Fi e pico de envio no período.
+                              Tempo máximo de POST e RSSI.
                             </div>
                           </div>
                         </div>
@@ -1173,9 +1350,7 @@ export function PublicMapPage({ embedded = false }: PublicMapPageProps) {
                           <div>
                             <div className="card-title">Presença PIR</div>
                             <div className="card-subtitle">
-                              {selectedPeriod === "1d"
-                                ? "Detecções agrupadas por hora."
-                                : "Eventos booleanos em linha do tempo."}
+                              Detecções agrupadas em {pirBucketLabel}.
                             </div>
                           </div>
                         </div>

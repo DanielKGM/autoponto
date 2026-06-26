@@ -4,6 +4,7 @@ from django.utils import timezone
 
 from .academico import HorarioPadraoUFMA, MatriculaTurma, Sala, Turma
 from .base import BaseModel
+from .biometria import EmbeddingFacial
 from .dispositivos import DispositivoEsp32
 from .identidade import PapelUsuario, Usuario
 
@@ -20,7 +21,7 @@ class Aula(BaseModel):
         (STATUS_CANCELADA, "Cancelada"),
     )
 
-    turma = models.ForeignKey(Turma, on_delete=models.CASCADE, related_name="aulas")
+    turma = models.ForeignKey(Turma, on_delete=models.PROTECT, related_name="aulas")
     sala = models.ForeignKey(Sala, on_delete=models.PROTECT, related_name="aulas")
     horario_padrao = models.ForeignKey(HorarioPadraoUFMA, on_delete=models.PROTECT, related_name="aulas")
     data = models.DateField()
@@ -66,8 +67,8 @@ class RegistroPresenca(BaseModel):
         (STATUS_AUSENTE, "Ausente"),
     )
 
-    aula = models.ForeignKey(Aula, on_delete=models.CASCADE, related_name="presencas")
-    aluno = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name="presencas")
+    aula = models.ForeignKey(Aula, on_delete=models.PROTECT, related_name="presencas")
+    aluno = models.ForeignKey(Usuario, on_delete=models.PROTECT, related_name="presencas")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PRESENTE)
     registrado_em = models.DateTimeField(default=timezone.now)
     registrado_por_dispositivo = models.ForeignKey(
@@ -104,9 +105,16 @@ class RegistroPresenca(BaseModel):
 
 class EventoReconhecimento(BaseModel):
     id_evento_origem = models.CharField(max_length=100, blank=True, null=True, unique=True)
-    dispositivo = models.ForeignKey(DispositivoEsp32, on_delete=models.CASCADE, related_name="eventos_reconhecimento")
+    dispositivo = models.ForeignKey(DispositivoEsp32, on_delete=models.PROTECT, related_name="eventos_reconhecimento")
     aula = models.ForeignKey(
         Aula,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="eventos_reconhecimento",
+    )
+    embedding = models.ForeignKey(
+        EmbeddingFacial,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,

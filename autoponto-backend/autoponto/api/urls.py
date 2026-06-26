@@ -23,10 +23,13 @@ from api.views.edge_contract import EdgeAttendanceView, EdgePullView
 from api.views.frontend import (
     DashboardAlunoView,
     DashboardProfessorView,
+    MeusEventosReconhecimentoView,
     MeView,
+    MinhaBiometriaDetalheView,
     MinhaBiometriaView,
     MinhaFrequenciaView,
     MeuCalendarioAulasView,
+    MinhasBiometriasView,
     MinhasPresencasView,
     MinhasTurmasView,
     ProfessorTurmaFrequenciaView,
@@ -82,6 +85,9 @@ urlpatterns = [
     path("me/dashboard-aluno/", DashboardAlunoView.as_view(), name="me-dashboard-aluno"),
     path("me/frequencia/", MinhaFrequenciaView.as_view(), name="me-frequencia"),
     path("me/biometria/", MinhaBiometriaView.as_view(), name="me-biometria"),
+    path("me/biometrias/", MinhasBiometriasView.as_view(), name="me-biometrias"),
+    path("me/biometrias/<uuid:embedding_id>/", MinhaBiometriaDetalheView.as_view(), name="me-biometria-detalhe"),
+    path("me/eventos-reconhecimento/", MeusEventosReconhecimentoView.as_view(), name="me-eventos-reconhecimento"),
     path("professor/dashboard/", DashboardProfessorView.as_view(), name="professor-dashboard"),
     path("professor/turmas/", ProfessorTurmasView.as_view(), name="professor-turmas"),
     path(

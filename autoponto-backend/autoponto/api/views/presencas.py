@@ -78,4 +78,4 @@ class RegistroPresencaViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         self._exigir_admin_para_escrita()
-        instance.delete()
+        raise PermissionDenied("Registros de presenca devem ser preservados como historico.")

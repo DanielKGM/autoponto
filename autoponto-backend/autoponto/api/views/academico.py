@@ -25,11 +25,19 @@ from api.services.aulas import sincronizar_aulas_da_turma
 from .mixins import AdminReadableModelViewSet
 
 
+def desativar_registro(instance, campo="ativo"):
+    setattr(instance, campo, False)
+    instance.save(update_fields=[campo, "atualizado_em"])
+
+
 class CampusViewSet(AdminReadableModelViewSet):
     queryset = Campus.objects.all()
     serializer_class = CampusSerializer
     filterset_fields = ("ativo",)
     search_fields = ("nome",)
+
+    def perform_destroy(self, instance):
+        desativar_registro(instance)
 
 
 class PredioViewSet(AdminReadableModelViewSet):
@@ -38,12 +46,18 @@ class PredioViewSet(AdminReadableModelViewSet):
     filterset_fields = ("campus", "ativo")
     search_fields = ("nome",)
 
+    def perform_destroy(self, instance):
+        desativar_registro(instance)
+
 
 class SalaViewSet(AdminReadableModelViewSet):
     queryset = Sala.objects.select_related("predio", "predio__campus").all()
     serializer_class = SalaSerializer
     filterset_fields = ("predio", "ativo")
     search_fields = ("nome", "codigo")
+
+    def perform_destroy(self, instance):
+        desativar_registro(instance)
 
 
 class PeriodoLetivoViewSet(AdminReadableModelViewSet):
@@ -52,6 +66,9 @@ class PeriodoLetivoViewSet(AdminReadableModelViewSet):
     filterset_fields = ("ativo",)
     search_fields = ("nome",)
 
+    def perform_destroy(self, instance):
+        desativar_registro(instance)
+
 
 class CursoViewSet(AdminReadableModelViewSet):
     queryset = Curso.objects.select_related("campus").all()
@@ -59,12 +76,18 @@ class CursoViewSet(AdminReadableModelViewSet):
     filterset_fields = ("campus", "ativo")
     search_fields = ("nome",)
 
+    def perform_destroy(self, instance):
+        desativar_registro(instance)
+
 
 class DisciplinaViewSet(AdminReadableModelViewSet):
     queryset = Disciplina.objects.select_related("curso").all()
     serializer_class = DisciplinaSerializer
     filterset_fields = ("curso", "ativo")
     search_fields = ("nome", "codigo", "curso__nome")
+
+    def perform_destroy(self, instance):
+        desativar_registro(instance)
 
 
 class TurmaViewSet(AdminReadableModelViewSet):
@@ -81,8 +104,7 @@ class TurmaViewSet(AdminReadableModelViewSet):
         return queryset.none()
 
     def perform_destroy(self, instance):
-        instance.ativo = False
-        instance.save(update_fields=["ativo", "atualizado_em"])
+        desativar_registro(instance)
         sincronizar_aulas_da_turma(instance, [])
 
 
@@ -98,6 +120,9 @@ class MatriculaTurmaViewSet(AdminReadableModelViewSet):
             return queryset.filter(aluno=usuario)
         return queryset.none()
 
+    def perform_destroy(self, instance):
+        desativar_registro(instance)
+
 
 class HorarioPadraoUFMAViewSet(AdminReadableModelViewSet):
     queryset = HorarioPadraoUFMA.objects.all()
@@ -107,3 +132,6 @@ class HorarioPadraoUFMAViewSet(AdminReadableModelViewSet):
 
     def filtrar_queryset_por_usuario(self, queryset, usuario):
         return queryset.filter(ativo=True)
+
+    def perform_destroy(self, instance):
+        desativar_registro(instance)

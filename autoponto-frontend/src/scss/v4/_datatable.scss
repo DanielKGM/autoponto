@@ -73,6 +73,45 @@
   padding-left: 10px;
 }
 
+.table-action-cell {
+  width: 72px;
+  box-sizing: border-box;
+  padding-right: 10px !important;
+  padding-left: 10px !important;
+  text-align: center !important;
+  white-space: nowrap;
+}
+
+.table-action-cell [data-tooltip]::after {
+  display: block;
+  right: 0;
+  left: auto;
+  width: max-content;
+  max-width: min(180px, calc(100vw - 32px));
+  line-height: 1.25;
+  text-align: left;
+  transform: translateY(2px);
+  overflow-wrap: normal;
+  white-space: normal;
+  word-break: normal;
+}
+
+.table-action-cell [data-tooltip]::before {
+  right: 9px;
+  left: auto;
+  transform: translateY(2px) rotate(45deg);
+}
+
+.table-action-cell [data-tooltip]:hover::after,
+.table-action-cell [data-tooltip]:focus-visible::after {
+  transform: translateY(0);
+}
+
+.table-action-cell [data-tooltip]:hover::before,
+.table-action-cell [data-tooltip]:focus-visible::before {
+  transform: translateY(0) rotate(45deg);
+}
+
 .lesson-day-action {
   display: flex;
   justify-content: center;
@@ -434,11 +473,10 @@
 
 .admin-row-actions {
   display: inline-flex;
-  min-width: 120px;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   vertical-align: middle;
 }
 

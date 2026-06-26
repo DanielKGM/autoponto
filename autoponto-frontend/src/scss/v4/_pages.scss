@@ -222,6 +222,7 @@
   border: 1px solid var(--border-color);
   border-radius: 11px;
   white-space: nowrap;
+  cursor: default;
 }
 .chip-primary {
   color: var(--primary);
@@ -649,8 +650,8 @@
 }
 
 .profile-avatar-lg {
-  width: 58px;
-  height: 58px;
+  width: 64px;
+  height: 64px;
   font-size: 16px;
 }
 
@@ -708,7 +709,7 @@
   top: calc(100% + 10px);
   right: 0;
   z-index: 1100;
-  width: min(280px, calc(100vw - 24px));
+  width: min(180px, calc(100vw - 24px));
   padding: 4px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius);

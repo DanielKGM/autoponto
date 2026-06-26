@@ -207,52 +207,50 @@ def _payload_pir(
             }
         )
 
-    if periodo == "1d":
-        baldes = []
-        if amostras:
-            inicio_base = inicio_periodo or _normalizar_data(amostras[0]["timestamp"])
-            fim_base = fim_periodo or _normalizar_data(amostras[-1]["timestamp"])
-            inicio = inicio_base.replace(
-                minute=0,
-                second=0,
-                microsecond=0,
+    balde_minutos = 60 if periodo == "1d" or periodo.endswith("d") else 10
+    balde = timedelta(minutes=balde_minutos)
+    baldes = []
+
+    if amostras:
+        inicio_base = inicio_periodo or _normalizar_data(amostras[0]["timestamp"])
+        fim_base = fim_periodo or _normalizar_data(amostras[-1]["timestamp"])
+        minuto_inicio = (inicio_base.minute // balde_minutos) * balde_minutos
+        inicio = inicio_base.replace(
+            minute=minuto_inicio,
+            second=0,
+            microsecond=0,
+        )
+        minuto_fim = (fim_base.minute // balde_minutos) * balde_minutos
+        fim = fim_base.replace(
+            minute=minuto_fim,
+            second=0,
+            microsecond=0,
+        )
+        cursor = inicio
+        while cursor <= fim:
+            proximo = cursor + balde
+            quantidade = sum(
+                1
+                for amostra in amostras
+                if amostra["valor"]
+                and cursor
+                <= _normalizar_data(amostra["timestamp"])
+                < proximo
             )
-            fim = fim_base.replace(
-                minute=0,
-                second=0,
-                microsecond=0,
+            baldes.append(
+                {
+                    "inicio": _iso(cursor),
+                    "fim": _iso(proximo),
+                    "quantidade": quantidade,
+                }
             )
-            cursor = inicio
-            while cursor <= fim:
-                proximo = cursor + timedelta(hours=1)
-                quantidade = sum(
-                    1
-                    for amostra in amostras
-                    if amostra["valor"]
-                    and cursor
-                    <= _normalizar_data(amostra["timestamp"])
-                    < proximo
-                )
-                baldes.append(
-                    {
-                        "inicio": _iso(cursor),
-                        "fim": _iso(proximo),
-                        "quantidade": quantidade,
-                    }
-                )
-                cursor = proximo
-        return {
-            "tipo": "histograma",
-            "balde_minutos": 60,
-            "eventos": amostras,
-            "baldes": baldes,
-            "total": sum(1 for amostra in amostras if amostra["valor"]),
-        }
+            cursor = proximo
 
     return {
-        "tipo": "linha_tempo",
+        "tipo": "histograma",
+        "balde_minutos": balde_minutos,
         "eventos": amostras,
-        "baldes": [],
+        "baldes": baldes,
         "total": sum(1 for amostra in amostras if amostra["valor"]),
     }
 

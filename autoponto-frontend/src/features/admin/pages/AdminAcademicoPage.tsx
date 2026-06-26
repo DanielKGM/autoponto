@@ -4,6 +4,12 @@ import {
   type CollectionConfig,
 } from "../components/AdminResourceManager";
 import { PageMeta } from "../../../shared/ui/PageMeta";
+import {
+  formatDate,
+  statusAulaClass,
+  statusAulaLabel,
+} from "../../../shared/domain/academicUtils";
+import { formatTimeRange } from "../../../shared/domain/studentCalendarUtils";
 
 type Collections = Record<string, Array<Record<string, any>>>;
 
@@ -348,6 +354,64 @@ const resources: AdminResourceConfig[] = [
           ),
       },
       { key: "ativo", label: "Status", align: "center", render: status },
+    ],
+  },
+  {
+    key: "aulas",
+    title: "Aulas",
+    singular: "aula",
+    description: "Aulas geradas a partir das turmas e horarios. Consulta paginada e somente leitura.",
+    endpoint: "/aulas/",
+    readOnly: true,
+    fields: [],
+    columns: [
+      {
+        key: "turma",
+        label: "Turma",
+        render: (item, collections) =>
+          lookup(collections, "turmas", item.turma, (turma) => turma.codigo),
+      },
+      {
+        key: "disciplina",
+        label: "Disciplina",
+        render: (item, collections) => {
+          const turma = (collections.turmas || []).find(
+            (entry) => String(entry.id) === String(item.turma),
+          );
+          return turma
+            ? lookup(collections, "disciplinas", turma.disciplina, (disciplina) => disciplina.nome)
+            : "-";
+        },
+      },
+      {
+        key: "sala",
+        label: "Sala",
+        align: "center",
+        render: (item, collections) =>
+          lookup(collections, "salas", item.sala, (sala) => sala.codigo || sala.nome),
+      },
+      {
+        key: "data",
+        label: "Data",
+        align: "center",
+        render: (item) => formatDate(item.data),
+      },
+      {
+        key: "inicio",
+        label: "Horario",
+        align: "center",
+        render: (item) => formatTimeRange(item.inicio, item.fim),
+      },
+      {
+        key: "status",
+        label: "Status",
+        align: "center",
+        render: (item) => (
+          <span className={statusAulaClass(item.status)}>
+            {statusAulaLabel(item.status)}
+          </span>
+        ),
+      },
     ],
   },
   {

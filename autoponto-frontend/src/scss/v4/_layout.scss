@@ -534,6 +534,9 @@ svg {
   z-index: 1300;
   bottom: calc(100% + 8px);
   left: 50%;
+  display: block;
+  width: max-content;
+  max-width: min(220px, calc(100vw - 32px));
   padding: 4px 8px;
   border-radius: var(--radius-sm);
   background: var(--sidebar-bg);
@@ -541,13 +544,17 @@ svg {
   content: attr(data-tooltip);
   font-size: 11px;
   font-weight: var(--font-weight-medium);
+  line-height: 1.25;
   opacity: 0;
   pointer-events: none;
+  text-align: center;
   transform: translateX(-50%) translateY(2px);
   transition:
     opacity 120ms,
     transform 120ms;
-  white-space: nowrap;
+  overflow-wrap: break-word;
+  white-space: normal;
+  word-break: normal;
 }
 
 [data-tooltip]::before {

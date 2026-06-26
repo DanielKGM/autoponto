@@ -14,7 +14,7 @@ def calcular_intervalo_aula(horario_padrao: HorarioPadraoUFMA, data_aula):
 
 
 def _datas_do_horario(turma: Turma, horario_padrao: HorarioPadraoUFMA):
-    atual = turma.periodo_letivo.data_inicio
+    atual = max(turma.periodo_letivo.data_inicio, timezone.localdate())
     fim = turma.periodo_letivo.data_fim
     while atual <= fim:
         if atual.weekday() == horario_padrao.weekday_python:
@@ -36,12 +36,15 @@ def _normalizar_horarios(horarios: list[dict]) -> set[tuple[object, object]]:
 def _validar_horarios_obrigatorios(turma: Turma, horarios: list[dict]) -> None:
     if turma.ativo and not horarios:
         raise DomainValidationError("Turma ativa deve possuir ao menos um horario.")
+    if turma.ativo and turma.periodo_letivo.data_fim < timezone.localdate():
+        raise DomainValidationError("Turma ativa nao pode usar periodo letivo encerrado.")
 
 
 def _validar_conflito_sala(turma: Turma, sala: Sala, horario_padrao: HorarioPadraoUFMA) -> None:
     conflito = Aula.objects.filter(
         turma__periodo_letivo=turma.periodo_letivo,
         sala=sala,
+        data__gte=timezone.localdate(),
         horario_padrao__dia_semana=horario_padrao.dia_semana,
         horario_padrao__horario_inicio__lt=horario_padrao.horario_fim,
         horario_padrao__horario_fim__gt=horario_padrao.horario_inicio,
@@ -68,7 +71,13 @@ def _criar_ou_atualizar_aulas(turma: Turma, horarios: list[dict]) -> None:
                     "status": Aula.STATUS_PLANEJADA,
                 },
             )
-            if not criada and not aula.presencas.exists() and aula.status != Aula.STATUS_FECHADA:
+            if (
+                not criada
+                and aula.data >= timezone.localdate()
+                and not aula.presencas.exists()
+                and not aula.eventos_reconhecimento.exists()
+                and aula.status != Aula.STATUS_FECHADA
+            ):
                 aula.sala = sala
                 aula.inicio = inicio
                 aula.fim = fim
@@ -79,12 +88,15 @@ def _criar_ou_atualizar_aulas(turma: Turma, horarios: list[dict]) -> None:
 
 def _cancelar_aulas_futuras_removidas(turma: Turma, pares_desejados: set[tuple[object, object]]) -> None:
     hoje = timezone.localdate()
-    aulas = Aula.objects.filter(turma=turma, data__gte=hoje).exclude(status=Aula.STATUS_CANCELADA)
+    aulas = (
+        Aula.objects.filter(turma=turma, data__gte=hoje)
+        .exclude(status__in=[Aula.STATUS_CANCELADA, Aula.STATUS_FECHADA])
+    )
     for aula in aulas:
         par = (aula.sala_id, aula.horario_padrao_id)
         if par in pares_desejados:
             continue
-        if aula.presencas.exists():
+        if aula.presencas.exists() or aula.eventos_reconhecimento.exists():
             continue
         aula.status = Aula.STATUS_CANCELADA
         aula.save(update_fields=["status", "atualizado_em"])
@@ -104,6 +116,8 @@ def fechar_chamada_aula(aula: Aula, usuario, agora=None) -> Aula:
         raise ConflictError("Apenas chamadas abertas podem ser fechadas.")
 
     agora = agora or timezone.now()
+    if agora < aula.inicio:
+        raise ConflictError("A chamada so pode ser fechada depois do inicio da aula.")
     aula.status = Aula.STATUS_FECHADA
     aula.fechada_em = agora
     aula.fechada_por = usuario
@@ -111,10 +125,52 @@ def fechar_chamada_aula(aula: Aula, usuario, agora=None) -> Aula:
     return aula
 
 
-def abrir_chamada_aula(aula: Aula) -> Aula:
+def abrir_chamada_aula(aula: Aula, agora=None) -> Aula:
     if aula.status != Aula.STATUS_PLANEJADA:
         raise ConflictError("Apenas aulas planejadas podem ter chamada aberta.")
+
+    agora = agora or timezone.now()
+    if agora < aula.inicio:
+        raise ConflictError("A chamada so pode ser aberta no horario da aula.")
+    if agora > aula.fim:
+        raise ConflictError("A chamada nao pode ser aberta depois do fim da aula.")
 
     aula.status = Aula.STATUS_ABERTA
     aula.save(update_fields=["status", "atualizado_em"])
     return aula
+
+
+@transaction.atomic
+def atualizar_status_aulas(agora=None, dry_run: bool = False) -> dict:
+    agora = agora or timezone.now()
+    resultado = {
+        "planejadas_abertas": 0,
+        "planejadas_fechadas": 0,
+        "abertas_fechadas": 0,
+    }
+
+    planejadas_para_fechar = Aula.objects.select_for_update().filter(
+        status=Aula.STATUS_PLANEJADA,
+        fim__lte=agora,
+    )
+    abertas_para_fechar = Aula.objects.select_for_update().filter(
+        status=Aula.STATUS_ABERTA,
+        fim__lte=agora,
+    )
+    planejadas_para_abrir = Aula.objects.select_for_update().filter(
+        status=Aula.STATUS_PLANEJADA,
+        inicio__lte=agora,
+        fim__gt=agora,
+    )
+
+    resultado["planejadas_fechadas"] = planejadas_para_fechar.count()
+    resultado["abertas_fechadas"] = abertas_para_fechar.count()
+    resultado["planejadas_abertas"] = planejadas_para_abrir.count()
+
+    if dry_run:
+        return resultado
+
+    planejadas_para_fechar.update(status=Aula.STATUS_FECHADA, fechada_em=agora, atualizado_em=agora)
+    abertas_para_fechar.update(status=Aula.STATUS_FECHADA, fechada_em=agora, atualizado_em=agora)
+    planejadas_para_abrir.update(status=Aula.STATUS_ABERTA, atualizado_em=agora)
+    return resultado

@@ -11,3 +11,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     permission_classes = (IsAdministrador,)
     filterset_fields = ("papel", "is_active")
     search_fields = ("username", "email", "nome_completo", "matricula")
+
+    def perform_destroy(self, instance):
+        instance.is_active = False
+        instance.save(update_fields=["is_active", "atualizado_em"])

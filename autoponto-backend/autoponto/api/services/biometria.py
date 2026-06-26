@@ -5,9 +5,10 @@ from pathlib import Path
 
 from django.conf import settings
 from django.db import transaction
+from django.utils import timezone
 
 from api.models import EmbeddingFacial, PapelUsuario, Usuario
-from .errors import ConflictError, DomainValidationError
+from .errors import ConflictError, DomainValidationError, NotFoundError
 
 FACE_MAX_CAPTURAS_PADRAO = 5
 FACE_MAX_IMAGE_BYTES_PADRAO = 5 * 1024 * 1024
@@ -146,7 +147,7 @@ def validar_rosto_unico(*, aluno: Usuario, vetor: list[float]) -> None:
     limite = float(getattr(settings, "FACE_DUPLICATE_THRESHOLD", 0.92))
     embeddings = EmbeddingFacial.objects.select_related("aluno").filter(
         ativo=True,
-        status="ATIVO",
+        status=EmbeddingFacial.STATUS_ATIVO,
     ).exclude(aluno=aluno)
 
     melhor_similaridade = 0.0
@@ -181,13 +182,41 @@ def matricular_biometria_aluno(
     vetor, _ = _gerar_vetor_embedding(capturas)
     validar_rosto_unico(aluno=aluno, vetor=vetor)
 
-    embedding, _ = EmbeddingFacial.objects.update_or_create(
+    EmbeddingFacial.objects.filter(
         aluno=aluno,
-        defaults={
-            "versao_modelo": versao_modelo,
-            "vetor": vetor,
-            "status": "ATIVO",
-            "ativo": True,
-        },
+        ativo=True,
+        status=EmbeddingFacial.STATUS_ATIVO,
+    ).update(
+        vetor=[],
+        status=EmbeddingFacial.STATUS_REVOGADO,
+        ativo=False,
+        revogado_em=timezone.now(),
     )
+    embedding = EmbeddingFacial.objects.create(
+        aluno=aluno,
+        versao_modelo=versao_modelo,
+        vetor=vetor,
+        status=EmbeddingFacial.STATUS_ATIVO,
+        ativo=True,
+    )
+    return embedding
+
+
+@transaction.atomic
+def revogar_biometria_aluno(*, aluno: Usuario, embedding_id) -> EmbeddingFacial:
+    if aluno.papel != PapelUsuario.ALUNO:
+        raise DomainValidationError("Biometria propria so pode ser revogada por alunos.")
+
+    try:
+        embedding = EmbeddingFacial.objects.get(id=embedding_id, aluno=aluno)
+    except EmbeddingFacial.DoesNotExist as exc:
+        raise NotFoundError("Biometria nao encontrada.") from exc
+    if embedding.status == EmbeddingFacial.STATUS_REVOGADO and not embedding.ativo:
+        return embedding
+
+    embedding.vetor = []
+    embedding.status = EmbeddingFacial.STATUS_REVOGADO
+    embedding.ativo = False
+    embedding.revogado_em = timezone.now()
+    embedding.save(update_fields=["vetor", "status", "ativo", "revogado_em", "atualizado_em"])
     return embedding

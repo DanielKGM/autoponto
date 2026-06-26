@@ -95,7 +95,7 @@ def _cache_redis_snapshot(no: NoBorda, data_sync) -> dict:
     embeddings = EmbeddingFacial.objects.filter(
         aluno_id__in=matriculas.values("aluno_id"),
         ativo=True,
-        status="ATIVO",
+        status=EmbeddingFacial.STATUS_ATIVO,
     ).order_by("aluno_id", "id")
 
     # {aula1.id: [dict, dict, ...], aula2.id: [dict, dict, ...], (...)}
@@ -256,11 +256,21 @@ def _receber_evento_borda(no: NoBorda, evento: dict) -> str:
     except DjangoValidationError as exc:
         raise ValidationError(exc.message_dict) from exc
 
+    embedding = (
+        EmbeddingFacial.objects.filter(
+            aluno=aluno,
+            ativo=True,
+            status=EmbeddingFacial.STATUS_ATIVO,
+        )
+        .order_by("-criado_em")
+        .first()
+    )
     EventoReconhecimento.objects.create(
         id_evento_origem=id_evento,
         dispositivo=dispositivo,
         aula=aula,
         aluno_candidato=aluno,
+        embedding=embedding,
         confianca=Decimal(str(evento.get("score", 0))).quantize(Decimal("0.0001")),
         reconhecido=True,
         ocorrido_em=reconhecido_em,
