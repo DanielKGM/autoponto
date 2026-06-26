@@ -16,6 +16,17 @@ type SignInPageProps = {
   resolveDestination: (me: MeResponse, next?: string | null) => string;
 };
 
+export function buildAccessRequestMailto() {
+  const params = new URLSearchParams({
+    cc: "danielgaldez10@hotmail.com",
+    subject: "Solicitacao de acesso ao AutoPonto",
+    body:
+      "Olá,\n\nSolicito acesso ao AutoPonto.\n\nNickname:\nNome completo:\nMatrícula:\nDisciplinas:\n\nObrigado.",
+  });
+
+  return `mailto:daniel.cgm@discente.ufma.br?${params.toString()}`;
+}
+
 export function SignInPage({ resolveDestination }: SignInPageProps) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -60,11 +71,7 @@ export function SignInPage({ resolveDestination }: SignInPageProps) {
     }
   }
 
-  const accessMailto = `mailto:daniel.cgm@discente.ufma.br,danielgaldez10@hotmail.com?subject=${encodeURIComponent(
-    "Solicitacao de acesso ao AutoPonto",
-  )}&body=${encodeURIComponent(
-    "Olá,\n\nSolicito acesso ao AutoPonto.\n\nNickname:\nNome completo:\nMatricula:\nDisciplinas:\n\nObrigado.",
-  )}`;
+  const accessMailto = buildAccessRequestMailto();
 
   if (checkingSession) {
     return <main className="loading-page">Verificando sessao...</main>;
