@@ -86,7 +86,7 @@ class GeradorEmbeddingVisao:
             caminho_deteccao,
             "",
             (240, 240),
-            float(getattr(settings, "FACE_SCORE_THRESHOLD", 0.85)),
+            float(getattr(settings, "FACE_SCORE_THRESHOLD", 0.6)),
             0.3,
             5000,
         )
@@ -95,7 +95,7 @@ class GeradorEmbeddingVisao:
         capturas_decodificadas = 0
         quantidade_faces = 0
 
-        limite_pixels = int(getattr(settings, "FACE_MAX_IMAGE_PIXELS", 3_000_000))
+        limite_pixels = int(getattr(settings, "FACE_MAX_IMAGE_PIXELS", 50_000_000))
         for captura in capturas:
             bruto = base64.b64decode(captura, validate=True)
             imagem = cv2.imdecode(np.frombuffer(bruto, dtype=np.uint8), cv2.IMREAD_COLOR)
