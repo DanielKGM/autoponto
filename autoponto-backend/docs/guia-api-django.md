@@ -555,7 +555,7 @@ Exemplo de resposta simplificada:
     "embeddings_faciais": {
       "uuid-embedding": {
         "alunoId": "uuid-aluno",
-        "embedding": {"dtype": "float32", "shape": [1, 2], "data": [0.01, 0.02]}
+        "embedding_encrypted": "..."
       }
     }
   },
@@ -638,9 +638,10 @@ Fluxo:
 1. Aluno ou admin envia capturas base64.
 2. Serializer valida quantidade/tamanho/formato.
 3. Service gera embedding com OpenCV YuNet/SFace.
-4. Backend compara com embeddings ativos de outros alunos.
-5. Se nao for duplicado, atualiza o unico `EmbeddingFacial` do aluno.
-6. Imagens nao sao persistidas.
+4. Backend compara com embeddings ativos de outros alunos usando cache Redis em memoria; se o cache estiver vazio, ele e reconstruido a partir do banco.
+5. Se nao for duplicado, salva o vetor criptografado com Fernet em `EmbeddingFacial`.
+6. O pull do EdgeNode envia `embedding_encrypted`; o edge descriptografa localmente com `FACE_EMBEDDING_ENCRYPTION_KEY`.
+7. Imagens nao sao persistidas.
 
 Endpoint do aluno:
 

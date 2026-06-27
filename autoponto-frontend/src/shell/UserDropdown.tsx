@@ -99,7 +99,7 @@ export function UserDropdown() {
         onCancel={() => setConfirmLogout(false)}
         onConfirm={() => {
           setConfirmLogout(false);
-          signOut();
+          void signOut();
         }}
       >
         <p className="modal-confirm-text">

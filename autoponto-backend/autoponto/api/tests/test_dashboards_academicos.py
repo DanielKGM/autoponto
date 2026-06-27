@@ -1,5 +1,6 @@
 from datetime import date, datetime, time, timedelta
 
+from django.test import override_settings
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework import status
@@ -27,7 +28,11 @@ from api.models import (
 )
 from api.selectors.aulas import status_aula
 from api.services.aulas import sincronizar_aulas_da_turma
+from api.services.crypto_biometria import criptografar_vetor
 from api.services.errors import DomainValidationError
+
+
+FERNET_TEST_KEY = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 
 
 def aware_datetime(value: date, hour: int, minute: int = 0):
@@ -567,6 +572,29 @@ class DashboardsAcademicosTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(status_aula(aula), Aula.STATUS_ABERTA)
         self.assertTrue(RegistroPresenca.objects.filter(aula=aula, aluno=self.aluno).exists())
+
+    @override_settings(FACE_EMBEDDING_ENCRYPTION_KEY=FERNET_TEST_KEY)
+    def test_edge_pull_envia_embedding_criptografado_sem_vetor_claro(self):
+        from api.services.sincronizacao_borda import montar_payload_pull
+
+        no = NoBorda.objects.create(codigo="NO-EDGE-PULL", nome="No Edge Pull")
+        DispositivoEsp32.objects.create(no=no, sala=self.sala, codigo="ESP-PULL", nome="ESP Pull")
+        self.criar_aula(self.turma, timezone.localdate(), Aula.STATUS_ABERTA)
+        embedding = EmbeddingFacial.objects.create(
+            aluno=self.aluno,
+            versao_modelo="sface",
+            vetor=criptografar_vetor([0.1, 0.2]),
+            status=EmbeddingFacial.STATUS_ATIVO,
+            ativo=True,
+        )
+
+        payload = montar_payload_pull(no, {})
+        embedding_payload = payload["cache_redis"]["embeddings_faciais"][str(embedding.id)]
+
+        self.assertIn("embedding_encrypted", embedding_payload)
+        self.assertNotIn("embedding", embedding_payload)
+        self.assertIsInstance(embedding_payload["embedding_encrypted"], str)
+        self.assertNotIn("data", embedding_payload["embedding_encrypted"])
 
     def test_emitir_token_substitui_visualizacao_unica_antiga(self):
         no = NoBorda.objects.create(codigo="NO-TOKEN", nome="No Token")

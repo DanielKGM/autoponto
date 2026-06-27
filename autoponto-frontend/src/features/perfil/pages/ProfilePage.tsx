@@ -330,6 +330,9 @@ export function ProfilePage() {
           <div className="card-header profile-frequency-header">
             <div>
               <div className="card-title">Frequência detalhada</div>
+              <div className="card-subtitle">
+                Cálculo com base em aulas fechadas.
+              </div>
             </div>
             <select
               className="form-control profile-period-select"

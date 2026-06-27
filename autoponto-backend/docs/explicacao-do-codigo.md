@@ -166,7 +166,7 @@ O backend consulta as aulas do dia local atual da API, que ja foram materializad
 - `aulas_por_sala`: aulas validas do dia agrupadas por sala e ordenadas por inicio;
 - `alunos_por_aula`: ids dos alunos por aula;
 - `alunos_por_id`: metadados minimos dos alunos, incluindo `nome`;
-- `embeddings_faciais`: vetor ativo no envelope `dtype`/`shape`/`data` esperado pelo face-worker.
+- `embeddings_faciais`: ciphertext Fernet do vetor ativo; o EdgeNode descriptografa antes do face-worker.
 
 ### Attendance
 

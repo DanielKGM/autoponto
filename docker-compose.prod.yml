@@ -18,6 +18,35 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      [
+        "redis-server",
+        "--requirepass",
+        "${FACE_EMBEDDING_CACHE_PASSWORD:?FACE_EMBEDDING_CACHE_PASSWORD obrigatoria no .env.prod}",
+        "--appendonly",
+        "no",
+        "--save",
+        "",
+        "--protected-mode",
+        "yes",
+      ]
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "redis-cli -a ${FACE_EMBEDDING_CACHE_PASSWORD:?FACE_EMBEDDING_CACHE_PASSWORD obrigatoria no .env.prod} ping | grep PONG",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: ./autoponto-backend
@@ -30,6 +59,8 @@ services:
       DATABASE_PORT: 5432
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     cap_drop:
       - ALL

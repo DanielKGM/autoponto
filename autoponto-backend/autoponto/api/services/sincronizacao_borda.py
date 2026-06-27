@@ -19,6 +19,7 @@ from api.models import (
     Usuario,
 )
 from api.selectors.aulas import com_status_aula, status_aula
+from api.services.crypto_biometria import ciphertext_para_edge
 
 
 def _iso(valor):
@@ -67,13 +68,8 @@ def _nome_aluno(aluno: Usuario) -> str:
     return aluno.nome_completo or aluno.username
 
 
-def _embedding_face_worker(vetor) -> dict:
-    dados = list(vetor or [])
-    return {
-        "dtype": "float32",
-        "shape": [1, len(dados)],
-        "data": dados,
-    }
+def _embedding_face_worker(vetor) -> str:
+    return ciphertext_para_edge(vetor)
 
 
 def _cache_redis_snapshot(no: NoBorda, data_sync) -> dict:
@@ -147,7 +143,7 @@ def _cache_redis_snapshot(no: NoBorda, data_sync) -> dict:
         "embeddings_faciais": {
             str(embedding.id): {
                 "alunoId": str(embedding.aluno_id),
-                "embedding": _embedding_face_worker(embedding.vetor),
+                "embedding_encrypted": _embedding_face_worker(embedding.vetor),
             }
             for embedding in embeddings.distinct()
         },

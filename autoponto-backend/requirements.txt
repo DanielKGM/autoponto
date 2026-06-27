@@ -1,4 +1,5 @@
 asgiref
+cryptography
 Django
 django-cors-headers
 django-filter
@@ -9,6 +10,7 @@ gunicorn
 numpy
 opencv-python-headless
 psycopg[binary]
+redis
 sqlparse
 tzdata
 whitenoise

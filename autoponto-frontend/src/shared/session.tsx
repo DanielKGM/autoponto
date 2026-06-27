@@ -3,12 +3,12 @@ import type { MeResponse } from "./types";
 
 type SessionContextType = {
   me: MeResponse;
-  signOut: () => void;
+  signOut: () => Promise<void>;
 };
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
 
-export function SessionProvider({ children, me, signOut }: { children: ReactNode; me: MeResponse; signOut: () => void }) {
+export function SessionProvider({ children, me, signOut }: { children: ReactNode; me: MeResponse; signOut: () => Promise<void> }) {
   return <SessionContext.Provider value={{ me, signOut }}>{children}</SessionContext.Provider>;
 }
 

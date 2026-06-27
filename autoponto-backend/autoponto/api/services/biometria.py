@@ -1,6 +1,5 @@
 import base64
 import binascii
-from math import sqrt
 from pathlib import Path
 
 from django.conf import settings
@@ -8,6 +7,12 @@ from django.db import transaction
 from django.utils import timezone
 
 from api.models import EmbeddingFacial, PapelUsuario, Usuario
+from .cache_biometria import (
+    listar_embeddings_ativos,
+    salvar_embedding,
+    remover_embeddings,
+)
+from .crypto_biometria import criptografar_vetor
 from .errors import ConflictError, DomainValidationError, NotFoundError
 
 FACE_MAX_CAPTURAS_PADRAO = 5
@@ -131,34 +136,54 @@ def _gerar_vetor_embedding(capturas: list[str]) -> tuple[list[float], dict]:
     return GeradorEmbeddingVisao().gerar_embedding(capturas)
 
 
-def calcular_similaridade_cosseno(vetor_a: list[float], vetor_b: list[float]) -> float:
-    if not vetor_a or not vetor_b or len(vetor_a) != len(vetor_b):
-        return 0.0
+class ComparadorEmbeddingSFace:
+    def __init__(self, caminho_modelo_reconhecimento: str | None = None):
+        try:
+            import cv2
+            import numpy as np
+        except ImportError as exc:
+            raise DomainValidationError("OpenCV e NumPy são necessários para comparar embeddings faciais.") from exc
 
-    produto = sum(float(a) * float(b) for a, b in zip(vetor_a, vetor_b, strict=True))
-    norma_a = sqrt(sum(float(a) * float(a) for a in vetor_a))
-    norma_b = sqrt(sum(float(b) * float(b) for b in vetor_b))
-    if not norma_a or not norma_b:
-        return 0.0
-    return produto / (norma_a * norma_b)
+        caminho_modelo = _resolver_caminho_modelo(
+            caminho_modelo_reconhecimento or getattr(settings, "FACE_RECOG_MODEL_PATH", ""),
+            "FACE_RECOG_MODEL_PATH",
+        )
+        self.cv2 = cv2
+        self.np = np
+        self.reconhecedor = cv2.FaceRecognizerSF.create(caminho_modelo, "")
+        self.tipo_comparacao = getattr(cv2, "FaceRecognizerSF_FR_COSINE", 0)
+
+    def _matriz(self, vetor: list[float]):
+        return self.np.asarray(vetor, dtype="float32").reshape(1, -1)
+
+    def similaridade(self, vetor_a: list[float], vetor_b: list[float]) -> float:
+        if not vetor_a or not vetor_b or len(vetor_a) != len(vetor_b):
+            return 0.0
+        return float(
+            self.reconhecedor.match(
+                self._matriz(vetor_a),
+                self._matriz(vetor_b),
+                self.tipo_comparacao,
+            )
+        )
 
 
 def validar_rosto_unico(*, aluno: Usuario, vetor: list[float]) -> None:
     limite = float(getattr(settings, "FACE_DUPLICATE_THRESHOLD", 0.92))
-    embeddings = EmbeddingFacial.objects.select_related("aluno").filter(
-        ativo=True,
-        status=EmbeddingFacial.STATUS_ATIVO,
-    ).exclude(aluno=aluno)
-
     melhor_similaridade = 0.0
-    aluno_semelhante = None
-    for embedding in embeddings:
-        similaridade = calcular_similaridade_cosseno(vetor, embedding.vetor)
+    aluno_semelhante_id = None
+    comparador = None
+    for embedding in listar_embeddings_ativos():
+        if embedding.aluno_id == str(aluno.id):
+            continue
+        if comparador is None:
+            comparador = ComparadorEmbeddingSFace()
+        similaridade = comparador.similaridade(vetor, embedding.vetor)
         if similaridade > melhor_similaridade:
             melhor_similaridade = similaridade
-            aluno_semelhante = embedding.aluno
+            aluno_semelhante_id = embedding.aluno_id
 
-    if aluno_semelhante and melhor_similaridade >= limite:
+    if aluno_semelhante_id and melhor_similaridade >= limite:
         raise ConflictError(
             "Este rosto parece já estar cadastrado para outro aluno.",
             code="rosto_duplicado",
@@ -182,6 +207,13 @@ def matricular_biometria_aluno(
     vetor, _ = _gerar_vetor_embedding(capturas)
     validar_rosto_unico(aluno=aluno, vetor=vetor)
 
+    embeddings_revogados = list(
+        EmbeddingFacial.objects.filter(
+            aluno=aluno,
+            ativo=True,
+            status=EmbeddingFacial.STATUS_ATIVO,
+        ).values_list("id", flat=True)
+    )
     EmbeddingFacial.objects.filter(
         aluno=aluno,
         ativo=True,
@@ -195,10 +227,12 @@ def matricular_biometria_aluno(
     embedding = EmbeddingFacial.objects.create(
         aluno=aluno,
         versao_modelo=versao_modelo,
-        vetor=vetor,
+        vetor=criptografar_vetor(vetor),
         status=EmbeddingFacial.STATUS_ATIVO,
         ativo=True,
     )
+    transaction.on_commit(lambda: remover_embeddings(embeddings_revogados))
+    transaction.on_commit(lambda: salvar_embedding(embedding))
     return embedding
 
 
@@ -219,4 +253,5 @@ def revogar_biometria_aluno(*, aluno: Usuario, embedding_id) -> EmbeddingFacial:
     embedding.ativo = False
     embedding.revogado_em = timezone.now()
     embedding.save(update_fields=["vetor", "status", "ativo", "revogado_em", "atualizado_em"])
+    transaction.on_commit(lambda: remover_embeddings([embedding.id]))
     return embedding

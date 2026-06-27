@@ -9,6 +9,7 @@ import { SessionProvider } from "../shared/session";
 export function ProtectedLayout() {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [signingOut, setSigningOut] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
@@ -29,15 +30,17 @@ export function ProtectedLayout() {
     };
   }, []);
 
-  function signOut() {
-    void logout();
+  async function signOut() {
+    setSigningOut(true);
+    await logout();
     setMe(null);
+    setSigningOut(false);
   }
 
-  if (loading) {
+  if (loading || signingOut) {
     return (
       <main className="loading-page">
-        <LoadingDots label="Carregando AutoPonto" />
+        <LoadingDots label={signingOut ? "Saindo da conta" : "Carregando AutoPonto"} />
       </main>
     );
   }

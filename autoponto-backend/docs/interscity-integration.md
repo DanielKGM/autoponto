@@ -111,18 +111,23 @@ Com corpo:
 ```json
 {
   "uuids": ["uuid-da-esp32"],
-  "capabilities": ["status", "rssi", "heap_min", "lesson", "remainingms", "nextms", "now_ms"],
+  "capabilities": [
+    "status",
+    "rssi",
+    "heap_min",
+    "lesson",
+    "remainingms",
+    "nextms",
+    "now_ms"
+  ],
   "start_date": "2026-06-12T12:00:00Z",
   "end_date": "2026-06-19T12:00:00Z"
 }
 ```
 
-Se o Collector falhar ou `INTERSCITY_ENABLED=False`, a API retorna `collector_status` controlado e historico vazio.
-
 ## Variaveis
 
 ```env
-INTERSCITY_ENABLED=False
 INTERSCITY_BASE_URL=https://cidadesinteligentes.lsdi.ufma.br/interscity_lh
 INTERSCITY_CATALOG_PATH=/catalog
 INTERSCITY_DISCOVERY_PATH=/discovery

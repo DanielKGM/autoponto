@@ -182,7 +182,6 @@ Scripts de `git pull`, SSH ou automacao de deploy devem ser mantidos na VM ou fo
 - `DJANGO_DEBUG`: `True` em desenvolvimento, `False` em deploy.
 - `DATABASE_*`: configuracao PostgreSQL; `DATABASE_URL` nao e usado neste MVP.
 - `CORS_ALLOWED_ORIGINS`: origens aceitas para o frontend.
-- `INTERSCITY_ENABLED`: ativa/desativa integracao externa.
 - `INTERSCITY_BASE_URL` e `INTERSCITY_*_PATH`: base da instancia Interscity e path de cada microsservico.
 - `FACE_DETECT_MODEL_PATH`: caminho do YuNet ONNX usado para detectar rosto.
 - `FACE_RECOG_MODEL_PATH`: caminho do SFace ONNX usado para gerar embedding.

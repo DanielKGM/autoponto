@@ -15,11 +15,7 @@ STATUS_NAO_CONFIGURADO = "nao_configurado"
 class ClienteInterSCity:
     def __init__(self, timeout: int | None = None):
         self.base_url = settings.INTERSCITY_BASE_URL.rstrip("/")
-        self.catalog_url = self._url_servico(settings.INTERSCITY_CATALOG_PATH)
-        self.adaptor_url = self._url_servico(settings.INTERSCITY_ADAPTOR_PATH)
         self.collector_url = self._url_servico(settings.INTERSCITY_COLLECTOR_PATH)
-        self.discovery_url = self._url_servico(settings.INTERSCITY_DISCOVERY_PATH)
-        self.actuator_url = self._url_servico(settings.INTERSCITY_ACTUATOR_PATH)
         self.timeout = (
             timeout if timeout is not None else settings.INTERSCITY_TIMEOUT_SECONDS
         )
@@ -30,12 +26,6 @@ class ClienteInterSCity:
     def _request_status(
         self, metodo: str, base_url: str, caminho: str, corpo: dict | None = None
     ) -> dict:
-        if not settings.INTERSCITY_ENABLED or not base_url:
-            return {
-                "ok": False,
-                "status": STATUS_NAO_CONFIGURADO,
-                "detalhe": "Integracao desabilitada ou URL ausente.",
-            }
 
         dados = json.dumps(corpo or {}).encode("utf-8") if corpo is not None else None
         headers = {"Accept": "*/*"}
@@ -83,13 +73,6 @@ class ClienteInterSCity:
     def _request_json(
         self, metodo: str, base_url: str, caminho: str, corpo: dict | None = None
     ) -> dict:
-        if not settings.INTERSCITY_ENABLED or not base_url:
-            return {
-                "ok": False,
-                "status": STATUS_NAO_CONFIGURADO,
-                "detalhe": "Integracao desabilitada ou URL ausente.",
-                "data": {},
-            }
 
         dados = json.dumps(corpo or {}).encode("utf-8") if corpo is not None else None
         headers = {"Accept": "*/*"}
@@ -147,17 +130,7 @@ class ClienteInterSCity:
                 resposta.close()
 
     def diagnosticar_servicos(self) -> dict:
-        servicos = {
-            "catalog": (self.catalog_url, "/"),
-            "discovery": (self.discovery_url, "/"),
-            "collector": (self.collector_url, "/"),
-            "adaptor": (self.adaptor_url, "/"),
-            "actuator": (self.actuator_url, "/"),
-        }
-        return {
-            nome: self._request_status("GET", base_url, caminho)
-            for nome, (base_url, caminho) in servicos.items()
-        }
+        return {"collector": self._request_status("GET", self.collector_url, "/")}
 
     def _resources_da_resposta(self, resposta: dict) -> list[dict]:
         dados = resposta.get("data", {})

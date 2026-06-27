@@ -158,7 +158,7 @@ class Command(BaseCommand):
                 "no": no,
                 "sala": sala,
                 "ativo": True,
-                "interscity_uuid": "57395bf6-d8c8-49dd-aa28-57ce7a3d68c3",
+                "interscity_uuid": "6575bec5-9a84-4370-a17f-9da77695360e",
             },
         )
         return no
