@@ -1,7 +1,7 @@
 # Regras academicas e operacionais
 
 Este documento descreve as regras de relacionamento, exclusao, atualizacao e
-rotina automatizada de status das aulas no AutoPonto.
+status derivado das aulas no AutoPonto.
 
 ## Relacionamentos principais
 
@@ -39,42 +39,30 @@ rotina automatizada de status das aulas no AutoPonto.
 
 ## Chamada manual
 
-- Professor responsavel ou administrador pode abrir chamada manualmente.
-- Chamada manual so abre aula `PLANEJADA`.
-- Abertura manual so e permitida dentro da janela da aula: `inicio <= agora <= fim`.
+- Professor responsavel ou administrador pode acessar a chamada manualmente.
+- O backend nao persiste um campo `status` em `Aula`; a abertura e derivada da janela da aula.
+- A chamada so fica aberta durante a janela `inicio <= agora < fim`, quando `status_aula(aula)` retorna `ABERTA`.
 - Fechamento manual so fecha aula `ABERTA`.
 - Fechamento manual so e permitido depois do inicio da aula.
-- Aula `CANCELADA`, `FECHADA` ou fora da janela valida retorna conflito (`409`) quando a acao nao faz sentido.
+- Fechamento manual preenche `fechada_em` e `fechada_por`; ele nao altera `fim`.
+- Aula cancelada, fechada ou fora da janela valida retorna conflito (`409`) quando a acao nao faz sentido.
 
-## EdgeNode e abertura automatica
+## EdgeNode e presenca automatica
 
-- O EdgeNode continua podendo abrir automaticamente uma aula `PLANEJADA` quando envia o primeiro evento valido.
+- O EdgeNode registra presenca quando envia um evento valido dentro da janela da aula.
 - O evento precisa pertencer ao dispositivo correto, sala correta, aula correta, aluno matriculado e horario da aula.
-- Essa abertura automatica continua util como fallback caso o job externo atrase ou esteja indisponivel.
+- Como o status e derivado, nao ha transicao persistida de `PLANEJADA` para `ABERTA`; a aula aparece aberta enquanto `inicio <= agora < fim`.
 
-## Job de status das aulas
+## Status derivado das aulas
 
-O comando Django `atualizar_status_aulas` e idempotente e pode ser executado varias vezes sem duplicar efeitos.
+O status exibido pela API e calculado em `api/selectors/aulas.py`, por `status_aula`, `com_status_aula` e `filtrar_status_aula`. Nao existe comando `atualizar_status_aulas` nem agendamento externo para mudar status por cron.
 
 Regras:
 
-- `PLANEJADA` com `inicio <= agora < fim` vira `ABERTA`.
-- `ABERTA` com `fim <= agora` vira `FECHADA`.
-- `PLANEJADA` com `fim <= agora` vira `FECHADA` diretamente.
-- `CANCELADA` e `FECHADA` nao mudam.
+- `cancelada_em` preenchido retorna `CANCELADA`.
+- `fechada_em` preenchido retorna `FECHADA`.
+- `fim <= agora` retorna `FECHADA`.
+- `inicio <= agora < fim` retorna `ABERTA`.
+- Caso contrario, retorna `PLANEJADA`.
 
-Comandos uteis:
-
-```powershell
-.venv\Scripts\python.exe autoponto-backend\autoponto\manage.py atualizar_status_aulas
-.venv\Scripts\python.exe autoponto-backend\autoponto\manage.py atualizar_status_aulas --dry-run
-.venv\Scripts\python.exe autoponto-backend\autoponto\manage.py atualizar_status_aulas --now 2026-06-25T08:00:00-03:00
-```
-
-Agendamento externo em Linux/cron:
-
-```cron
-*/2 * * * * cd /app && .venv/bin/python autoponto-backend/autoponto/manage.py atualizar_status_aulas
-```
-
-Recomendacao: executar a cada 1 a 5 minutos. O comando nao substitui a validacao de janela das chamadas; ele apenas mantem os status coerentes com o horario.
+Endpoints que listam aulas usam anotacao SQL com esse status derivado. Services que precisam decidir regra de negocio chamam `status_aula(aula, agora=None)`. Isso evita migracao e evita divergencia entre banco, calendario, relatorios e edge sync.

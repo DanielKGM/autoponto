@@ -4,56 +4,63 @@ Este documento descreve a estrutura atual do frontend React/Vite e os fluxos dem
 
 ## Estrutura
 
-- `src/app/App.tsx`: shell autenticado, navegacao por area e logout.
-- `src/features/auth/LoginScreen.tsx`: login com JWT e refresh via cookie HttpOnly.
-- `src/features/aluno/AlunoPainel.tsx`: turmas, presencas e cadastro biometrico proprio.
-- `src/features/professor/ProfessorPainel.tsx`: relatorios por data e resumo da turma.
-- `src/features/admin/AdminPainel.tsx`: orquestra abas administrativas.
-- `src/features/admin/CadastrosAcademicos.tsx`: campus, predio, sala, periodo, curso, disciplina, turma e horarios.
-- `src/features/admin/VinculosAcademicos.tsx`: matricula aluno-turma e vinculo professor-turma.
-- `src/features/admin/InfraestruturaIot.tsx`: no de borda, ESP32, diagnostico IntersCity e mapa operacional.
-- `src/features/admin/BiometriaAdmin.tsx`: cadastro biometrico de aluno pelo administrador.
-- `src/features/mapa/MapaOperacional.tsx`: visao de dispositivos e ultimo snapshot local.
-- `src/features/perfil/PerfilPainel.tsx`: dados da conta autenticada.
-- `src/components`: componentes pequenos reutilizaveis.
-- `src/shared`: formatacao e biometria no cliente.
+- `src/app/App.tsx`: rotas publicas, rotas privadas e redirecionamentos.
+- `src/app/navigation.ts`: areas, rotulos, menus por permissao e destino apos login.
+- `src/shell/`: layout autenticado, sidebar, header e menu do usuario.
+- `src/features/auth/pages/SignInPage.tsx`: login com JWT e refresh via cookie HttpOnly.
+- `src/features/aluno/pages/StudentDashboardPage.tsx`: resumo do aluno, aulas de hoje, proximas aulas e frequencia.
+- `src/features/aluno/pages/StudentBiometricsPage.tsx`: cadastro, listagem e revogacao de biometria propria.
+- `src/features/calendario/pages/LessonCalendarPage.tsx`: calendario de aulas para aluno, professor e admin.
+- `src/features/aulas/pages/*`: detalhes de turma/aula e chamada.
+- `src/features/professor/pages/TeacherDashboardPage.tsx`: dashboard do professor, chamadas e turmas.
+- `src/features/admin/pages/AdminAcademicoPage.tsx`: usuarios, estrutura academica, horarios UFMA, turmas e vinculos.
+- `src/features/admin/pages/AdminIotPage.tsx`: nos de borda, tokens, ESP32 e diagnostico IntersCity.
+- `src/features/mapa/pages/PublicMapPage.tsx`: mapa publico e mapa embutido autenticado.
+- `src/features/perfil/pages/ProfilePage.tsx`: dados da conta, biometrias e eventos de reconhecimento.
+- `src/shared`: API, sessao, tipos, UI, dominio, tema e assets.
 
 O arquivo antigo `src/App.tsx` foi removido. O ponto de entrada `src/main.tsx` importa diretamente `src/app/App.tsx`.
 
 ## Fluxo De Administrador
 
 1. Entra com usuario administrador.
-2. Acessa `Admin`.
-3. Em `Resumo`, cadastra usuarios basicos sem email obrigatorio.
-4. Em `Academico`, cadastra a estrutura fisica e academica: campus, predios, salas, periodos, cursos, disciplinas, turmas e horarios UFMA.
-5. Em `Vinculos`, matricula alunos em turmas e vincula professores.
-6. Em `IoT`, cadastra no de borda e ESP32, confere status local e diagnostico IntersCity.
-7. Em `Biometria`, cadastra o rosto de um aluno.
-8. Em `Relatorios`, consulta presencas da turma com a mesma tela usada pelo professor.
+2. Vai para `/app/admin/academico`.
+3. Cadastra usuarios, campus, predios, salas, periodos, cursos, disciplinas e horarios UFMA.
+4. Cadastra ou edita turmas com pares de `sala` + `horario_padrao`; o backend materializa as aulas futuras.
+5. Matricula alunos em turmas e vincula professores responsaveis.
+6. Em `/app/admin/iot`, cadastra nos de borda, emite tokens e cadastra ESP32 com sala e UUID IntersCity.
+7. Consulta calendario, detalhes de turma/aula e relatorios com permissao administrativa.
+8. Pode acessar `Mapa IoT` e `Perfil`.
 
 ## Fluxo De Professor
 
 1. Entra com usuario professor.
-2. Acessa `Professor`.
-3. Seleciona turma e data.
-4. Gera relatorio com presentes, ausentes, matriculados e resumo percentual.
-5. Pode acessar `Perfil` e `Mapa`.
+2. Vai para `/app/professor`.
+3. Ve chamadas abertas, chamadas pendentes, aulas do dia e presencas recentes.
+4. Acessa o calendario em `/app/calendario`.
+5. Entra no detalhe de turma/aula por `/app/turmas/:turmaId` ou `/app/aulas/:aulaId`.
+6. Acompanha presentes, ausentes, pendentes, eventos de reconhecimento e resumo de frequencia.
+7. Pode acessar `Perfil` e `Mapa IoT`.
 
 ## Fluxo De Aluno
 
 1. Entra com usuario aluno.
-2. Acessa `Aluno`.
-3. Consulta turmas do periodo ativo.
-4. Consulta presencas registradas.
-5. Envia imagens para cadastro biometrico proprio.
-6. Pode acessar `Perfil` e `Mapa`.
+2. Vai para `/app/aluno`.
+3. Ve aulas de hoje, proximas aulas, frequencia por turma e ultimas presencas.
+4. Acessa o calendario em `/app/calendario` e detalhes de aula/turma.
+5. Envia imagens para cadastro biometrico proprio em `/app/aluno/biometria`.
+6. Lista biometrias ativas/revogadas e pode revogar a propria biometria.
+7. Pode acessar `Perfil` e `Mapa IoT`.
 
 ## Mapa E IntersCity
 
-No MVP atual, o mapa usa o snapshot local de dispositivos retornado pela API principal. A publicacao de telemetria tecnica no IntersCity fica no edge-node, usando a capability `autoponto_device_stats`.
+O mapa publico fica em `/mapa-iot` e tambem aparece autenticado em `/app/mapa-iot`.
 
-Quando o endpoint publico de mapa for aberto, a pagina pode passar a consultar dados agregados do Collector/Discovery sob demanda, com botao de atualizar, sem websocket e sem webhook.
+- `GET /api/public/mapa/nos/`: lista nos de borda ativos com coordenadas e seus dispositivos ativos.
+- `GET /api/public/mapa/dispositivos/{id}/historico/?periodo=2h|1d|7d|recentes`: consulta historico do Data Collector via backend.
+
+As coordenadas pertencem ao `NoBorda`, e cada dispositivo ESP32 carrega sala, predio e `interscity_uuid`. A publicacao de telemetria tecnica no IntersCity fica no edge-node. A API principal apenas le o Collector para montar historico, ultimo valor e histograma PIR.
 
 ## Observacoes De UI
 
-O visual foi mantido simples para facilitar retrabalho posterior. A melhoria atual prioriza organizacao, formularios funcionais e separacao de responsabilidades por pagina/componente.
+O visual atual e uma ferramenta operacional: sidebar, header, tabelas densas, formularios, modais, cards de status e graficos. A melhoria prioriza organizacao, fluxos demonstraveis e separacao de responsabilidades por pagina/componente.

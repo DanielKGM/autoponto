@@ -5,6 +5,7 @@ O backend e uma API Django/DRF para frequencia academica automatizada por IoT. E
 ## Organizacao
 
 - `api/models/`: tabelas e integridade de negocio.
+- `api/selectors/`: consultas e anotacoes reutilizaveis, como status derivado de aula.
 - `api/serializers/`: validacao de entrada e saida JSON.
 - `api/views/`: endpoints HTTP para frontend, admin, edge e Interscity.
 - `api/services/`: regras reutilizaveis de aula, biometria, relatorios, sync e Interscity.
@@ -81,18 +82,20 @@ Codigo composto como `25M34` vira duas linhas: `2M34` e `5M34`. Ao criar ou edit
 - `horario_padrao`: bloco UFMA usado como referencia na criacao.
 - `data`: data da aula.
 - `inicio` e `fim`: snapshot real da aula naquela data.
-- `status`: `PLANEJADA`, `ABERTA`, `FECHADA` ou `CANCELADA`.
+- `cancelada_em`: quando a aula foi cancelada por edicao de grade ou regra administrativa.
+- `cancelada_por`: usuario que cancelou, quando existir.
 - `fechada_em`: quando professor/admin fechou manualmente.
 - `fechada_por`: usuario que fechou.
 
 A chamada vale sempre entre `inicio` e `fim`. Fechar manualmente nao altera `fim`; apenas impede novas presencas.
 Aulas com presenca registrada preservam o historico mesmo se a turma for editada depois.
+O status (`PLANEJADA`, `ABERTA`, `FECHADA` ou `CANCELADA`) nao e campo persistido: ele e calculado em `api/selectors/aulas.py` por `status_aula` e anotado em querysets por `com_status_aula`.
 
 ### RegistroPresenca
 
 - `aula`: aula da presenca.
 - `aluno`: aluno presente.
-- `status`: `PRESENTE`, `AUSENTE`, `ATRASO` ou `JUSTIFICADA`.
+- `status`: `PRESENTE` ou `AUSENTE`.
 - `registrado_em`: instante do reconhecimento ou registro manual.
 - `registrado_por_dispositivo`: ESP32 que originou a presenca, quando veio do edge.
 
@@ -116,6 +119,7 @@ Nao salva imagem, frame, embedding bruto de captura nem payload tecnico bruto.
 - `NoBorda.nome`: nome administrativo.
 - `NoBorda.ativo`: controla autenticacao.
 - `NoBorda.ultimo_sync_em`: ultima sincronizacao.
+- `NoBorda.latitude` e `longitude`: coordenadas usadas pelo mapa publico para posicionar o no.
 - `TokenNoBorda.no`: dono do token.
 - `TokenNoBorda.prefixo_token`: trecho visivel do segredo.
 - `TokenNoBorda.hash_token`: hash do token real.
@@ -126,17 +130,17 @@ Nao salva imagem, frame, embedding bruto de captura nem payload tecnico bruto.
 - `DispositivoEsp32.nome`: nome administrativo.
 - `DispositivoEsp32.ativo`: controla envio ao edge.
 - `DispositivoEsp32.interscity_uuid`: recurso IoT no Interscity.
-- `DispositivoEsp32.latitude` e `longitude`: coordenadas usadas pelo mapa publico.
 
 ### EmbeddingFacial
 
 - `EmbeddingFacial.aluno`: aluno dono do vetor biometrico.
 - `EmbeddingFacial.versao_modelo`: modelo usado, como `sface`.
-- `EmbeddingFacial.vetor`: embedding facial enviado ao edge.
+- `EmbeddingFacial.vetor`: embedding facial criptografado em repouso.
 - `EmbeddingFacial.status`: `ATIVO`, `INATIVO` ou `REVOGADO`.
-- `EmbeddingFacial.ativo`: indica se o unico embedding do aluno esta disponivel para sincronizacao.
+- `EmbeddingFacial.ativo`: indica se aquele embedding esta disponivel para sincronizacao.
+- `EmbeddingFacial.revogado_em`: quando o vetor deixou de ser valido.
 
-Existe apenas um `EmbeddingFacial` por aluno. Ao cadastrar um novo rosto, o backend atualiza esse registro e o vetor anterior e perdido. Antes da atualizacao, o backend compara o novo vetor com embeddings ativos de outros alunos e bloqueia duplicidade por `FACE_DUPLICATE_THRESHOLD`.
+Existe no maximo um embedding ativo por aluno, garantido por constraint condicional. Ao cadastrar um novo rosto, o backend revoga embeddings ativos anteriores do aluno, apaga seus vetores sensiveis (`vetor=[]`) e cria um novo registro ativo. Antes da criacao, compara o novo vetor com embeddings ativos de outros alunos usando cache Redis e bloqueia duplicidade por `FACE_DUPLICATE_THRESHOLD`.
 
 ## Sincronizacao Edge
 
@@ -175,9 +179,9 @@ O backend consulta as aulas do dia local atual da API, que ja foram materializad
 Validacao central:
 
 ```python
-if aula.status in {Aula.STATUS_FECHADA, Aula.STATUS_CANCELADA}:
+if aula.cancelada_em or aula.fechada_em:
     raise ValidationError(...)
-if reconhecido_em < aula.inicio or reconhecido_em > aula.fim:
+if reconhecido_em < aula.inicio or reconhecido_em >= aula.fim:
     raise ValidationError(...)
 ```
 
@@ -191,9 +195,10 @@ Se valido, o backend faz `update_or_create` de `RegistroPresenca` e cria `Evento
 
 Uso atual:
 
-- diagnosticar Catalog, Discovery, Collector, Adaptor e Actuator;
-- listar ESP32 publicas para o mapa com `GET /api/public/mapa/dispositivos/`;
-- consultar historico operacional no Collector com `GET /api/public/mapa/dispositivos/{id}/historico/?dias=7`.
+- diagnosticar o Collector configurado;
+- listar nos de borda publicos com coordenadas e dispositivos por `GET /api/public/mapa/nos/`;
+- manter compatibilidade de rota em `GET /api/public/mapa/dispositivos/`, que hoje retorna o mesmo agrupamento por no;
+- consultar historico operacional no Collector com `GET /api/public/mapa/dispositivos/{id}/historico/?periodo=2h|1d|7d|recentes`.
 
 A publicacao de telemetria no IntersCity fica no edge-node, que envia dados da ESP32 diretamente ao Resource Adaptor. A API principal consulta somente o Data Collector quando o mapa publico solicita historico.
 
@@ -207,12 +212,11 @@ O backend usa OpenCV YuNet/SFace com os mesmos ONNX do edge:
 - `data/models/face_recognition_sface.onnx`.
 
 As imagens/base64 sao processadas e descartadas. Apenas embedding e metadados seguros ficam persistidos.
+O vetor e criptografado em repouso. Quando uma biometria e revogada ou substituida, o vetor sensivel e apagado e o registro fica como historico revogado.
 
 ## Testes
 
-- `test_models.py`: regras de dominio, horario UFMA, unicidade e biometria ativa.
-- `test_edge_integracao.py`: pull, attendance, idempotencia, isolamento por no e remocao do status endpoint.
-- `test_mapa_publico.py`: mapa publico e historico IntersCity via Collector.
-- `test_frontend_api.py`: endpoints por papel, relatorios, fechamento e cadastros para dashboard.
-- `test_interscity.py`: diagnostico tolerante a falhas dos microsservicos IntersCity.
-- `test_seguranca.py`: isolamento por papel, NodeToken, biometria e cookie de refresh.
+- `test_status_aulas.py`: status derivado, filtro de aulas, serializers e contrato do edge.
+- `test_dashboards_academicos.py`: dashboards, relatorios, fluxo academico, turmas, aulas e revogacao de biometria.
+- `test_calendario_aulas.py`: calendario por perfil e status do aluno.
+- `test_biometria_validacao.py`: validacao de imagens, criptografia, cache Redis/locmem e duplicidade facial.

@@ -11,6 +11,7 @@ Navegador ou Raspberry
   -> URL em api/urls.py
   -> View em api/views/
   -> Serializer em api/serializers/ ou service em api/services/
+  -> Selector em api/selectors/ quando a consulta precisa de status/escopo derivado
   -> Model em api/models/
   -> PostgreSQL
   -> Response JSON
@@ -37,6 +38,7 @@ autoponto/
     urls.py
     models/
     serializers/
+    selectors/
     views/
     services/
     permissions.py
@@ -49,6 +51,7 @@ autoponto/
 | --- | --- |
 | `models/` | Define tabelas, campos e relacoes do banco. |
 | `serializers/` | Converte Model <-> JSON e valida entrada da API. |
+| `selectors/` | Centraliza consultas/anotacoes reutilizaveis, como status derivado de aula. |
 | `views/` | Recebe requests HTTP e devolve responses. |
 | `services/` | Guarda regras de negocio que nao devem ficar espalhadas em views. |
 | `permissions.py` | Decide quem pode acessar cada endpoint. |
@@ -197,7 +200,15 @@ Principais models do AutoPonto:
 | `Aula` | Aula real em uma data, com turma, sala, horario UFMA e inicio/fim salvos. |
 | `RegistroPresenca` | Presenca de um aluno em uma aula. |
 | `NoBorda`, `TokenNoBorda`, `DispositivoEsp32` | Raspberry, token e ESP32. |
-| `EmbeddingFacial` | Vetor biometrico do aluno. |
+| `EmbeddingFacial` | Vetor biometrico criptografado do aluno, ativo ou revogado. |
+
+`Aula` nao possui campo persistido `status`. O status (`PLANEJADA`, `ABERTA`, `FECHADA`, `CANCELADA`) e calculado por `api/selectors/aulas.py`:
+
+```python
+from api.selectors.aulas import status_aula, com_status_aula
+```
+
+Regras resumidas: `cancelada_em` vence tudo, `fechada_em` fecha manualmente, `fim <= agora` fecha por horario, `inicio <= agora < fim` abre a aula, e o restante fica planejado.
 
 ## Serializers
 
@@ -606,7 +617,7 @@ Depois:
 2. Aula e da mesma sala da ESP32?
 3. Aluno esta matriculado na turma?
 4. `reconhecido_em` esta entre `Aula.inicio` e `Aula.fim`?
-5. Aula nao esta `FECHADA` nem `CANCELADA`?
+5. Aula nao tem `fechada_em` nem `cancelada_em`?
 6. Evento ja foi recebido antes?
 
 Se passar:
@@ -638,10 +649,11 @@ Fluxo:
 1. Aluno ou admin envia capturas base64.
 2. Serializer valida quantidade/tamanho/formato.
 3. Service gera embedding com OpenCV YuNet/SFace.
-4. Backend compara com embeddings ativos de outros alunos usando cache Redis em memoria; se o cache estiver vazio, ele e reconstruido a partir do banco.
-5. Se nao for duplicado, salva o vetor criptografado com Fernet em `EmbeddingFacial`.
-6. O pull do EdgeNode envia `embedding_encrypted`; o edge descriptografa localmente com `FACE_EMBEDDING_ENCRYPTION_KEY`.
-7. Imagens nao sao persistidas.
+4. Backend compara com embeddings ativos de outros alunos usando cache Redis; em testes pode usar `locmem://`.
+5. Se nao for duplicado, revoga embeddings ativos anteriores do mesmo aluno, apaga seus vetores sensiveis e cria um novo `EmbeddingFacial` ativo.
+6. O vetor fica criptografado com Fernet em repouso.
+7. O pull do EdgeNode envia `embedding_encrypted`; o edge descriptografa localmente com `FACE_EMBEDDING_ENCRYPTION_KEY`.
+8. Imagens nao sao persistidas.
 
 Endpoint do aluno:
 
@@ -667,6 +679,15 @@ Response:
 }
 ```
 
+Listagem e revogacao pelo aluno:
+
+```http
+GET /api/me/biometrias/
+DELETE /api/me/biometrias/{embedding_id}/
+```
+
+Ao revogar, o backend define `status=REVOGADO`, `ativo=False`, `revogado_em` e limpa `vetor=[]`.
+
 ## Relatorios
 
 Views em `api/views/frontend.py` chamam services em `api/services/relatorios.py`.
@@ -690,22 +711,30 @@ Regras:
 O mapa publico nao exige login.
 
 ```http
-GET /api/public/mapa/dispositivos/
+GET /api/public/mapa/nos/
 ```
 
-Retorna ESP32 ativas com `interscity_uuid`, latitude e longitude.
+Retorna nos de borda ativos com latitude/longitude e dispositivos ESP32 ativos agrupados.
 
 ```json
 [
   {
-    "id": "uuid-dispositivo",
-    "codigo": "9084CED6CDC0",
-    "nome": "esp32-tcc",
-    "sala": "105 Norte",
-    "predio": "Paulo Freire",
+    "id": "uuid-no",
+    "codigo": "88A29E606012",
+    "nome": "raspberry-tcc",
     "latitude": "-2.559000",
     "longitude": "-44.309000",
-    "interscity_uuid": "8cf4ce45-3aff-4aa2-81e0-27a2fc361f09"
+    "ultimo_sync_em": "2026-06-19T12:00:00Z",
+    "dispositivos": [
+      {
+        "id": "uuid-dispositivo",
+        "codigo": "9084CED6CDC0",
+        "nome": "esp32-tcc",
+        "sala": "105 Norte",
+        "predio": "Paulo Freire",
+        "interscity_uuid": "8cf4ce45-3aff-4aa2-81e0-27a2fc361f09"
+      }
+    ]
   }
 ]
 ```
@@ -713,10 +742,10 @@ Retorna ESP32 ativas com `interscity_uuid`, latitude e longitude.
 Historico via Data Collector:
 
 ```http
-GET /api/public/mapa/dispositivos/{id}/historico/?dias=7
+GET /api/public/mapa/dispositivos/{id}/historico/?periodo=2h
 ```
 
-O backend consulta o IntersCity de forma tolerante a falhas. Se o Collector falhar, a API responde com status controlado em vez de quebrar a tela.
+Periodos aceitos: `recentes`, `2h`, `1d` e `7d` via `periodo`; tambem ha fallback por `dias` limitado de 1 a 7. O backend consulta o IntersCity de forma tolerante a falhas. Se o Collector falhar, a API responde com status controlado em vez de quebrar a tela. O PIR retorna normalizado como histograma em `pir.tipo = "histograma"`.
 
 ## Principais Metodos Django/DRF Usados
 

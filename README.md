@@ -8,7 +8,7 @@ Repositorio organizado como monorepo do MVP AutoPonto.
 .
 |-- autoponto-backend/   # API Django/DRF, regras academicas, edge e Interscity
 |-- autoponto-frontend/  # Painel React/Vite
-|-- docker-compose.yml   # Orquestracao de desenvolvimento local
+|-- docker-compose.yml   # Orquestracao de desenvolvimento local com PostgreSQL, Redis, backend e frontend
 |-- docker-compose.prod.yml # Deploy provisorio na VM da faculdade
 `-- .env.example         # Exemplo de variaveis para o Compose
 ```
@@ -34,14 +34,16 @@ Para producao provisoria na VM da faculdade, use `.env.prod` baseado em `.env.pr
 | Backend    | Django                | Base da aplicacao web             | Entrega estrutura robusta para modelos, autenticacao, admin, migrations e organizacao de projeto.                              |
 | Backend    | Django REST Framework | API REST                          | Facilita serializers, ViewSets, permissoes e contratos HTTP para frontend, edge e integracoes.                                 |
 | Backend    | PostgreSQL            | Banco de dados unico do sistema   | Banco relacional robusto para dominio academico, presencas, relatorios e integridade referencial.                              |
+| Backend    | Redis                 | Cache de embeddings faciais       | Acelera a validacao de duplicidade facial e isola o cache biometrico do banco relacional.                                      |
 | Backend    | Simple JWT            | Autenticacao do frontend          | Usa access token curto em memoria no React e refresh token em cookie HttpOnly.                                                 |
 | Backend    | OpenCV YuNet/SFace    | Geracao de embeddings faciais     | Alinha o cadastro biometrico do backend com o reconhecimento usado no edge.                                                    |
 | Backend    | Gunicorn              | Servidor WSGI em container        | Opcao comum e estavel para servir Django em deploy Linux.                                                                      |
 | Backend    | WhiteNoise            | Arquivos estaticos do Django      | Permite servir estaticos administrativos/coletados no container sem servico extra.                                             |
 | Backend    | django-cors-headers   | CORS para o frontend              | Controla origens permitidas quando frontend e backend rodam em portas/dominos diferentes.                                      |
-| Frontend   | React                 | Interface web                     | Componentizacao simples para telas por papel e atualizacao reativa dos dados da API.                                           |
+| Frontend   | React                 | Interface web                     | Componentizacao simples para telas por papel, calendario, perfil, mapa publico e atualizacao reativa dos dados da API.         |
 | Frontend   | TypeScript            | Tipagem do frontend               | Reduz erros de contrato entre telas e respostas da API.                                                                        |
 | Frontend   | Vite                  | Build e servidor local            | Build rapido, configuracao pequena e boa ergonomia para MVP.                                                                   |
+| Frontend   | Leaflet + ECharts     | Mapa e graficos operacionais      | Exibe nos/dispositivos IoT, historico do Collector e graficos de telemetria/PIR.                                               |
 | Frontend   | Nginx                 | Servir build em container         | Entrega arquivos estaticos e faz proxy de `/api/` para o backend no Compose.                                                   |
 | Infra      | Docker Compose        | Orquestracao local/deploy simples | Sobe PostgreSQL, backend e frontend com um comando, facilitando demonstracao do TCC.                                           |
 | Integracao | Interscity UFMA       | Camada IoT opcional               | Representa recursos, capacidades, descoberta e telemetria operacional sem tornar o AutoPonto dependente da plataforma externa. |
@@ -56,7 +58,7 @@ Copie o ambiente da raiz:
 cp .env.example .env
 ```
 
-Preencha os valores sensiveis que aparecem vazios, como `DJANGO_SECRET_KEY` e `DATABASE_PASSWORD`. O Compose e o backend devem falhar se uma variavel obrigatoria nao estiver configurada.
+Preencha os valores sensiveis que aparecem vazios, como `DJANGO_SECRET_KEY`, `DATABASE_PASSWORD`, `FACE_EMBEDDING_ENCRYPTION_KEY` e `FACE_EMBEDDING_CACHE_PASSWORD`. O Compose e o backend devem falhar se uma variavel obrigatoria nao estiver configurada.
 
 Para usar cadastro biometrico real, baixe os modelos ONNX em `autoponto-backend/autoponto/data/models/` antes de subir o backend. Eles nao sao versionados:
 
@@ -83,11 +85,11 @@ Suba os servicos:
 docker compose up --build
 ```
 
-Se a porta `8080` ja estiver ocupada no Windows, altere `FRONTEND_PORT` no `.env` da raiz, por exemplo `FRONTEND_PORT=8081`, e suba novamente.
+Se a porta `8080` ja estiver ocupada no Windows, altere o mapeamento de porta do servico `frontend` em `docker-compose.yml`, por exemplo de `"8080:80"` para `"8081:80"`, e suba novamente.
 
 URLs:
 
-- Frontend: `http://localhost:${FRONTEND_PORT}` (por padrao, `http://localhost:8080`)
+- Frontend: `http://localhost:8080` por padrao, ou a porta que voce mapear no Compose
 - Backend: `http://localhost:8000/api/`
 - Health check: `http://localhost:8000/api/health/`
 - PostgreSQL local: `localhost:5432`
@@ -118,7 +120,7 @@ Na VM, crie o ambiente real:
 cp .env.prod.example .env.prod
 ```
 
-Preencha `DJANGO_SECRET_KEY`, `DATABASE_PASSWORD` e demais valores reais. Depois suba a stack de producao:
+Preencha `DJANGO_SECRET_KEY`, `DATABASE_PASSWORD`, `FACE_EMBEDDING_ENCRYPTION_KEY`, `FACE_EMBEDDING_CACHE_PASSWORD` e demais valores reais. Depois suba a stack de producao:
 
 ```bash
 docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
@@ -128,7 +130,7 @@ No Compose de producao, somente o frontend publica porta local em `127.0.0.1:808
 
 O build do React usa o prefixo publico completo, mas o Apache da VM pode remover esse prefixo antes de encaminhar para `127.0.0.1:8088`. Por isso o Nginx do frontend aceita tanto `/interscity_lh/catalog/autoponto/api/` quanto `/api/` e encaminha ambos para o backend interno. Para diagnostico na VM, `curl -i http://127.0.0.1:8088/api/health/` deve chegar ao Django.
 
-O refresh JWT fica em cookie `HttpOnly`. Em producao, mantenha `JWT_REFRESH_COOKIE_SECURE=True` e `JWT_REFRESH_COOKIE_PATH=/interscity_lh/catalog/autoponto/api/auth/`. Se `INTERSCITY_ENABLED=True`, preencha `INTERSCITY_BASE_URL` e os paths dos microsservicos; falhas no Interscity sao tratadas como indisponibilidade externa e nao bloqueiam login, presencas ou relatorios.
+O refresh JWT fica em cookie `HttpOnly`. Em producao, mantenha `JWT_REFRESH_COOKIE_SECURE=True` e `JWT_REFRESH_COOKIE_PATH=/interscity_lh/catalog/autoponto/api/auth/`. A integracao IntersCity usada pela API principal consulta o Collector por `INTERSCITY_BASE_URL`, `INTERSCITY_COLLECTOR_PATH` e `INTERSCITY_TIMEOUT_SECONDS`; falhas no Collector sao tratadas como indisponibilidade externa e nao bloqueiam login, presencas ou relatorios.
 
 Se o login retornar `400 Bad Request` com `content-type: text/html`, verifique os logs do backend: normalmente e rejeicao de host/proxy antes da view JWT. Confirme que a `.env.prod` real contem `DJANGO_ALLOWED_HOSTS=cidadesinteligentes.lsdi.ufma.br,192.168.10.104,localhost,127.0.0.1`. O Nginx de producao tambem sobrescreve `X-Forwarded-Host` com `$host` para evitar que um valor encaminhado pelo Apache quebre essa validacao.
 
@@ -147,11 +149,17 @@ Backend:
 - `autoponto-backend/docs/como-rodar.md`
 - `autoponto-backend/docs/explicacao-do-codigo.md`
 - `autoponto-backend/docs/diagramas-tcc.md`
+- `autoponto-backend/docs/requisitos.md`
+- `autoponto-backend/docs/regras-academicas-operacionais.md`
+- `autoponto-backend/docs/guia-api-django.md`
+- `autoponto-backend/docs/interscity-integration.md`
+- `autoponto-backend/docs/edge-biometria-criptografada.md`
+- `autoponto-backend/docs/seed-tcc-ufma.md`
 
 Frontend:
 
 - `autoponto-frontend/docs/como-rodar.md`
 - `autoponto-frontend/docs/explicacao-do-codigo.md`
 - `autoponto-frontend/docs/diagramas-tcc.md`
-
-Tambem ha documentos complementares do backend sobre edge e Interscity em `autoponto-backend/docs/`.
+- `autoponto-frontend/docs/requisitos.md`
+- `autoponto-frontend/docs/paginas-e-fluxos.md`

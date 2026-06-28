@@ -6,6 +6,7 @@ Este documento explica como rodar apenas o painel React/Vite do AutoPonto.
 
 - Node.js 22 ou superior.
 - Backend AutoPonto rodando em `http://localhost:8000/api`.
+- Arquivo `.env` na raiz do monorepo, baseado em `.env.example`.
 
 ## Ambiente Local
 
@@ -27,6 +28,12 @@ Instale dependencias:
 npm install
 ```
 
+No Windows, se o PowerShell tiver problema ao resolver `npm`, use:
+
+```powershell
+cmd /c npm.cmd install
+```
+
 Suba o Vite:
 
 ```bash
@@ -44,7 +51,7 @@ VITE_API_URL=/api
 VITE_BASE_PATH=/
 ```
 
-Com `npm run dev`, o Vite encaminha `/api` para `http://localhost:8000`. No Docker Compose de desenvolvimento, o Nginx do frontend encaminha `/api/` para o backend.
+Com `npm run dev`, o Vite encaminha `/api` para `http://localhost:8000`. Ele tambem aceita o prefixo publico `/interscity_lh/catalog/autoponto/api` e reescreve para `/api`, facilitando testes locais de links usados na VM. No Docker Compose de desenvolvimento, o Nginx do frontend encaminha `/api/` para o backend.
 
 Para o deploy provisorio na VM, o build usa:
 
@@ -63,6 +70,14 @@ npm run build
 
 O resultado fica em `dist/`.
 
+## Testes
+
+```bash
+npm run test
+```
+
+Esse comando executa os testes Vitest de navegacao, basename, calendario, biometria e componentes compartilhados.
+
 ## Docker
 
 O Dockerfile do frontend fica em `autoponto-frontend/Dockerfile`, mas o Compose fica na raiz do repositorio.
@@ -74,11 +89,11 @@ cd ..
 docker compose up --build
 ```
 
-Se a porta `8080` estiver ocupada, altere `FRONTEND_PORT` no `.env` da raiz e use a nova porta no navegador.
+Se a porta `8080` estiver ocupada, altere o mapeamento do servico `frontend` em `docker-compose.yml`, por exemplo de `"8080:80"` para `"8081:80"`, e use a nova porta no navegador.
 
 Servicos:
 
-- Frontend: `http://localhost:${FRONTEND_PORT}`; no exemplo padrao, `http://localhost:8080`
+- Frontend: `http://localhost:8080` por padrao, ou a porta mapeada no Compose
 - Backend: `http://localhost:8000/api/`
 
 ## Producao Provisoria Na VM
@@ -103,3 +118,9 @@ O login usa JWT:
 - `GET /api/me/`
 
 O access token fica apenas em memoria no React. O refresh token fica em cookie `HttpOnly`, definido pelo backend, e por isso as chamadas usam `credentials: include`.
+
+## Rotas Principais
+
+- Publica: `/mapa-iot`.
+- Privadas: `/app/aluno`, `/app/calendario`, `/app/aluno/biometria`, `/app/professor`, `/app/admin/academico`, `/app/admin/iot`, `/app/mapa-iot` e `/app/perfil`.
+- Detalhes: `/app/turmas/:turmaId`, `/app/turmas/:turmaId/aulas/:aulaId` e `/app/aulas/:aulaId`.

@@ -32,10 +32,9 @@ erDiagram
     Usuario ||--o{ Turma : ministra
     Turma ||--o{ MatriculaTurma : recebe
     Usuario ||--o{ MatriculaTurma : realiza
-    HorarioPadraoUFMA ||--o{ HorarioAula : padroniza
-    Turma ||--o{ HorarioAula : possui
-    Sala ||--o{ HorarioAula : aloca
-    HorarioAula ||--o{ Aula : gera
+    HorarioPadraoUFMA ||--o{ Aula : padroniza
+    Turma ||--o{ Aula : possui
+    Sala ||--o{ Aula : aloca
     Aula ||--o{ RegistroPresenca : registra
     Usuario ||--o{ RegistroPresenca : recebe
     NoBorda ||--o{ DispositivoEsp32 : gerencia
@@ -58,16 +57,21 @@ erDiagram
         date data
         datetime inicio
         datetime fim
-        string status
+        datetime cancelada_em
         datetime fechada_em
+    }
+
+    NoBorda {
+        uuid id PK
+        string codigo
+        decimal latitude
+        decimal longitude
     }
 
     DispositivoEsp32 {
         uuid id PK
         string codigo
         string interscity_uuid
-        decimal latitude
-        decimal longitude
     }
 ```
 
@@ -78,8 +82,8 @@ flowchart TD
     Codigo["Codigo SIGAA composto\n25M34"] --> Split["Normalizacao"]
     Split --> H1["HorarioPadraoUFMA\n2M34\nsegunda 10:00-11:40"]
     Split --> H2["HorarioPadraoUFMA\n5M34\nquinta 10:00-11:40"]
-    H1 --> HA1["HorarioAula da turma"]
-    H2 --> HA2["HorarioAula da turma"]
+    H1 --> A1["Aulas materializadas da turma"]
+    H2 --> A2["Aulas materializadas da turma"]
 ```
 
 ## 4. Fluxo De Pull
@@ -92,7 +96,8 @@ sequenceDiagram
 
     Edge->>API: GET /api/edge/pull
     API->>DB: Busca ESP32 e salas do no
-    API->>DB: Materializa Aula pelo periodo de sync
+    API->>DB: Busca aulas ja materializadas do dia
+    API->>DB: Anota status derivado e filtra aulas validas
     API->>DB: Busca alunos, matriculas e embeddings ativos
     API-->>Edge: snapshot_data + synced_at + cache_redis
     Edge->>Edge: Substitui chaves Redis do snapshot
@@ -113,7 +118,7 @@ sequenceDiagram
     Face-->>Edge: aluno_id, aula_id, score
     Edge->>API: POST /api/edge/attendance
     API->>DB: Valida no, dispositivo, sala e matricula
-    API->>DB: Valida Aula.inicio <= reconhecido_em <= Aula.fim
+    API->>DB: Valida Aula.inicio <= reconhecido_em < Aula.fim
     API->>DB: Upsert RegistroPresenca
     API->>DB: Cria EventoReconhecimento sem imagem
     API-->>Edge: synced_ids
@@ -134,14 +139,14 @@ sequenceDiagram
     API-->>Edge: dispositivos com interscity_uuid
     Edge->>MQTT: cmd/{device_id} {"stats": true}
     ESP->>MQTT: log/{device_id}
-    MQTT->>Edge: status, rssi, heap_min, lesson, remainingms, nextms, now_ms
+    MQTT->>Edge: status, presenca, rssi, heap/psram, lesson, remaining_ms, next_ms
     Edge-->>IC: POST /adaptor/resources/{uuid}/data
-    Front->>API: GET /api/public/mapa/dispositivos/
-    API-->>Front: ESP32 + latitude/longitude + uuid
-    Front->>API: GET /api/public/mapa/dispositivos/{id}/historico/?dias=7
+    Front->>API: GET /api/public/mapa/nos/
+    API-->>Front: Nos com latitude/longitude + ESP32
+    Front->>API: GET /api/public/mapa/dispositivos/{id}/historico/?periodo=7d
     API->>IC: POST /collector/resources/data
     IC-->>API: historico filtrado
-    API-->>Front: historico + ultimo valor
+    API-->>Front: historico + ultimo valor + PIR histograma
 ```
 
 ## 7. Fechamento Manual
@@ -155,8 +160,7 @@ sequenceDiagram
 
     Professor->>API: POST /api/aulas/{id}/fechar-chamada/
     API->>DB: Verifica acesso a turma
-    API->>DB: Marca Aula como FECHADA
-    API->>DB: Salva fechada_em e fechada_por
+    API->>DB: Preenche fechada_em e fechada_por
     Edge->>API: GET /api/edge/pull
     API-->>Edge: cache_redis sem aula fechada/cancelada
     Edge->>Edge: Substitui chaves Redis do snapshot
@@ -175,21 +179,22 @@ sequenceDiagram
     API->>Visao: gerar_embedding(capturas)
     Visao-->>API: vetor SFace
     API->>DB: Compara com embeddings ativos
-    API->>DB: Atualiza embedding unico do aluno
-    API->>DB: Salva EmbeddingFacial ativo atualizado
+    API->>DB: Revoga embeddings ativos anteriores
+    API->>DB: Cria novo EmbeddingFacial ativo criptografado
     API-->>Usuario: embedding ativo
 ```
 
-## 9. Estados Da Aula
+## 9. Status Derivado Da Aula
 
 ```mermaid
 stateDiagram-v2
     [*] --> PLANEJADA
-    PLANEJADA --> ABERTA: primeira presenca aceita
-    ABERTA --> FECHADA: professor/admin fecha
-    PLANEJADA --> FECHADA: fechamento manual
-    PLANEJADA --> CANCELADA: cancelamento
-    ABERTA --> CANCELADA: cancelamento
+    PLANEJADA --> ABERTA: inicio <= agora < fim
+    ABERTA --> FECHADA: fim <= agora
+    PLANEJADA --> FECHADA: fim <= agora
+    ABERTA --> FECHADA: professor/admin preenche fechada_em
+    PLANEJADA --> CANCELADA: cancelada_em preenchido
+    ABERTA --> CANCELADA: cancelada_em preenchido
     FECHADA --> [*]
     CANCELADA --> [*]
 ```
@@ -199,7 +204,7 @@ stateDiagram-v2
 ```mermaid
 flowchart LR
     Capturas["Capturas base64\nsomente na requisicao"] --> API["API AutoPonto"]
-    API --> Vetor["EmbeddingFacial.vetor"]
+    API --> Vetor["EmbeddingFacial.vetor\ncriptografado"]
     API --> Presenca["RegistroPresenca"]
     API --> Evento["EventoReconhecimento\nsem frame bruto"]
     Edge["NoBorda"] -. "telemetria tecnica das ESP32" .-> IC["Interscity"]

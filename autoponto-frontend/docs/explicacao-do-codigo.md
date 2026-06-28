@@ -1,6 +1,6 @@
 ﻿# Explicacao Geral Do Frontend
 
-O frontend e um painel React + Vite para demonstrar o MVP do AutoPonto. Ele nao substitui o admin do Django; ele oferece uma interface simples para os tres papeis do sistema: aluno, professor e administrador.
+O frontend e um painel React + Vite para demonstrar o MVP do AutoPonto. Ele nao substitui o admin do Django; ele oferece uma interface operacional para aluno, professor, administrador e tambem uma pagina publica de mapa IoT.
 
 ## Estrutura
 
@@ -8,22 +8,28 @@ O frontend e um painel React + Vite para demonstrar o MVP do AutoPonto. Ele nao 
 - `vite.config.ts`: configuracao do servidor Vite.
 - `index.html`: ponto de entrada HTML.
 - `src/main.tsx`: monta a aplicacao React dentro do elemento `root`.
-- `src/app/App.tsx`: orquestra sessao, navegacao e paginas do MVP.
-- `src/api.ts`: cliente HTTP com JWT, refresh simples e tratamento de erros.
-- `src/types.ts`: tipos TypeScript usados nas respostas da API.
-- `src/styles.css`: estilo visual do painel.
+- `src/app/App.tsx`: define rotas publicas, rotas protegidas e redirecionamentos.
+- `src/app/navigation.ts`: calcula destinos e itens de menu conforme permissoes retornadas por `/api/me/`.
+- `src/shell/`: layout autenticado, sidebar, header, dropdown de usuario e backdrop responsivo.
+- `src/shared/api.ts`: cliente HTTP com JWT, refresh via cookie e tratamento de erros.
+- `src/shared/types.ts`: tipos TypeScript usados nas respostas da API.
+- `src/shared/ui/`: componentes reutilizaveis como tabela, modal, toast, botoes, graficos e estados vazios.
+- `src/shared/domain/`: funcoes de dominio para calendario, status de aula e status do aluno.
+- `src/shared/theme/`: alternancia de tema.
+- `src/scss/v4/`: estilos SCSS do painel.
 - `nginx.conf`: configuracao para servir o build e encaminhar `/api/`.
 - `nginx.prod.conf`: configuracao para servir o build no prefixo publico temporario da VM.
 - `Dockerfile`: build multi-stage com Node e Nginx.
 
 ## Cliente De API
 
-O arquivo `src/api.ts` define:
+O arquivo `src/shared/api.ts` define:
 
 - `apiFetch`: funcao principal para chamar a API.
 - `login`: autentica em `/auth/token/` e carrega `/me/`.
 - `tentarRefresh`: tenta renovar o access token quando a API retorna `401`.
 - `detalheErro`: converte erros HTTP em mensagens legiveis.
+- `logout`: chama `/auth/logout/` e limpa a sessao local mesmo se o cookie ja tiver expirado.
 
 A URL base vem de:
 
@@ -56,43 +62,66 @@ Na VM, `nginx.prod.conf` serve o app em `/interscity_lh/catalog/autoponto/` e en
 
 ## Telas
 
-As telas ficam separadas por dominio em `src/features/`, enquanto `src/app/App.tsx` apenas controla sessao e navegacao.
+As telas ficam separadas por dominio em `src/features/`, enquanto `src/app/App.tsx` define as rotas:
+
+- Publicas: `/`, `/signin`, `/mapa-iot` e `*`.
+- Privadas: `/app/aluno`, `/app/calendario`, `/app/aluno/biometria`, `/app/professor`, `/app/admin/academico`, `/app/admin/iot`, `/app/mapa-iot`, `/app/perfil`.
+- Detalhes de aulas/turmas: `/app/turmas/:turmaId`, `/app/turmas/:turmaId/aulas/:aulaId` e `/app/aulas/:aulaId`.
 
 ### Login
 
 Recebe usuario e senha, chama `login()`, guarda o access token apenas em memoria e deixa o refresh token no cookie `HttpOnly` definido pelo backend.
 
-### Painel Do Aluno
+### Area Do Aluno
 
 Usa:
 
+- `GET /api/me/dashboard-aluno/`
 - `GET /api/me/turmas/`
 - `GET /api/me/presencas/`
+- `GET /api/me/frequencia/`
+- `GET /api/me/calendario-aulas/`
+- `GET /api/me/biometrias/`
 - `POST /api/me/biometria/`
+- `DELETE /api/me/biometrias/{id}/`
+- `GET /api/me/eventos-reconhecimento/`
 
-Mostra turmas do periodo ativo, presencas registradas e cadastro biometrico por upload de imagem.
+Mostra dashboard, aulas de hoje, proximas aulas, frequencia por turma, calendario, detalhe de aula/turma, eventos de reconhecimento e cadastro/revogacao de biometria por upload de imagens.
 
-### Painel Do Professor
+### Area Do Professor
 
 Usa:
 
+- `GET /api/professor/dashboard/`
 - `GET /api/professor/turmas/`
+- `GET /api/professor/turmas/{id}/frequencia/`
+- `GET /api/turmas/{id}/aula/`
+- `GET /api/turmas/{id}/aula/{aula_id}/`
 - `GET /api/relatorios/turmas/{id}/presencas/`
 - `GET /api/relatorios/turmas/{id}/resumo/`
 
-Permite selecionar turma/data e ver presentes, ausentes e resumo percentual.
+Permite acompanhar chamadas abertas/pendentes, consultar calendario, abrir detalhe de turma/aula e ver presentes, ausentes, resumo percentual e historico de reconhecimento.
 
-### Painel Administrativo
+### Area Administrativa
 
-Usa CRUDs do backend e endpoints de relatorio:
+Usa CRUDs do backend e endpoints de relatorio. As paginas atuais sao:
 
-- `POST /api/usuarios/`
-- `POST /api/matriculas-turma/`
-- `PATCH /api/turmas/{id}/`
-- `POST /api/embeddings-faciais/matricular/`
-- `GET /api/interscity/diagnostico/`: mostra a saude dos microsservicos; a telemetria IntersCity do MVP e publicada diretamente pelo edge-node.
+- `features/admin/pages/AdminAcademicoPage.tsx`: usuarios, campus, predios, salas, periodos, cursos, disciplinas, horarios UFMA, turmas, matriculas e vinculos de professor.
+- `features/admin/pages/AdminIotPage.tsx`: nos de borda, tokens, ESP32, diagnostico IntersCity e dados de infraestrutura IoT.
+- Endpoints CRUD: `/api/usuarios/`, `/api/campi/`, `/api/predios/`, `/api/salas/`, `/api/periodos-letivos/`, `/api/cursos/`, `/api/disciplinas/`, `/api/horarios-padrao-ufma/`, `/api/turmas/`, `/api/matriculas-turma/`, `/api/nos-borda/`, `/api/dispositivos-esp32/`.
+- Relatorios e aulas: `/api/relatorios/*`, `/api/aulas/`, `/api/turmas/{id}/aula/`.
+- `GET /api/interscity/diagnostico/`: mostra a saude do Collector configurado; a telemetria IntersCity do MVP e publicada pelo edge-node.
 
-O objetivo e demonstrar cadastro basico, vinculos academicos e monitoramento da integracao IoT.
+O objetivo e demonstrar cadastros academicos completos, geracao de aulas, vinculos, chamadas e monitoramento IoT sem depender do admin do Django.
+
+### Mapa IoT
+
+Usa endpoints publicos:
+
+- `GET /api/public/mapa/nos/`
+- `GET /api/public/mapa/dispositivos/{id}/historico/?periodo=2h|1d|7d|recentes`
+
+A pagina agrupa dispositivos por no de borda, usa Leaflet para o mapa, ECharts para graficos e mostra historico do Collector com gaps reais quando faltam amostras. O PIR e normalizado pelo backend como histograma.
 
 ## Estilo
 
@@ -100,20 +129,22 @@ O CSS usa uma interface operacional: tabelas, formularios e paineis compactos. A
 
 ## Limitacoes Do MVP
 
-- As telas administrativas cobrem os cadastros necessarios ao MVP, mas continuam simples para permitir retrabalho visual posterior.
-- Nao usa React Query ou roteamento por URL para manter o projeto menor.
+- As telas administrativas cobrem os cadastros necessarios ao MVP, mas continuam focadas no fluxo de TCC, nao em um ERP academico completo.
+- Nao usa React Query; os carregamentos ficam nas paginas e componentes atuais para manter o projeto menor.
 - O access token fica somente em memoria no React; o refresh token fica em cookie `HttpOnly`, reduzindo exposicao em caso de XSS.
 
 ## Estrutura Atual Do Frontend
 
 O frontend foi separado de forma minimalista para continuar facil de estudar:
 
-- `src/app/App.tsx`: orquestra sessao, area ativa e navegacao por papel.
-- `src/components/`: componentes pequenos e reutilizaveis, como `Botao` e `Mensagem`.
-- `src/features/auth/`: tela de login.
-- `src/features/aluno/`: painel do aluno, turmas, presencas e biometria propria.
-- `src/features/professor/`: painel de professor e relatorios.
-- `src/features/admin/`: painel administrativo, cadastros academicos, matriculas, vinculos, biometria, status local de ESP32, mapa operacional e diagnostico IntersCity.
-- `src/shared/`: funcoes auxiliares de formatacao e biometria.
-- `src/api.ts`: cliente HTTP, access token em memoria, refresh via cookie e tratamento de erros.
-- `src/types.ts`: contratos TypeScript retornados pelo backend.
+- `src/app/`: rotas, protecao por area, redirecionamento inicial, basename e testes de navegacao.
+- `src/shell/`: layout autenticado.
+- `src/features/auth/`: login e pagina 404.
+- `src/features/aluno/`: dashboard e cadastro/revogacao de biometria.
+- `src/features/calendario/`: calendario mensal e modal do dia.
+- `src/features/aulas/`: detalhe de turma/aula para aluno e professor.
+- `src/features/professor/`: dashboard do professor.
+- `src/features/admin/`: paginas academica e IoT, mais `AdminResourceManager` compartilhado.
+- `src/features/mapa/`: mapa publico/embutido de nos, dispositivos e telemetria.
+- `src/features/perfil/`: dados da conta, biometria e eventos do aluno.
+- `src/shared/`: API, sessao, tipos, UI, dominio, tema e assets.
