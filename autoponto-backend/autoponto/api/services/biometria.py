@@ -1,6 +1,7 @@
 import base64
 import binascii
 from pathlib import Path
+from time import perf_counter
 
 from django.conf import settings
 from django.db import transaction
@@ -14,6 +15,7 @@ from .cache_biometria import (
 )
 from .crypto_biometria import criptografar_vetor
 from .errors import ConflictError, DomainValidationError, NotFoundError
+from .tcc_metricas import registrar_evento, registrar_tempo, registrar_valor
 
 FACE_MAX_CAPTURAS_PADRAO = 5
 FACE_MAX_IMAGE_BYTES_PADRAO = 5 * 1024 * 1024
@@ -36,6 +38,14 @@ def _limite_legivel(limite_bytes: int) -> str:
 
 
 def validar_capturas_biometricas(capturas: list[str]) -> list[str]:
+    registrar_valor(
+        "biometria_capturas_total",
+        len(capturas) if capturas else 0,
+        unidade="contagem",
+        servico="servidor-principal",
+        origem="validar_capturas_biometricas",
+    )
+
     if not capturas:
         raise DomainValidationError("Ao menos uma captura é necessária para cadastrar biometria.")
 
@@ -120,7 +130,40 @@ class GeradorEmbeddingVisao:
             vetor = reconhecedor.feature(alinhada)
             vetores.append(vetor.reshape(-1))
 
+        status_metricas = "sucesso" if vetores else "falha"
+        detalhes_metricas = {
+            "capturas": len(capturas),
+            "capturas_decodificadas": capturas_decodificadas,
+            "faces_detectadas": quantidade_faces,
+            "embeddings": len(vetores),
+        }
+        registrar_valor(
+            "biometria_capturas_decodificadas_total",
+            capturas_decodificadas,
+            unidade="contagem",
+            servico="servidor-principal",
+            status=status_metricas,
+            origem="GeradorEmbeddingVisao.gerar_embedding",
+            detalhes=detalhes_metricas,
+        )
+        registrar_valor(
+            "biometria_faces_detectadas_total",
+            quantidade_faces,
+            unidade="contagem",
+            servico="servidor-principal",
+            status=status_metricas,
+            origem="GeradorEmbeddingVisao.gerar_embedding",
+            detalhes=detalhes_metricas,
+        )
+
         if not vetores:
+            registrar_evento(
+                "biometria_falha_deteccao_total",
+                servico="servidor-principal",
+                status="falha",
+                origem="GeradorEmbeddingVisao.gerar_embedding",
+                detalhes=detalhes_metricas,
+            )
             raise DomainValidationError("Nenhum embedding facial pôde ser gerado a partir das capturas.")
 
         embedding = np.mean(np.vstack(vetores), axis=0).astype("float32")
@@ -133,7 +176,36 @@ class GeradorEmbeddingVisao:
 
 
 def _gerar_vetor_embedding(capturas: list[str]) -> tuple[list[float], dict]:
-    return GeradorEmbeddingVisao().gerar_embedding(capturas)
+    inicio = perf_counter()
+    try:
+        vetor, detalhes = GeradorEmbeddingVisao().gerar_embedding(capturas)
+    except Exception as exc:
+        registrar_tempo(
+            "biometria_embedding_ms",
+            (perf_counter() - inicio) * 1000,
+            servico="servidor-principal",
+            status="falha",
+            origem="_gerar_vetor_embedding",
+            detalhes={
+                "capturas": len(capturas) if capturas else 0,
+                "erro": exc.__class__.__name__,
+            },
+        )
+        raise
+
+    registrar_tempo(
+        "biometria_embedding_ms",
+        (perf_counter() - inicio) * 1000,
+        servico="servidor-principal",
+        origem="_gerar_vetor_embedding",
+        detalhes={
+            "capturas": len(capturas) if capturas else 0,
+            "capturas_decodificadas": detalhes.get("capturas_decodificadas"),
+            "faces_detectadas": detalhes.get("quantidade_faces"),
+            "embeddings": detalhes.get("quantidade_embeddings"),
+        },
+    )
+    return vetor, detalhes
 
 
 class ComparadorEmbeddingSFace:

@@ -27,6 +27,7 @@ node_modules/
 autoponto-frontend/node_modules/
 autoponto-frontend/dist/
 downloads/
+data/
 eggs/
 .eggs/
 lib/

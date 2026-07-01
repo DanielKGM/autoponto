@@ -3,12 +3,14 @@ import json
 import struct
 import zlib
 from dataclasses import dataclass
+from time import perf_counter
 from typing import Iterable
 
 from django.conf import settings
 
 from .crypto_biometria import descriptografar_vetor
 from .errors import DomainValidationError
+from .tcc_metricas import registrar_tempo
 
 
 INDEX_KEY = "face:embeddings"
@@ -148,20 +150,40 @@ def _sync_index(client, ids_ativos: set[str]) -> set[str]:
 
 
 def listar_embeddings_ativos() -> list[EmbeddingCacheItem]:
-    client = _redis()
-    ids = _sync_index(client, _ids_ativos())
-    itens: list[EmbeddingCacheItem] = []
-    for embedding_id in sorted(ids):
-        payload = _LOCMEM.get(_key(embedding_id)) if client is None else client.get(_key(embedding_id))
-        if payload is None:
-            embedding = _buscar_embedding(embedding_id)
-            if not embedding:
-                remover_embeddings([embedding_id])
-                continue
-            salvar_embedding(embedding)
+    inicio = perf_counter()
+    try:
+        client = _redis()
+        ids = _sync_index(client, _ids_ativos())
+        itens: list[EmbeddingCacheItem] = []
+        for embedding_id in sorted(ids):
             payload = _LOCMEM.get(_key(embedding_id)) if client is None else client.get(_key(embedding_id))
-        if isinstance(payload, str):
-            itens.append(_item(payload))
+            if payload is None:
+                embedding = _buscar_embedding(embedding_id)
+                if not embedding:
+                    remover_embeddings([embedding_id])
+                    continue
+                salvar_embedding(embedding)
+                payload = _LOCMEM.get(_key(embedding_id)) if client is None else client.get(_key(embedding_id))
+            if isinstance(payload, str):
+                itens.append(_item(payload))
+    except Exception as exc:
+        registrar_tempo(
+            "embedding_cache_listar_ms",
+            (perf_counter() - inicio) * 1000,
+            servico="servidor-principal",
+            status="falha",
+            origem="listar_embeddings_ativos",
+            detalhes={"erro": exc.__class__.__name__},
+        )
+        raise
+
+    registrar_tempo(
+        "embedding_cache_listar_ms",
+        (perf_counter() - inicio) * 1000,
+        servico="servidor-principal",
+        origem="listar_embeddings_ativos",
+        detalhes={"embeddings": len(itens)},
+    )
     return itens
 
 

@@ -1,9 +1,12 @@
 import json
 from socket import timeout as SocketTimeout
+from time import perf_counter
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from django.conf import settings
+
+from .tcc_metricas import registrar_evento, registrar_tempo
 
 STATUS_OK = "ok"
 STATUS_TIMEOUT = "timeout"
@@ -20,6 +23,50 @@ class ClienteInterSCity:
             timeout if timeout is not None else settings.INTERSCITY_TIMEOUT_SECONDS
         )
 
+    def _registrar_metrica_request(
+        self,
+        *,
+        inicio: float,
+        operacao: str,
+        metodo: str,
+        caminho: str,
+        resultado: dict | None,
+    ) -> None:
+        if not resultado:
+            return
+        status = resultado.get("status", STATUS_INDISPONIVEL)
+        ok = bool(resultado.get("ok"))
+        detalhes = {
+            "operacao": operacao,
+            "metodo": metodo,
+            "caminho": caminho,
+            "status": status,
+            "codigo_http": resultado.get("codigo_http"),
+        }
+        registrar_tempo(
+            "interscity_request_ms",
+            (perf_counter() - inicio) * 1000,
+            servico="servidor-principal",
+            status="sucesso" if ok else "falha",
+            origem="ClienteInterSCity",
+            detalhes=detalhes,
+        )
+        registrar_evento(
+            "interscity_status",
+            servico="servidor-principal",
+            status=status,
+            origem="ClienteInterSCity",
+            detalhes=detalhes,
+        )
+        if not ok:
+            registrar_evento(
+                "interscity_falha_total",
+                servico="servidor-principal",
+                status=f"falha_{status}",
+                origem="ClienteInterSCity",
+                detalhes=detalhes,
+            )
+
     def _url_servico(self, caminho: str) -> str:
         return f"{self.base_url}/{caminho.strip('/')}".rstrip("/")
 
@@ -27,6 +74,7 @@ class ClienteInterSCity:
         self, metodo: str, base_url: str, caminho: str, corpo: dict | None = None
     ) -> dict:
 
+        inicio = perf_counter()
         dados = json.dumps(corpo or {}).encode("utf-8") if corpo is not None else None
         headers = {"Accept": "*/*"}
         if dados is not None:
@@ -38,42 +86,52 @@ class ClienteInterSCity:
             method=metodo,
         )
         resposta = None
+        resultado = None
         try:
             resposta = urlopen(requisicao, timeout=self.timeout)
-            return {
+            resultado = {
                 "ok": True,
                 "status": STATUS_OK,
                 "codigo_http": getattr(resposta, "status", None),
             }
         except (TimeoutError, SocketTimeout):
-            return {
+            resultado = {
                 "ok": False,
                 "status": STATUS_TIMEOUT,
                 "detalhe": "Tempo limite excedido.",
             }
         except HTTPError as exc:
-            return {
+            resultado = {
                 "ok": False,
                 "status": STATUS_ERRO_HTTP,
                 "codigo_http": exc.code,
                 "detalhe": str(exc.reason),
             }
         except URLError as exc:
-            return {
+            resultado = {
                 "ok": False,
                 "status": STATUS_INDISPONIVEL,
                 "detalhe": str(exc.reason),
             }
         except OSError as exc:
-            return {"ok": False, "status": STATUS_INDISPONIVEL, "detalhe": str(exc)}
+            resultado = {"ok": False, "status": STATUS_INDISPONIVEL, "detalhe": str(exc)}
         finally:
             if resposta and hasattr(resposta, "close"):
                 resposta.close()
+            self._registrar_metrica_request(
+                inicio=inicio,
+                operacao="status",
+                metodo=metodo,
+                caminho=caminho,
+                resultado=resultado,
+            )
+        return resultado
 
     def _request_json(
         self, metodo: str, base_url: str, caminho: str, corpo: dict | None = None
     ) -> dict:
 
+        inicio = perf_counter()
         dados = json.dumps(corpo or {}).encode("utf-8") if corpo is not None else None
         headers = {"Accept": "*/*"}
         if dados is not None:
@@ -85,26 +143,27 @@ class ClienteInterSCity:
             method=metodo,
         )
         resposta = None
+        resultado = None
         try:
             resposta = urlopen(requisicao, timeout=self.timeout)
             conteudo = (
                 resposta.read().decode("utf-8") if hasattr(resposta, "read") else "{}"
             )
-            return {
+            resultado = {
                 "ok": True,
                 "status": STATUS_OK,
                 "codigo_http": getattr(resposta, "status", None),
                 "data": json.loads(conteudo or "{}"),
             }
         except (TimeoutError, SocketTimeout):
-            return {
+            resultado = {
                 "ok": False,
                 "status": STATUS_TIMEOUT,
                 "detalhe": "Tempo limite excedido.",
                 "data": {},
             }
         except HTTPError as exc:
-            return {
+            resultado = {
                 "ok": False,
                 "status": STATUS_ERRO_HTTP,
                 "codigo_http": exc.code,
@@ -112,14 +171,14 @@ class ClienteInterSCity:
                 "data": {},
             }
         except URLError as exc:
-            return {
+            resultado = {
                 "ok": False,
                 "status": STATUS_INDISPONIVEL,
                 "detalhe": str(exc.reason),
                 "data": {},
             }
         except (OSError, ValueError) as exc:
-            return {
+            resultado = {
                 "ok": False,
                 "status": STATUS_INDISPONIVEL,
                 "detalhe": str(exc),
@@ -128,6 +187,14 @@ class ClienteInterSCity:
         finally:
             if resposta and hasattr(resposta, "close"):
                 resposta.close()
+            self._registrar_metrica_request(
+                inicio=inicio,
+                operacao="json",
+                metodo=metodo,
+                caminho=caminho,
+                resultado=resultado,
+            )
+        return resultado
 
     def diagnosticar_servicos(self) -> dict:
         return {"collector": self._request_status("GET", self.collector_url, "/")}

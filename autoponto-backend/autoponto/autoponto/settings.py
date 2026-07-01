@@ -49,6 +49,13 @@ def env_bool(nome: str) -> bool:
     return valor == "true"
 
 
+def env_bool_opcional(nome: str, padrao: bool = False) -> bool:
+    valor = os.environ.get(nome)
+    if valor is None:
+        return padrao
+    return valor.strip().lower() not in {"", "0", "false", "no", "nao", "off"}
+
+
 def env_lista(nome: str) -> list[str]:
     valores = [
         item.strip() for item in env_obrigatoria(nome).split(",") if item.strip()
@@ -233,3 +240,9 @@ JWT_REFRESH_COOKIE_PATH = env_obrigatoria("JWT_REFRESH_COOKIE_PATH")
 JWT_REFRESH_COOKIE_SECURE = env_bool("JWT_REFRESH_COOKIE_SECURE")
 JWT_REFRESH_COOKIE_SAMESITE = env_obrigatoria("JWT_REFRESH_COOKIE_SAMESITE")
 DATA_UPLOAD_MAX_MEMORY_SIZE = int(FACE_MAX_CAPTURAS * FACE_MAX_IMAGE_BYTES * 1.5)
+
+TCC_EVIDENCIAS_ENABLED = env_bool_opcional("TCC_EVIDENCIAS_ENABLED", False)
+TCC_EVIDENCIAS_DIR = os.environ.get(
+    "TCC_EVIDENCIAS_DIR",
+    str(BASE_DIR / "data" / "logs" / "tcc"),
+)

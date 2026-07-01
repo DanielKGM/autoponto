@@ -1,6 +1,7 @@
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.dateparse import parse_date
+from time import perf_counter
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
@@ -13,6 +14,7 @@ from api.models import Aula, PapelUsuario, Turma, Usuario
 from api.serializers.frontend import MatriculaBiometricaPropriaSerializer
 from api.services.biometria import matricular_biometria_aluno, revogar_biometria_aluno
 from api.services.errors import AppError
+from api.services.tcc_metricas import registrar_tempo
 from api.services.relatorios import (
     biometrias_do_aluno,
     calendario_aulas_usuario,
@@ -31,6 +33,7 @@ from api.services.relatorios import (
     turmas_do_professor,
     usuario_pode_acessar_turma,
 )
+from api.views.mixins import MetricasEndpointMixin
 
 
 def _payload_usuario(usuario: Usuario) -> dict:
@@ -112,8 +115,9 @@ def _turmas_historico_permitidas(usuario: Usuario, aluno: Usuario, turma_id=None
     return list(turmas.values_list("id", flat=True))
 
 
-class MeView(APIView):
+class MeView(MetricasEndpointMixin, APIView):
     permission_classes = (IsAuthenticated,)
+    metrica_endpoint = "endpoint_me_ms"
 
     @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request):
@@ -145,8 +149,9 @@ class MinhasPresencasView(APIView):
         return Response(presencas_do_aluno(request.user))
 
 
-class DashboardAlunoView(APIView):
+class DashboardAlunoView(MetricasEndpointMixin, APIView):
     permission_classes = (IsAuthenticated,)
+    metrica_endpoint = "endpoint_dashboard_aluno_ms"
 
     @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request):
@@ -165,8 +170,9 @@ class MinhaFrequenciaView(APIView):
         return Response(resumo_frequencia_aluno(request.user, request.query_params.get("periodo_letivo") or None))
 
 
-class MeuCalendarioAulasView(APIView):
+class MeuCalendarioAulasView(MetricasEndpointMixin, APIView):
     permission_classes = (IsAuthenticated,)
+    metrica_endpoint = "endpoint_calendario_ms"
 
     @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request):
@@ -190,16 +196,36 @@ class MinhaBiometriaView(APIView):
 
         serializer = MatriculaBiometricaPropriaSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        capturas = serializer.validated_data["capturas"]
 
+        inicio = perf_counter()
         try:
             embedding = matricular_biometria_aluno(
                 aluno=request.user,
-                capturas=serializer.validated_data["capturas"],
+                capturas=capturas,
                 versao_modelo=serializer.validated_data.get("versao_modelo", "sface"),
             )
         except AppError as erro:
+            registrar_tempo(
+                "biometria_cadastro_total_ms",
+                (perf_counter() - inicio) * 1000,
+                servico="servidor-principal",
+                status="falha",
+                origem="MinhaBiometriaView.post",
+                detalhes={
+                    "capturas": len(capturas),
+                    "erro": erro.code,
+                },
+            )
             return _resposta_erro_app(erro)
 
+        registrar_tempo(
+            "biometria_cadastro_total_ms",
+            (perf_counter() - inicio) * 1000,
+            servico="servidor-principal",
+            origem="MinhaBiometriaView.post",
+            detalhes={"capturas": len(capturas)},
+        )
         return Response(
             {
                 "embedding_id": str(embedding.id),
@@ -261,8 +287,9 @@ class ProfessorTurmasView(APIView):
         return Response(turmas_do_professor(request.user))
 
 
-class DashboardProfessorView(APIView):
+class DashboardProfessorView(MetricasEndpointMixin, APIView):
     permission_classes = (IsAuthenticated,)
+    metrica_endpoint = "endpoint_dashboard_professor_ms"
 
     @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request):
@@ -307,8 +334,9 @@ class ProfessorTurmaFrequenciaView(APIView):
         return Response(resumo_frequencia_turma(turma))
 
 
-class RelatorioPresencasTurmaDataView(APIView):
+class RelatorioPresencasTurmaDataView(MetricasEndpointMixin, APIView):
     permission_classes = (IsAuthenticated,)
+    metrica_endpoint = "endpoint_relatorio_turma_ms"
 
     @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request, turma_id):
@@ -317,8 +345,9 @@ class RelatorioPresencasTurmaDataView(APIView):
         return Response(relatorio_presencas_turma_data(turma, data))
 
 
-class RelatorioResumoTurmaView(APIView):
+class RelatorioResumoTurmaView(MetricasEndpointMixin, APIView):
     permission_classes = (IsAuthenticated,)
+    metrica_endpoint = "endpoint_relatorio_turma_ms"
 
     @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request, turma_id):
@@ -330,8 +359,9 @@ class RelatorioResumoTurmaView(APIView):
         return Response(relatorio_resumo_turma(turma, inicio=inicio, fim=fim))
 
 
-class RelatorioPresencasAlunoView(APIView):
+class RelatorioPresencasAlunoView(MetricasEndpointMixin, APIView):
     permission_classes = (IsAuthenticated,)
+    metrica_endpoint = "endpoint_relatorio_turma_ms"
 
     @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request, aluno_id):
