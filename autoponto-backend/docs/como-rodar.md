@@ -7,6 +7,7 @@ Este documento explica como rodar apenas a API Django/DRF do AutoPonto.
 - Python 3.13.
 - Uma venv Python.
 - PostgreSQL para desenvolvimento local, testes e deploy.
+- Redis para cache de embeddings faciais e validacao de duplicidade biometrica.
 
 ## Ambiente Local
 
@@ -16,7 +17,7 @@ Na raiz do repositorio, crie o arquivo de ambiente:
 cp .env.example .env
 ```
 
-Preencha os valores sensiveis que aparecem vazios no exemplo, principalmente `DJANGO_SECRET_KEY` e `DATABASE_PASSWORD`. O backend falha ao iniciar se uma variavel obrigatoria estiver ausente ou vazia. Depois entre na pasta do backend:
+Preencha os valores sensiveis que aparecem vazios no exemplo, principalmente `DJANGO_SECRET_KEY`, `DATABASE_PASSWORD`, `FACE_EMBEDDING_ENCRYPTION_KEY` e `FACE_EMBEDDING_CACHE_PASSWORD`. O backend falha ao iniciar se uma variavel obrigatoria estiver ausente ou vazia. Depois entre na pasta do backend:
 
 ```bash
 cd autoponto-backend
@@ -35,17 +36,19 @@ No Windows PowerShell, se a venv ja existir na raiz do repositorio, tambem pode 
 ..\.venv\Scripts\python.exe autoponto\manage.py test api
 ```
 
-## Banco E Servidor
+## Banco, Cache E Servidor
 
-O backend usa PostgreSQL como unico banco suportado. Para desenvolvimento local, a forma mais simples e subir o servico `db` do Compose:
+O backend usa PostgreSQL como unico banco suportado e Redis para cache de embeddings faciais. Para desenvolvimento local, a forma mais simples e subir os servicos `db` e `redis` do Compose:
 
 ```bash
 cd ..
-docker compose up -d db
+docker compose up -d db redis
 cd autoponto-backend
 ```
 
 O `.env.example` da raiz usa `DATABASE_HOST=localhost`, porque fora do Docker o backend acessa o Postgres pela porta publicada `5432`. Dentro do Compose, o `docker-compose.yml` injeta `DATABASE_HOST=db` apenas no container do backend.
+
+O Redis fica na rede interna do Compose como `redis` e nao publica porta para o host por padrao. Para executar o backend fora do Docker, use uma instancia Redis acessivel pelo host e ajuste `FACE_EMBEDDING_CACHE_URL`, por exemplo `redis://localhost:6379/0`, ou adicione um mapeamento temporario de porta no servico `redis` durante desenvolvimento. `locmem://` deve ficar restrito a testes controlados.
 
 O refresh JWT e enviado em cookie `HttpOnly`. Em desenvolvimento local use `JWT_REFRESH_COOKIE_PATH=/api/auth/`; em producao com o prefixo publico da VM use `JWT_REFRESH_COOKIE_PATH=/interscity_lh/catalog/autoponto/api/auth/`.
 
@@ -122,13 +125,14 @@ cd ..
 docker compose up --build
 ```
 
-Se a porta `8080` estiver ocupada, edite `FRONTEND_PORT` no `.env` da raiz, por exemplo `FRONTEND_PORT=8081`.
+Se a porta `8080` estiver ocupada, edite o mapeamento do servico `frontend` em `docker-compose.yml`, por exemplo de `"8080:80"` para `"8081:80"`.
 
 Servicos:
 
 - Backend: `http://localhost:8000/api/`
-- Frontend: `http://localhost:${FRONTEND_PORT}`; no exemplo padrao, `http://localhost:8080`
+- Frontend: `http://localhost:8080` por padrao, ou a porta mapeada no Compose
 - Banco: container `db`
+- Cache: container `redis`
 
 ## Producao Provisoria Na VM
 
@@ -158,6 +162,8 @@ DJANGO_ALLOWED_HOSTS=cidadesinteligentes.lsdi.ufma.br,192.168.10.104,localhost,1
 CSRF_TRUSTED_ORIGINS=https://cidadesinteligentes.lsdi.ufma.br
 DATABASE_HOST=db
 DATABASE_PORT=5432
+FACE_EMBEDDING_CACHE_URL=redis://redis:6379/0
+FACE_EMBEDDING_CACHE_PASSWORD=<senha-real>
 VITE_BASE_PATH=/interscity_lh/catalog/autoponto/
 VITE_API_URL=/interscity_lh/catalog/autoponto/api
 ```
@@ -182,10 +188,12 @@ Scripts de `git pull`, SSH ou automacao de deploy devem ser mantidos na VM ou fo
 - `DJANGO_DEBUG`: `True` em desenvolvimento, `False` em deploy.
 - `DATABASE_*`: configuracao PostgreSQL; `DATABASE_URL` nao e usado neste MVP.
 - `CORS_ALLOWED_ORIGINS`: origens aceitas para o frontend.
-- `INTERSCITY_BASE_URL` e `INTERSCITY_*_PATH`: base da instancia Interscity e path de cada microsservico.
+- `INTERSCITY_BASE_URL`, `INTERSCITY_COLLECTOR_PATH` e `INTERSCITY_TIMEOUT_SECONDS`: configuracao do Data Collector usado pelo mapa publico e diagnostico.
 - `FACE_DETECT_MODEL_PATH`: caminho do YuNet ONNX usado para detectar rosto.
 - `FACE_RECOG_MODEL_PATH`: caminho do SFace ONNX usado para gerar embedding.
 - `FACE_MAX_CAPTURAS`, `FACE_MAX_IMAGE_BYTES` e `FACE_MAX_IMAGE_PIXELS`: limites de seguranca para cadastro biometrico.
+- `FACE_EMBEDDING_ENCRYPTION_KEY`: chave Fernet para guardar embeddings criptografados e envia-los criptografados ao edge.
+- `FACE_EMBEDDING_CACHE_URL` e `FACE_EMBEDDING_CACHE_PASSWORD`: Redis usado na comparacao de duplicidade facial.
 - `NODE_TOKEN_EXPIRATION_DAYS`: validade padrao dos tokens de `NoBorda`; tokens sem expiracao nao autenticam.
 - `JWT_REFRESH_COOKIE_*`: nome, caminho, seguranca e `SameSite` do cookie de refresh do frontend.
 - `FACE_DUPLICATE_THRESHOLD`: limite para bloquear rosto duplicado.

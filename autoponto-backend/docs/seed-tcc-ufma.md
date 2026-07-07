@@ -17,7 +17,7 @@ O comando `seed_dados_ufma` cria ou atualiza, de forma idempotente:
 - Alunos: registros de alunos informados para a demonstracao, sem matricula automatica na turma.
 - Horarios padrao UFMA: slots de manha, tarde e noite por dia, alem dos horarios compostos 2N34 e 4N34 para a turma do TCC.
 - Horarios de aula: turma 20261EECP0021 na sala 105N nos horarios 2N34 e 4N34.
-- No de borda: `raspberry-tcc`, codigo `88A29E606012`, com UUID IntersCity cadastrado.
+- No de borda: `raspberry-tcc`, codigo `88A29E606012`, com latitude/longitude usadas no mapa publico.
 - Token do no de borda: um token ativo chamado `seed-edge`, impresso no console apenas quando criado.
 - ESP32: `esp32-tcc`, codigo `9084CED6CDC0`, vinculada ao no e a sala 105N, com UUID IntersCity cadastrado.
 

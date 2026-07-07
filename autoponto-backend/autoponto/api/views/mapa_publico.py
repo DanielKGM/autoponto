@@ -9,6 +9,7 @@ from rest_framework.views import APIView
 
 from api.models import DispositivoEsp32, NoBorda
 from api.services.interscity import ClienteInterSCity
+from api.views.mixins import MetricasEndpointMixin
 
 CAPACIDADES_MAPA = [
     "status",
@@ -255,9 +256,10 @@ def _payload_pir(
     }
 
 
-class MapaNosPublicosView(APIView):
+class MapaNosPublicosView(MetricasEndpointMixin, APIView):
     authentication_classes = ()
     permission_classes = (AllowAny,)
+    metrica_endpoint = "endpoint_mapa_nos_ms"
 
     def get(self, request):
         return Response([_payload_no(no) for no in _queryset_nos_mapa()])

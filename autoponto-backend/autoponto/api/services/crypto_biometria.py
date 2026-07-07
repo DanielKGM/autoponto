@@ -1,8 +1,10 @@
 import json
+from time import perf_counter
 
 from django.conf import settings
 
 from .errors import DomainValidationError
+from .tcc_metricas import registrar_tempo
 
 
 def _fernet():
@@ -20,11 +22,34 @@ def _fernet():
 
 
 def criptografar_vetor(vetor: list[float]) -> str:
-    payload = json.dumps([float(valor) for valor in vetor], separators=(",", ":")).encode("utf-8")
-    return _fernet().encrypt(payload).decode("ascii")
+    inicio = perf_counter()
+    try:
+        payload = json.dumps([float(valor) for valor in vetor], separators=(",", ":")).encode("utf-8")
+        resultado = _fernet().encrypt(payload).decode("ascii")
+    except Exception as exc:
+        registrar_tempo(
+            "embedding_criptografia_ms",
+            (perf_counter() - inicio) * 1000,
+            servico="servidor-principal",
+            status="falha",
+            origem="criptografar_vetor",
+            detalhes={"dimensoes": len(vetor) if vetor else 0, "erro": exc.__class__.__name__},
+        )
+        raise
+
+    registrar_tempo(
+        "embedding_criptografia_ms",
+        (perf_counter() - inicio) * 1000,
+        servico="servidor-principal",
+        origem="criptografar_vetor",
+        detalhes={"dimensoes": len(vetor) if vetor else 0},
+    )
+    return resultado
 
 
 def descriptografar_vetor(payload) -> list[float]:
+    inicio = perf_counter()
+    medir = bool(payload) and not isinstance(payload, list)
     if not payload:
         return []
     if isinstance(payload, list):
@@ -39,10 +64,40 @@ def descriptografar_vetor(payload) -> list[float]:
         bruto = _fernet().decrypt(payload.encode("ascii"))
         dados = json.loads(bruto.decode("utf-8"))
     except Exception as exc:
+        if medir:
+            registrar_tempo(
+                "embedding_descriptografia_ms",
+                (perf_counter() - inicio) * 1000,
+                servico="servidor-principal",
+                status="falha",
+                origem="descriptografar_vetor",
+                detalhes={"erro": exc.__class__.__name__},
+            )
         raise DomainValidationError("Nao foi possivel descriptografar embedding facial.") from exc
-    if not isinstance(dados, list):
-        raise DomainValidationError("Embedding facial descriptografado invalido.")
-    return [float(valor) for valor in dados]
+    try:
+        if not isinstance(dados, list):
+            raise DomainValidationError("Embedding facial descriptografado invalido.")
+        resultado = [float(valor) for valor in dados]
+    except Exception as exc:
+        if medir:
+            registrar_tempo(
+                "embedding_descriptografia_ms",
+                (perf_counter() - inicio) * 1000,
+                servico="servidor-principal",
+                status="falha",
+                origem="descriptografar_vetor",
+                detalhes={"erro": exc.__class__.__name__},
+            )
+        raise
+    if medir:
+        registrar_tempo(
+            "embedding_descriptografia_ms",
+            (perf_counter() - inicio) * 1000,
+            servico="servidor-principal",
+            origem="descriptografar_vetor",
+            detalhes={"dimensoes": len(resultado)},
+        )
+    return resultado
 
 
 def ciphertext_para_edge(payload) -> str:

@@ -11,7 +11,7 @@ Nao existem recursos IntersCity para `NoBorda`. Cada recurso IntersCity represen
 1. A API principal envia ao edge, em `GET /api/edge/pull`, cada ESP32 com `codigo`, `sala_id` e `interscity_uuid`.
 2. O edge-node usa esse UUID para publicar diretamente no Resource Adaptor.
 3. O Data Collector armazena historico das capacidades tecnicas.
-4. A API principal oferece endpoints publicos de mapa para listar ESP32 cadastradas e consultar historico do Collector sob demanda.
+4. A API principal oferece endpoints publicos de mapa para listar nos/ESP32 cadastrados e consultar historico do Collector sob demanda.
 
 ```mermaid
 sequenceDiagram
@@ -25,11 +25,11 @@ sequenceDiagram
     API-->>Edge: dispositivos com interscity_uuid
     ESP-->>Edge: log/{device_id}
     Edge->>IC: POST /adaptor/resources/{uuid}/data
-    Front->>API: GET /api/public/mapa/dispositivos/
-    API-->>Front: ESP32 + latitude/longitude + uuid
-    Front->>API: GET /api/public/mapa/dispositivos/{id}/historico/?dias=7
+    Front->>API: GET /api/public/mapa/nos/
+    API-->>Front: Nos com latitude/longitude + ESP32
+    Front->>API: GET /api/public/mapa/dispositivos/{id}/historico/?periodo=7d
     API->>IC: POST /collector/resources/data
-    API-->>Front: historico filtrado + ultimo valor
+    API-->>Front: historico filtrado + ultimo valor + PIR histograma
 ```
 
 ## Capacidades Do Mapa
@@ -37,12 +37,19 @@ sequenceDiagram
 O proxy publico da API filtra apenas capacidades operacionais:
 
 - `status`
+- `presenca`
 - `rssi`
+- `heap_free`
 - `heap_min`
+- `heap_max`
+- `psram_free`
+- `psram_min`
+- `psram_max`
 - `lesson`
-- `remainingms`
-- `nextms`
+- `remaining_ms`
+- `next_ms`
 - `now_ms`
+- `post_max_ms`
 
 Dados biometricos, imagens, embeddings, nomes de alunos e presencas individuais nao entram no IntersCity.
 
@@ -58,9 +65,19 @@ Payload esperado ao Resource Adaptor:
         "value": "idle"
       }
     ],
+    "presenca": [
+      {
+        "value": true
+      }
+    ],
     "rssi": [
       {
         "value": -61
+      }
+    ],
+    "heap_free": [
+      {
+        "value": 130000
       }
     ],
     "heap_min": [
@@ -68,17 +85,37 @@ Payload esperado ao Resource Adaptor:
         "value": 120000
       }
     ],
+    "heap_max": [
+      {
+        "value": 150000
+      }
+    ],
+    "psram_free": [
+      {
+        "value": 3500000
+      }
+    ],
+    "psram_min": [
+      {
+        "value": 3200000
+      }
+    ],
+    "psram_max": [
+      {
+        "value": 3800000
+      }
+    ],
     "lesson": [
       {
         "value": "Desenvolvimento de Sistemas Web - A"
       }
     ],
-    "remainingms": [
+    "remaining_ms": [
       {
         "value": 500000
       }
     ],
-    "nextms": [
+    "next_ms": [
       {
         "value": 1200000
       }
@@ -86,6 +123,11 @@ Payload esperado ao Resource Adaptor:
     "now_ms": [
       {
         "value": 12345678
+      }
+    ],
+    "post_max_ms": [
+      {
+        "value": 240
       }
     ]
   }
@@ -96,9 +138,10 @@ O nome exato do envelope pode variar conforme o Resource Adaptor usado, mas o Da
 
 ## Endpoints Da API Principal
 
-- `GET /api/interscity/diagnostico/`: diagnostico administrativo dos microsservicos.
-- `GET /api/public/mapa/dispositivos/`: lista ESP32 ativas com `interscity_uuid`, latitude e longitude.
-- `GET /api/public/mapa/dispositivos/{id}/historico/?dias=7`: consulta o Data Collector via proxy tolerante a falhas.
+- `GET /api/public/mapa/nos/`: lista nos de borda ativos com latitude/longitude e ESP32 ativas.
+- `GET /api/interscity/diagnostico/`: diagnostico administrativo do Collector configurado.
+- `GET /api/public/mapa/dispositivos/`: rota compativel que retorna o mesmo agrupamento por no.
+- `GET /api/public/mapa/dispositivos/{id}/historico/?periodo=7d`: consulta o Data Collector via proxy tolerante a falhas.
 
 O endpoint de historico chama:
 
@@ -113,12 +156,19 @@ Com corpo:
   "uuids": ["uuid-da-esp32"],
   "capabilities": [
     "status",
+    "presenca",
     "rssi",
+    "heap_free",
     "heap_min",
+    "heap_max",
+    "psram_free",
+    "psram_min",
+    "psram_max",
     "lesson",
-    "remainingms",
-    "nextms",
-    "now_ms"
+    "remaining_ms",
+    "next_ms",
+    "now_ms",
+    "post_max_ms"
   ],
   "start_date": "2026-06-12T12:00:00Z",
   "end_date": "2026-06-19T12:00:00Z"
@@ -129,11 +179,7 @@ Com corpo:
 
 ```env
 INTERSCITY_BASE_URL=https://cidadesinteligentes.lsdi.ufma.br/interscity_lh
-INTERSCITY_CATALOG_PATH=/catalog
-INTERSCITY_DISCOVERY_PATH=/discovery
 INTERSCITY_COLLECTOR_PATH=/collector
-INTERSCITY_ADAPTOR_PATH=/adaptor
-INTERSCITY_ACTUATOR_PATH=/actuator
 INTERSCITY_TIMEOUT_SECONDS=5
 ```
 

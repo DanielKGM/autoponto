@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from time import perf_counter
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
@@ -20,6 +21,7 @@ from api.models import (
 )
 from api.selectors.aulas import com_status_aula, status_aula
 from api.services.crypto_biometria import ciphertext_para_edge
+from api.services.tcc_metricas import registrar_tempo, registrar_valor
 
 
 def _iso(valor):
@@ -151,14 +153,69 @@ def _cache_redis_snapshot(no: NoBorda, data_sync) -> dict:
 
 
 def montar_payload_pull(no: NoBorda, query_params) -> dict:
-    _validar_no(no, query_params.get("node_id"))
-    data_sync = timezone.localdate()
-    synced_at = timezone.now()
-    return {
-        "snapshot_data": data_sync.isoformat(),
-        "synced_at": _iso(synced_at),
-        "cache_redis": _cache_redis_snapshot(no, data_sync),
+    inicio = perf_counter()
+    try:
+        _validar_no(no, query_params.get("node_id"))
+        data_sync = timezone.localdate()
+        synced_at = timezone.now()
+        payload = {
+            "snapshot_data": data_sync.isoformat(),
+            "synced_at": _iso(synced_at),
+            "cache_redis": _cache_redis_snapshot(no, data_sync),
+        }
+    except Exception as exc:
+        registrar_tempo(
+            "edge_snapshot_total_ms",
+            (perf_counter() - inicio) * 1000,
+            servico="servidor-principal",
+            status="falha",
+            origem="montar_payload_pull",
+            detalhes={"erro": exc.__class__.__name__},
+        )
+        raise
+
+    cache = payload["cache_redis"]
+    dispositivos_total = len(cache["dispositivos_por_codigo"])
+    aulas_total = sum(len(aulas) for aulas in cache["aulas_por_sala"].values())
+    embeddings_total = len(cache["embeddings_faciais"])
+    detalhes = {
+        "no": no.codigo,
+        "dispositivos": dispositivos_total,
+        "aulas": aulas_total,
+        "embeddings": embeddings_total,
     }
+    registrar_tempo(
+        "edge_snapshot_total_ms",
+        (perf_counter() - inicio) * 1000,
+        servico="servidor-principal",
+        origem="montar_payload_pull",
+        detalhes=detalhes,
+    )
+    registrar_valor(
+        "edge_snapshot_dispositivos_total",
+        dispositivos_total,
+        unidade="contagem",
+        servico="servidor-principal",
+        origem="montar_payload_pull",
+        detalhes=detalhes,
+    )
+    registrar_valor(
+        "edge_snapshot_aulas_total",
+        aulas_total,
+        unidade="contagem",
+        servico="servidor-principal",
+        origem="montar_payload_pull",
+        detalhes=detalhes,
+    )
+    registrar_valor(
+        "edge_snapshot_embeddings_total",
+        embeddings_total,
+        unidade="contagem",
+        servico="servidor-principal",
+        origem="montar_payload_pull",
+        detalhes=detalhes,
+    )
+    return payload
 
 
 def _parsear_data_hora(valor: str):
@@ -174,17 +231,55 @@ def _parsear_data_hora(valor: str):
 
 
 def receber_presencas_borda(no: NoBorda, payload: dict) -> dict:
-    _validar_no(no, payload.get("node_id"))
-
-    ids_sincronizados = []
+    inicio = perf_counter()
     eventos = payload.get("eventos", [])
-    if not isinstance(eventos, list):
-        raise ValidationError({"eventos": "Informe uma lista de eventos de presenca."})
-    for evento in eventos:
-        id_evento = evento.get("id")
-        if not id_evento:
-            raise ValidationError({"eventos": "Todo evento deve incluir um id."})
-        ids_sincronizados.append(_receber_evento_borda(no, evento))
+    eventos_total = len(eventos) if isinstance(eventos, list) else 0
+    registrar_valor(
+        "edge_attendance_eventos_total",
+        eventos_total,
+        unidade="contagem",
+        servico="servidor-principal",
+        origem="receber_presencas_borda",
+        detalhes={"no": no.codigo},
+    )
+
+    try:
+        _validar_no(no, payload.get("node_id"))
+
+        ids_sincronizados = []
+        if not isinstance(eventos, list):
+            raise ValidationError({"eventos": "Informe uma lista de eventos de presenca."})
+        for evento in eventos:
+            id_evento = evento.get("id")
+            if not id_evento:
+                raise ValidationError({"eventos": "Todo evento deve incluir um id."})
+            ids_sincronizados.append(_receber_evento_borda(no, evento))
+    except Exception as exc:
+        registrar_tempo(
+            "edge_attendance_total_ms",
+            (perf_counter() - inicio) * 1000,
+            servico="servidor-principal",
+            status="falha",
+            origem="receber_presencas_borda",
+            detalhes={
+                "no": no.codigo,
+                "eventos": eventos_total,
+                "erro": exc.__class__.__name__,
+            },
+        )
+        raise
+
+    registrar_tempo(
+        "edge_attendance_total_ms",
+        (perf_counter() - inicio) * 1000,
+        servico="servidor-principal",
+        origem="receber_presencas_borda",
+        detalhes={
+            "no": no.codigo,
+            "eventos": eventos_total,
+            "sincronizados": len(ids_sincronizados),
+        },
+    )
     return {"synced_ids": ids_sincronizados}
 
 
