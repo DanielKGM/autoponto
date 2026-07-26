@@ -1052,14 +1052,6 @@ export function PublicMapPage({ embedded = false }: PublicMapPageProps) {
                   <LoadingDots label="Carregando nós de borda" />
                 </div>
               )}
-              {!loading && nodesWithCoords.length === 0 && !error && (
-                <div className="map-empty-state">
-                  <EmptyState
-                    title="Nenhum nó de borda no mapa"
-                    text="Não há nós de borda com coordenadas geográficas para exibir no mapa."
-                  />
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -1077,7 +1069,13 @@ export function PublicMapPage({ embedded = false }: PublicMapPageProps) {
               </div>
             </div>
             <div className="card-body map-status-list">
-              {!selectedNode && (
+              {!loading && nodesWithCoords.length === 0 && !error && (
+                <EmptyState
+                  title="Nenhum nó de borda no mapa"
+                  text="Não há nós de borda com coordenadas geográficas para exibir no mapa."
+                />
+              )}
+              {!selectedNode && nodesWithCoords.length > 0 && (
                 <EmptyState
                   title="Nenhum nó selecionado"
                   text="Selecione um nó no mapa para ver os dispositivos associados."
