@@ -106,6 +106,8 @@
 
 ## Diagrama Entidade e Relacionamento
 
+A imagem a seguir se limita às entidades principais do _backend_, referentes à modelagem do cenário acadêmico. Para mais detalhes sobre as tabelas e relacionamentos construídos a partir do ORM Django, visite os [modelos](https://github.com/DanielKGM/autoponto/tree/main/autoponto-backend/autoponto/api/models) da API.
+
 ![Diagrama ERD](assets/ERD.png)
 
 <p align="right">(<a href="#topo">voltar ao topo</a>)</p>
