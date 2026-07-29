@@ -104,6 +104,12 @@
 <!-- FIM TABELA TECH -->
 <p align="right">(<a href="#topo">voltar ao topo</a>)</p>
 
+## Diagrama Entidade e Relacionamento
+
+![Diagrama ERD](assets/ERD.png)
+
+<p align="right">(<a href="#topo">voltar ao topo</a>)</p>
+
 ## Capturas de Tela
 
 _Screenshots_ de algumas telas do <i>website</i>.
