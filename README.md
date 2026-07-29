@@ -22,7 +22,7 @@
     <u>Este repositório</u> guarda o código-fonte do <i>backend</i> e do <i>frontend</i> da aplicação <i>web</i>, responsável pelas regras de negócio e interface com alunos, professores e administradores.
     <br />
     <br />
-    Um <i>deploy</i> temporário da aplicação pode estar disponível <a href="https://heartcam.koyeb.app/"><strong>POR ESTE LINK »</strong></a>
+    Um <i>deploy</i> temporário da aplicação pode estar disponível <a href="https://cidadesinteligentes.lsdi.ufma.br/interscity_lh/catalog/autoponto/"><strong>POR ESTE LINK »</strong></a>
     <br />
     <br />
     <a href="https://github.com/DanielKGM/autoponto-firmware">AutoPonto <i>Firmware</i></a>
