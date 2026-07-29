@@ -37,7 +37,7 @@
 
 <!-- TABLE OF CONTENTS -->
 <details>
-  <summary><h3>Sumário</h3></summary>
+  <summary>Sumário</summary>
   <ol>
     <li>
       <a href="#sobre-o-projeto">Arquitetura Geral</a>
@@ -105,25 +105,25 @@ _Screenshots_ de algumas telas do <i>website</i>.
 
 ### 📊 Telas de Relatório
 
-|                                                                                                                                          |                                                                                                                                      |
-| :--------------------------------------------------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------------------------: |
-| ![Dashboard do aluno tema claro](assets\telas_relatorios\dashboard_aluno_claro.png)<br><sub><i>Dashboard</i> do aluno (tema claro)</sub> | ![Dashboard do alnuo tema escuro](assets\telas_relatorios\dashboard_aluno.png)<br><sub><i>Dashboard</i> do aluno (tema escuro)</sub> |
-|      ![Detalhes da aula professor](assets\telas_relatorios\detalhes_aula_professor.png)<br><sub>Detalhes da aula (professor)</sub>       |            ![Biometrias](assets\telas_relatorios\detalhes_perfil.png)<br><sub>Biometrias e reconhecimentos (perfil)</sub>            |
-|     ![Métricas recentes de IOT](assets\telas_relatorios\metricas_recentes.png)<br><sub>Métricas recentes de um dispositivo IOT</sub>     |   ![Histórico de métricas de IOT](assets\telas_relatorios\metricas.png)<br><sub>Histórico de métricas de um dispositivo IOT</sub>    |
+|                                                                                                                                          |                                                                                                      |
+| :--------------------------------------------------------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------------------: |
+| ![Dashboard do aluno tema claro](assets/telas_relatorios/dashboard_aluno_claro.png)<br><sub><i>Dashboard</i> do aluno (tema claro)</sub> | ![Dashboard do alnuo tema escuro](assets/telas_relatorios/dashboard_aluno.png)<br><sub><i>Dashboard</i> do aluno (tema escuro)</sub> |
+|      ![Detalhes da aula professor](assets/telas_relatorios/detalhes_aula_professor.png)<br><sub>Detalhes da aula (professor)</sub>       |            ![Biometrias](assets/telas_relatorios/detalhes_perfil.png)<br><sub>Biometrias e reconhecimentos (perfil)</sub>            |
+|     ![Métricas recentes de IOT](assets/telas_relatorios/metricas_recentes.png)<br><sub>Métricas recentes de um dispositivo IOT</sub>     |   ![Histórico de métricas de IOT](assets/telas_relatorios/metricas.png)<br><sub>Histórico de métricas de um dispositivo IOT</sub>    |
 
 ### 📝 Telas de CRUD
 
-|                                                                                                         |                                                                                                     |
-| :-----------------------------------------------------------------------------------------------------: | :-------------------------------------------------------------------------------------------------: |
-| ![Listagem de usuários](assets\telas_crud\admin.png)<br><sub>Listagem de usuários (administrador)</sub> | ![Cadastro biometria](assets\telas_crud\cadastro_biometria.png)<br><sub>Cadastro de biometria</sub> |
-|       ![Modal formulário](assets\telas_crud\formulario_aluno.png)<br><sub>Modal-formulário</sub>        |  ![Deleção biometria](assets\telas_crud\remover_biometria.png)<br><sub>Deleção de biometria</sub>   |
+|                                                                         |                                                                       |
+| :---------------------------------------------------------------------: | :-------------------------------------------------------------------: |
+| ![Listagem de usuários](assets/telas_crud/admin.png)<br><sub>Listagem de usuários (administrador)</sub> | ![Cadastro biometria](assets/telas_crud/cadastro_biometria.png)<br><sub>Cadastro de biometria</sub> |
+|        ![Modal formulário](assets/telas_crud/formulario_aluno.png)<br><sub>Modal-formulário</sub>       |  ![Deleção biometria](assets/telas_crud/remover_biometria.png)<br><sub>Deleção de biometria</sub>   |
 
 ### 📄 Outras telas
 
-|                                                                                                                  |                                                                                                  |
-| :--------------------------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------: |
-|       ![Calendário aulas](assets\outras_telas\calendario_academico.png)<br><sub>Calendário de aulas</sub>        | ![Login claro](assets\outras_telas\login_tema_claro.png)<br><sub>Autenticação (tema claro)</sub> |
-| ![Mapa interativo](assets\outras_telas\mapa.png)<br><sub>Mapa interativo de dispositivos em <i>Leaflet</i></sub> |    ![Tela pelo celular](assets\outras_telas\responsividade.png)<br><sub>Responsividade</sub>     |
+|                                                                                  |                                                                                  |
+| :------------------------------------------------------------------------------: | :------------------------------------------------------------------------------: |
+|        ![Calendário aulas](assets/outras_telas/calendario_academico.png)<br><sub>Calendário de aulas</sub>       | ![Login claro](assets/outras_telas/login_tema_claro.png)<br><sub>Autenticação (tema claro)</sub> |
+| ![Mapa interativo](assets/outras_telas/mapa.png)<br><sub>Mapa interativo de dispositivos em <i>Leaflet</i></sub> |    ![Tela pelo celular](assets/outras_telas/responsividade.png)<br><sub>Responsividade</sub>     |
 
 ## Ambientes
 
