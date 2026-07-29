@@ -39,20 +39,25 @@
 <details>
   <summary>Sumário</summary>
   <ol>
+    <li><a href="#arquitetura-geral">Arquitetura Geral</a></li>
+    <li><a href="#principais-tecnologias">Principais Tecnologias</a></li>
     <li>
-      <a href="#sobre-o-projeto">Arquitetura Geral</a>
+      <a href="#capturas-de-tela">Capturas de Tela</a>
       <ul>
-        <li><a href="#principais-tecnologias">Principais Tecnologias</a></li>
+        <li><a href="#telas-de-relatório">Telas de Relatório</a></li>
+        <li><a href="#telas-de-crud">Telas de CRUD</a></li>
+        <li><a href="#outras-telas">Outras telas</a></li>
       </ul>
     </li>
+    <li><a href="#ambientes">Ambientes</a></li>
     <li>
-      <a href="#instalação-local">Instalação Local</a>
+      <a href="#instalação">Instalação</a>
       <ul>
-        <li><a href="#pré-requisitos">Pré-Requisitos</a></li>
-        <li><a href="#instalação">Instalação</a></li>
+        <li><a href="#pré-requisitos">Pré-requisitos</a></li>
+        <li><a href="#desenvolvimento">Desenvolvimento</a></li>
+        <li><a href="#produção--ambiente-de-vm">Produção / Ambiente de VM</a></li>
       </ul>
     </li>
-    <li><a href="#usando-o-heartcam">Usando o HeartCam</a></li>
     <li><a href="#contato">Contato</a></li>
     <li><a href="#licença-e-citação">Licença e Citação</a></li>
     <li><a href="#agradecimentos">Agradecimentos</a></li>
