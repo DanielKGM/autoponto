@@ -25,6 +25,9 @@
     Um <i>deploy</i> temporário da aplicação pode estar disponível <a href="https://cidadesinteligentes.lsdi.ufma.br/interscity_lh/catalog/autoponto/"><strong>POR ESTE LINK »</strong></a>
     <br />
     <br />
+    Uma documentação da API em <i>Swagger</i> pode estar disponível <a href="https://cidadesinteligentes.lsdi.ufma.br/interscity_lh/catalog/autoponto/api/docs/"><strong>POR ESTE LINK »</strong></a>
+    <br />
+    <br />
     <a href="https://github.com/DanielKGM/autoponto-firmware">AutoPonto <i>Firmware</i></a>
     &middot;
     <a href="https://github.com/DanielKGM/autoponto-edgenode">AutoPonto <i>EdgeNode</i></a>
