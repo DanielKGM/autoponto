@@ -5,13 +5,12 @@
 [![Forks][forks-shield]][forks-url]
 [![Stargazers][stars-shield]][stars-url]
 [![Issues][issues-shield]][issues-url]
-[![Unlicense License][license-shield]][license-url]
 [![LinkedIn][linkedin-shield]][linkedin-url]
 
 <!-- PROJECT LOGO -->
 <br />
 <div align="center">
-  <a href="https://github.com/DanielKGM/heartcam">
+  <a href="https://github.com/DanielKGM/autoponto">
     <img src="assets/logo.png" alt="Logo" height="70">
   </a>
 
@@ -32,9 +31,9 @@
     &middot;
     <a href="https://github.com/DanielKGM/autoponto-edgenode">AutoPonto <i>EdgeNode</i></a>
     &middot;
-    <a href="https://github.com/DanielKGM/heartcam/issues/new?labels=bug&template=bug-report---.md">Reportar Erro</a>
+    <a href="https://github.com/DanielKGM/autoponto/issues/new?labels=bug&template=bug-report---.md">Reportar Erro</a>
     &middot;
-    <a href="https://github.com/DanielKGM/heartcam/issues/new?labels=enhancement&template=feature-request---.md">Sugerir Algo</a>
+    <a href="https://github.com/DanielKGM/autoponto/issues/new?labels=enhancement&template=feature-request---.md">Sugerir Algo</a>
   </p>
 </div>
 
@@ -178,7 +177,7 @@ Antes de começar, certifique-se de que sua máquina possui as ferramentas neces
     Abra seu terminal e execute:
 
     ```sh
-    git clone https://github.com/DanielKGM/heartcam.git
+    git clone https://github.com/DanielKGM/autoponto.git
     ```
 
   - **Opção B: Via Download ZIP**
@@ -242,7 +241,7 @@ Para rodar em ambiente de produção ou em uma VM dedicada, utilize os arquivos 
 
 ## Contato
 
-[Daniel Galdez (LINKEDIN)](https://www.linkedin.com/in/daniel-campos-galdez-monteiro/) &middot; <a href="mailto:danielgaldez10@hotmail.com?subject=HEARTCAM&body=Olá! Vim do repositório HEARTCAM e ...">danielgaldez10@hotmail.com</a>
+[Daniel Galdez (LINKEDIN)](https://www.linkedin.com/in/daniel-campos-galdez-monteiro/) &middot; <a href="mailto:danielgaldez10@hotmail.com?subject=AUTOPONTO&body=Olá! Vim do repositório AUTOPONTO e ...">danielgaldez10@hotmail.com</a>
 
 <p align="right">(<a href="#topo">voltar ao topo</a>)</p>
 
@@ -274,18 +273,18 @@ Para rodar em ambiente de produção ou em uma VM dedicada, utilize os arquivos 
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
 
-[doi-shield]: https://img.shields.io/badge/DOI-18282893-black?style=for-the-badge
-[doi-url]: https://doi.org/10.5281/zenodo.18282892
-[contributors-shield]: https://img.shields.io/github/contributors/DanielKGM/heartcam.svg?style=for-the-badge
-[contributors-url]: https://github.com/DanielKGM/heartcam/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/DanielKGM/heartcam.svg?style=for-the-badge
-[forks-url]: https://github.com/DanielKGM/heartcam/network/members
-[stars-shield]: https://img.shields.io/github/stars/DanielKGM/heartcam.svg?style=for-the-badge
-[stars-url]: https://github.com/DanielKGM/heartcam/stargazers
-[issues-shield]: https://img.shields.io/github/issues/DanielKGM/heartcam.svg?style=for-the-badge
-[issues-url]: https://github.com/DanielKGM/heartcam/issues
-[license-shield]: https://img.shields.io/github/license/DanielKGM/heartcam.svg?style=for-the-badge
-[license-url]: https://github.com/DanielKGM/heartcam/blob/main/LICENSE.md
+[doi-shield]: https://img.shields.io/badge/DOI-10.5281/zenodo.21705784-black?style=for-the-badge
+[doi-url]: https://doi.org/10.5281/zenodo.21705784
+[contributors-shield]: https://img.shields.io/github/contributors/DanielKGM/autoponto.svg?style=for-the-badge
+[contributors-url]: https://github.com/DanielKGM/autoponto/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/DanielKGM/autoponto.svg?style=for-the-badge
+[forks-url]: https://github.com/DanielKGM/autoponto/network/members
+[stars-shield]: https://img.shields.io/github/stars/DanielKGM/autoponto.svg?style=for-the-badge
+[stars-url]: https://github.com/DanielKGM/autoponto/stargazers
+[issues-shield]: https://img.shields.io/github/issues/DanielKGM/autoponto.svg?style=for-the-badge
+[issues-url]: https://github.com/DanielKGM/autoponto/issues
+[license-shield]: https://img.shields.io/github/license/DanielKGM/autoponto.svg?style=for-the-badge
+[license-url]: https://github.com/DanielKGM/autoponto/blob/main/LICENSE.md
 [linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
 [linkedin-url]: https://www.linkedin.com/in/daniel-campos-galdez-monteiro/
 
