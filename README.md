@@ -264,7 +264,7 @@ Para rodar em ambiente de produção ou em uma VM dedicada, utilize os arquivos 
 
 ## Agradecimentos
 
-<p align="justify">Agradeço a todos os professores do curso de Engenharia da Computação pela Universidade Federal do Maranhão (UFMA), pelos conhecimentos indispensáveis para realização desse projeto. Em especial, agradeço aos membros da minha bancada de TCC pela disponibilidade e paciência para avaliar este projeto com a nota máxima e ao meu orientador Prof. Dr. Luis Henrique Neves Rodrigues.</p>
+<p align="justify">Agradeço a todos os professores do curso de Engenharia da Computação pela Universidade Federal do Maranhão (UFMA), pelos conhecimentos indispensáveis para realização desse projeto. Em especial, agradeço aos membros da minha bancada de TCC pela disponibilidade e paciência para avaliar este projeto com a nota máxima, e ao meu orientador Prof. Dr. Luis Henrique Neves Rodrigues.</p>
 
 <p align="right">(<a href="#topo">voltar ao topo</a>)</p>
 
